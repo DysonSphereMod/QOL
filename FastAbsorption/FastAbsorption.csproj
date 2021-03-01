@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{85F7F6C7-D850-4B14-9A95-33A737E32CB6}</ProjectGuid>
+    <ProjectGuid>{A2291C1F-2A39-479F-B09D-F74E5903F98F}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>DSM.FastAbsorption</RootNamespace>
     <AssemblyName>FastAbsorption</AssemblyName>
@@ -111,9 +111,6 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <WCFMetadata Include="Connected Services\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
