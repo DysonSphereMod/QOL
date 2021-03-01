@@ -1,0 +1,7 @@
+{
+    "name": "SphereSaveFix",
+    "description": "Reduce save game file size by ignoring data that can be recalculated at loading time",
+    "version_number": "1.0.1",
+    "dependencies": [],
+    "website_url": "https://github.com/brokenmass/DSP-SphereSaveFix"
+}
