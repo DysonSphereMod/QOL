@@ -1,0 +1,7 @@
+{
+    "name": "FastAbsorption",
+    "description": "Speeds up dyshon sphere absorption of solar sails",
+    "version_number": "1.1.0",
+    "dependencies": [],
+    "website_url": "https://github.com/DysonSphereMod/FastAbsorption"
+}
