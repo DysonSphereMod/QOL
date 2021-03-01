@@ -1,0 +1,13 @@
+*
+!/**/
+!*.json
+!*.png
+!*.gif
+!*.cs
+!*.csproj
+
+!.gitignore
+!README.md
+
+bin/
+obj/
