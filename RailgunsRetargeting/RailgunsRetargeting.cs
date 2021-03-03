@@ -12,12 +12,18 @@ namespace RailgunsRetargeting
 
 
 
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.0.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.1.0")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
 
         static readonly int BATCH_COUNT = 60;
+
+        static readonly Color TEXT_CYAN = new Color(0.3820755f, 0.8455189f, 1f, 0.7058824f);
+        static readonly Color TEXT_ORANGE = new Color(0.990566f, 0.5896651f, 0.369126f, 0.7058824f);
+        static readonly Color TEXT_WHITE = new Color(0.5882353f, 0.5882353f, 0.5882353f, 0.8196079f);
+        static readonly Color BUTTON_CYAN = new Color(0.3820755f, 0.8455189f, 1f, 0.375f);
+
         internal class ManagedEjector
         {
             public int originalOrbitId;
@@ -52,82 +58,6 @@ namespace RailgunsRetargeting
         internal static int GetEjectorUID(EjectorComponent ejector)
         {
             return ejector.planetId * 10000 + ejector.id;
-        }
-
-        [HarmonyPrefix, HarmonyPatch(typeof(FactorySystem), "GameTick")]
-        public static void EjectorComponent_InternalUpdate_Prefix(long time)
-        {
-            batch = (int)(time % BATCH_COUNT);
-        }
-
-        [HarmonyPrefix, HarmonyPatch(typeof(FactorySystem), "RemoveEjectorComponent")]
-        public static void FactorySystem_RemoveEjectorComponent_Prefix(FactorySystem __instance, int id)
-        {
-            if (__instance.ejectorPool[id].id != 0)
-            {
-                var ejector = __instance.ejectorPool[id];
-                var ejectorUID = GetEjectorUID(ejector);
-
-                managedEjectors.Remove(ejectorUID);
-            }
-        }
-
-        [HarmonyPostfix, HarmonyPatch(typeof(EjectorComponent), "SetOrbit")]
-        public static void EjectorComponent_SetOrbit_Postfix(ref EjectorComponent __instance, int _orbitId)
-        {
-            var ejectorUID = GetEjectorUID(__instance);
-
-            ManagedEjector managedEjector = GetOrCreateManagedEjector(ejectorUID, _orbitId);
-
-            managedEjector.originalOrbitId = _orbitId;
-        }
-
-        [HarmonyPostfix, HarmonyPatch(typeof(EjectorComponent), "InternalUpdate")]
-        public static void EjectorComponent_InternalUpdate_Postfix(ref EjectorComponent __instance, DysonSwarm swarm, AstroPose[] astroPoses)
-        {
-            var ejectorUID = GetEjectorUID(__instance);
-
-            if (ejectorUID % BATCH_COUNT != batch)
-            {
-                return;
-            }
-
-            ManagedEjector managedEjector = GetOrCreateManagedEjector(ejectorUID, __instance.orbitId);
-
-            if (!IsOrbitValid(managedEjector.originalOrbitId, swarm))
-            {
-                managedEjector.originalOrbitId = 0;
-            }
-
-            if (__instance.orbitId != managedEjector.originalOrbitId && IsOrbitReachable(__instance, swarm, astroPoses, managedEjector.originalOrbitId))
-            {
-                // by default we try to check if the original orbit is available
-                SetOrbit(ref __instance, managedEjector.originalOrbitId);
-            }
-            else if ((__instance.targetState == EjectorComponent.ETargetState.AngleLimit || __instance.targetState == EjectorComponent.ETargetState.Blocked) && swarm.orbitCursor > 1)
-            {
-                var previousOrbit = __instance.orbitId;
-                // if the current orbit is not reachable activate auto targeting
-                var testOrbit = __instance.orbitId;
-                var orbitsCount = swarm.orbitCursor;
-                while (--orbitsCount > 0)
-                {
-                    testOrbit++;
-                    if (testOrbit >= swarm.orbitCursor)
-                    {
-                        testOrbit = 1;
-                    }
-                    if (IsOrbitReachable(__instance, swarm, astroPoses, testOrbit))
-                    {
-                        SetOrbit(ref __instance, testOrbit);
-                        return;
-                    }
-
-                    SetOrbit(ref __instance, managedEjector.originalOrbitId);
-                }
-
-
-            }
         }
 
         internal static ManagedEjector GetOrCreateManagedEjector(int ejectorUID, int originalOrbitId)
@@ -215,6 +145,95 @@ namespace RailgunsRetargeting
             return true;
         }
 
+        [HarmonyPrefix, HarmonyPatch(typeof(FactorySystem), "GameTick")]
+        public static void EjectorComponent_InternalUpdate_Prefix(long time)
+        {
+            batch = (int)(time % BATCH_COUNT);
+        }
+        [HarmonyPrefix, HarmonyPatch(typeof(FactorySystem), "RemoveEjectorComponent")]
+        public static void FactorySystem_RemoveEjectorComponent_Prefix(FactorySystem __instance, int id)
+        {
+            if (__instance.ejectorPool[id].id != 0)
+            {
+                var ejector = __instance.ejectorPool[id];
+                var ejectorUID = GetEjectorUID(ejector);
+
+                managedEjectors.Remove(ejectorUID);
+            }
+        }
+
+        [HarmonyPrefix, HarmonyPatch(typeof(EjectorComponent), "Export")]
+        public static void EjectorComponent_Export_Prefix(ref EjectorComponent __instance, ref int __state)
+        {
+            // at save time we store the current orbitId , replace it with the originalOne, and restore it after the save.
+            var ejectorUID = GetEjectorUID(__instance);
+            ManagedEjector managedEjector = GetOrCreateManagedEjector(ejectorUID, __instance.orbitId);
+            __state = __instance.orbitId;
+            __instance.orbitId = managedEjector.originalOrbitId;
+        }
+        [HarmonyPostfix, HarmonyPatch(typeof(EjectorComponent), "Export")]
+        public static void EjectorComponent_Export_Postfix(ref EjectorComponent __instance, ref int __state)
+        {
+            __instance.orbitId = __state;
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(EjectorComponent), "SetOrbit")]
+        public static void EjectorComponent_SetOrbit_Postfix(ref EjectorComponent __instance, int _orbitId)
+        {
+            var ejectorUID = GetEjectorUID(__instance);
+
+            ManagedEjector managedEjector = GetOrCreateManagedEjector(ejectorUID, _orbitId);
+
+            managedEjector.originalOrbitId = _orbitId;
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(EjectorComponent), "InternalUpdate")]
+        public static void EjectorComponent_InternalUpdate_Postfix(ref EjectorComponent __instance, DysonSwarm swarm, AstroPose[] astroPoses)
+        {
+            var ejectorUID = GetEjectorUID(__instance);
+
+            if (ejectorUID % BATCH_COUNT != batch)
+            {
+                return;
+            }
+
+            ManagedEjector managedEjector = GetOrCreateManagedEjector(ejectorUID, __instance.orbitId);
+
+            if (!IsOrbitValid(managedEjector.originalOrbitId, swarm))
+            {
+                managedEjector.originalOrbitId = 0;
+            }
+
+            if (__instance.orbitId != managedEjector.originalOrbitId && IsOrbitReachable(__instance, swarm, astroPoses, managedEjector.originalOrbitId))
+            {
+                // by default we try to check if the original orbit is available
+                SetOrbit(ref __instance, managedEjector.originalOrbitId);
+            }
+            else if ((__instance.targetState == EjectorComponent.ETargetState.AngleLimit || __instance.targetState == EjectorComponent.ETargetState.Blocked) && swarm.orbitCursor > 1)
+            {
+                // if the current orbit is not reachable activate auto targeting
+                var testOrbit = __instance.orbitId;
+                var orbitsCount = swarm.orbitCursor;
+                while (--orbitsCount > 0)
+                {
+                    testOrbit++;
+                    if (testOrbit >= swarm.orbitCursor)
+                    {
+                        testOrbit = 1;
+                    }
+                    if (IsOrbitReachable(__instance, swarm, astroPoses, testOrbit))
+                    {
+                        SetOrbit(ref __instance, testOrbit);
+                        return;
+                    }
+                }
+
+                // no alternative orbit has been found. set the original as default
+                SetOrbit(ref __instance, managedEjector.originalOrbitId);
+
+            }
+        }
+
         [HarmonyPostfix, HarmonyPatch(typeof(UIEjectorWindow), "_OnUpdate")]
         public static void UIEjectorWindow__OnUpdate_Postfix(ref UIEjectorWindow __instance, ref UIOrbitPicker ___orbitPicker)
         {
@@ -237,29 +256,52 @@ namespace RailgunsRetargeting
                 var ejectorUID = GetEjectorUID(ejector);
 
                 var text = "Retargeting - Original Orbit";
+                var color = TEXT_WHITE;
 
                 ManagedEjector managedEjector = GetOrCreateManagedEjector(ejectorUID, ejector.orbitId);
+                bool isAlternativeOrbit = ejector.orbitId != managedEjector.originalOrbitId;
 
-                if(ejector.targetState == EjectorComponent.ETargetState.AngleLimit)
+                if (ejector.targetState == EjectorComponent.ETargetState.AngleLimit)
                 {
                     text = "Retargeting - No valid alternative";
+                    color = TEXT_ORANGE;
                 }
 
-                if (ejector.orbitId != managedEjector.originalOrbitId)
+                if (isAlternativeOrbit)
                 {
                     ___orbitPicker.orbitId = managedEjector.originalOrbitId;
-                    text = $"Retargeting - Alternative Orbit [{ejector.orbitId}]";
+
+                    text = $"Retargeting - Alternative Orbit [ {ejector.orbitId} ]";
+                    color = TEXT_CYAN;
+                }
+
+
+                for (var i = 0; i < ___orbitPicker.orbitButtons.Length; i++)
+                {
+                    var orbitButton = ___orbitPicker.orbitButtons[i];
+                    var transition = orbitButton.transitions[0];
+
+                    if (orbitButton.highlighted || orbitButton.updating || orbitButton.isPointerEnter || orbitButton.isPointerDown || !orbitButton.button.interactable)
+                    {
+                        continue;
+                    }
+
+                    if (isAlternativeOrbit && i == ejector.orbitId)
+                    {
+                        transition.target.color = BUTTON_CYAN;
+                    }
+                    else if (transition.target.color != transition.normalColor)
+                    {
+                        transition.target.color = transition.normalColor;
+                    }
                 }
 
                 var autoRetargetingText = autoRetargetingGO.GetComponent<Text>();
                 autoRetargetingText.text = text;
+                autoRetargetingText.color = color;
             }
         }
 
-        //UI Root/Overlay Canvas/In Game/Windows/Ejector Window/orbit-picker/button (2)
-        // UI Root/Overlay Canvas/In Game/Windows/Ejector Window/state/state-text
+
     }
-
-
-
 }

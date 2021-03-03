@@ -2,6 +2,7 @@
 !/**/
 !*.json
 !*.png
+!*.jpg
 !*.gif
 !*.cs
 !*.csproj

@@ -1,28 +1,18 @@
 # RailgunsRetargeting
 
-This mod improves the starmap view by adding additionl information to the star and planet details.
+With this mod installed your railguns will try to target an alternative orbit if the configured one is not reachable.
 
-## Star details
+![RailgunsRetargeting](https://github.com/DysonSphereMod/QOL/blob/master/RailgunsRetargeting/screenshot.jpg?raw=true)
 
-- `Dyson sphere min radius`
-- `Dyson sphere max radius`
-
-## Planet details
-
-_nothing for now_
-
-
-## TODO list
-
-- Planet/System logistic import and exports
-
-  
 ## Changelog
 
+### v1.1.0
+- Ensure the originally selected orbit (and not the retargeted one) is stored at save time
+- Improve visual style in railgun configuration panel
 
-### v1.0.0
+### v1.0.1
 - Initial Release
 
-
-
-<div>Icon made by <a href="https://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
+## Special thanks
+- thanks to NZ_Wanderer for beta testing this mod
+- <div>Icon made by <a href="https://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
