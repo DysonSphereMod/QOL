@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace FastAbsorption
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.FastAbsorption", "FastAbsorption", "1.0.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.FastAbsorption", "FastAbsorption", "1.1.0")]
     public class FastAbsorption : BaseUnityPlugin
     {
         Harmony harmony;

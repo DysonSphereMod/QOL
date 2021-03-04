@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace SphereSaveFix
 {
-    [BepInPlugin("com.brokenmass.plugin.Dyson.SphereSaveFix", "SphereSaveFix", "1.0.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.SphereSaveFix", "SphereSaveFix", "1.0.1")]
     public class SphereSaveFix : BaseUnityPlugin
     {
         Harmony harmony;
@@ -21,7 +21,7 @@ namespace SphereSaveFix
         internal static GameObject originalSaveGO, optimisedSaveGO;
         void Start()
         {
-            harmony = new Harmony("com.brokenmass.plugin.Dyson.SphereSaveFix");
+            harmony = new Harmony("com.brokenmass.plugin.DSP.SphereSaveFix");
             try
             {
                 harmony.PatchAll(typeof(SphereSaveFix));
