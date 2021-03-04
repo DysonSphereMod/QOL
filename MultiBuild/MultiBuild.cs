@@ -9,25 +9,26 @@ using UnityEngine.UI;
 
 namespace MultiBuild
 {
+
+
     [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.0.0")]
     public class MultiBuild : BaseUnityPlugin
     {
-        internal class StarInfoEntry
-        {
-            public GameObject gameObject;
-            public Text label;
-            public Text value;
-        }
-
         Harmony harmony;
 
-        static Dictionary<string, StarInfoEntry> starInfos = new Dictionary<string, StarInfoEntry>();
+        public static List<UIKeyTipNode> allTips;
+        public static Dictionary<String, UIKeyTipNode> tooltips = new Dictionary<String, UIKeyTipNode>();
+        public static bool multiBuildEnabled = false;
+        public static Vector3 startPos = Vector3.zero;
 
-        static readonly string BG_PATH = "UI Root/Overlay Canvas/In Game/Planet & Star Details/star-detail-ui/black-bg";
-        static readonly string LAST_LABEL_PATH = "UI Root/Overlay Canvas/In Game/Planet & Star Details/star-detail-ui/param-group/label (6)";
-        void Start()
+        private static Collider[] _tmp_cols = new Collider[256];
+        public static bool lastFlag = false;
+        private static Vector3 lastPosition = Vector3.zero;
+        private static bool executeBuildUpdatePreviews = true;
+        private static int ignoredTicks = 0;
+
+        internal void Awake()
         {
-
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild");
             try
             {
@@ -42,89 +43,271 @@ namespace MultiBuild
         internal void OnDestroy()
         {
             // For ScriptEngine hot-reloading
+            foreach (var tooltip in tooltips.Values)
+            {
+                allTips.Remove(tooltip);
+            }
+
             harmony.UnpatchSelf();
-
-            foreach (var item in starInfos.Values)
-            {
-                Destroy(item.gameObject);
-            }
-
-            var blackBg = GameObject.Find(BG_PATH).GetComponent<RectTransform>();
-            blackBg.offsetMin -= new Vector2(0f, -20f * starInfos.Count);
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(UIStarDetail), "_OnOpen")]
-        public static void UIStarDetail__OnOpen_Prefix(UIStarDetail __instance)
+        void Update()
         {
-            if (!starInfos.ContainsKey("star-details-min-radius"))
+            if (Input.GetKeyUp(KeyCode.LeftAlt) && IsMultiBuildAvailable())
             {
-                AddStarInfo("star-details-min-radius", "Dyson sphere min radius");
+                multiBuildEnabled = !multiBuildEnabled;
+                if (multiBuildEnabled)
+                {
+                    startPos = Vector3.zero;
+                }
             }
-            if (!starInfos.ContainsKey("star-details-max-radius"))
+        }
+
+        public static bool IsMultiBuildAvailable()
+        {
+            return UIGame.viewMode == EViewMode.Build && GameMain.mainPlayer.controller.cmd.mode == 1;
+        }
+
+        [HarmonyPrefix, HarmonyPatch(typeof(UIKeyTips), "UpdateTipDesiredState")]
+        public static void UIKeyTips_UpdateTipDesiredState_Prefix(ref UIKeyTips __instance, ref List<UIKeyTipNode> ___allTips)
+        {
+            if (tooltips.Count == 0)
             {
-                AddStarInfo("star-details-max-radius", "Dyson sphere max radius");
+                allTips = ___allTips;
+                tooltips.Add("toggle-build", __instance.RegisterTip("L-ALT", "Toggle multiBuild mode"));
+
+            }
+            tooltips["toggle-build"].desired = IsMultiBuildAvailable();
+        }
+
+        [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
+        public static void UIGeneralTips__OnUpdate_Postfix(ref Text ___modeText)
+        {
+            if (IsMultiBuildAvailable() && multiBuildEnabled)
+            {
+                ___modeText.text += $"\nMultiBuild [{(startPos == Vector3.zero ? "START" : "END")}]";
+            }
+        }
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
+        public static bool CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
+        {
+            if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 0
+                && IsMultiBuildAvailable() && multiBuildEnabled)
+            {
+                if (startPos == Vector3.zero)
+                {
+                    startPos = __instance.groundSnappedPos;
+                    return false;
+                }
+                else
+                {
+
+                    startPos = Vector3.zero;
+                    return true;
+                }
             }
 
-            var minSphereRadius = Mathf.Max(4000f, __instance.star.physicsRadius * 1.5f);
-            if (__instance.star.type == EStarType.GiantStar)
-            {
-                minSphereRadius *= 0.6f;
-            }
-            minSphereRadius = Mathf.Ceil(minSphereRadius / 100f) * 100f;
-            starInfos["star-details-min-radius"].value.text = minSphereRadius.ToString("0");
-
-            var maxSphereRadius = Mathf.Round((float)((double)__instance.star.dysonRadius * 40000.0) * 2f / 100f) * 100f;
-            starInfos["star-details-max-radius"].value.text = maxSphereRadius.ToString("0");
-
-            Debug.Log(JsonUtility.ToJson(GameMain.data.galacticTransport.stationPool, true));
+            return true;
         }
 
 
-        [HarmonyPrefix, HarmonyPatch(typeof(UIStarDetail), "_OnUpdate")]
-        public static void UIStarDetail__OnUpdate_Prefix(UIStarDetail __instance)
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
+        public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
         {
-
-        }
-
-        public static void AddStarInfo(string id, string labelText)
-        {
-            var originalDetailLabel = GameObject.Find(LAST_LABEL_PATH);
-            if (originalDetailLabel == null)
+            executeBuildUpdatePreviews = true;
+            if (IsMultiBuildAvailable() && multiBuildEnabled && startPos != Vector3.zero)
             {
-                throw new InvalidOperationException("Star detail info base entry is not present");
+                if (lastPosition != __instance.groundSnappedPos)
+                {
+                    lastPosition = __instance.groundSnappedPos;
+                    executeBuildUpdatePreviews = true;
+                } else
+                {
+                    executeBuildUpdatePreviews = false;
+                }
+            }
+            else
+            {
+                lastPosition = Vector3.zero;
+            }
+            // Run the preview methods if we have changed position, if we have received a relevant keyboard input or in any case every 60 ticks.
+            executeBuildUpdatePreviews = executeBuildUpdatePreviews || VFInput._rotate || VFInput._counterRotate || ignoredTicks > 60;
+            bool flag = lastFlag;
+            if (executeBuildUpdatePreviews)
+            {
+
+                __instance.DetermineBuildPreviews();
+                flag = __instance.CheckBuildConditions();
+                ignoredTicks = 0;
+            } else
+            {
+                ignoredTicks++;
+            }
+            __instance.UpdatePreviews();
+            __instance.UpdateGizmos();
+            __instance.previewGizmoOn = false;
+            if (flag)
+            {
+                __instance.CreatePrebuilds();
             }
 
-            GameObject gameObject = null;
-            var originalDetailLabelText = originalDetailLabel.GetComponent<Text>();
+            lastFlag = flag;
+            return false;
+        }
 
-            gameObject = Instantiate(originalDetailLabel, originalDetailLabel.transform.position, Quaternion.identity);
-            Destroy(gameObject.GetComponentInChildren<Localizer>());
-
-            gameObject.name = id;
-            gameObject.transform.SetParent(originalDetailLabel.transform.parent);
-
-            var textComponents = gameObject.GetComponentsInChildren<Text>();
-            var label = textComponents[0];
-            var value = textComponents[1];
-
-            label.text = labelText;
-            label.rectTransform.offsetMax = originalDetailLabelText.rectTransform.offsetMax;
-            label.rectTransform.offsetMin = originalDetailLabelText.rectTransform.offsetMin;
-
-            gameObject.transform.localScale = new Vector3(1f, 1f, 1f);
-            gameObject.transform.localPosition = originalDetailLabel.transform.localPosition + new Vector3(0f, -20f * (1 + starInfos.Count), 0f);
-            gameObject.transform.right = originalDetailLabel.transform.right;
-
-            var blackBg = GameObject.Find(BG_PATH).GetComponent<RectTransform>();
-            blackBg.offsetMin += new Vector2(0f, -20f);
-
-            StarInfoEntry newStarInfoEntry = new StarInfoEntry()
+        [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
+        public static void DetermineBuildPreviews_Postfix(ref PlayerAction_Build __instance)
+        {
+            if (IsMultiBuildAvailable() && multiBuildEnabled && startPos != Vector3.zero)
             {
-                gameObject = gameObject,
-                label = label,
-                value = value
-            };
-            starInfos.Add(id, newStarInfoEntry);
+                __instance.ClearBuildPreviews();
+
+                if (__instance.previewPose.position == Vector3.zero)
+                {
+                    return;
+                }
+
+                __instance.previewPose.position = Vector3.zero;
+                __instance.previewPose.rotation = Quaternion.identity;
+
+                int path = 0;
+                Vector3[] snaps = new Vector3[1024];
+                var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(startPos, __instance.groundSnappedPos, ref path, snaps);
+
+                var inversePreviewRot = Quaternion.Inverse(__instance.previewPose.rotation);
+
+                //Debug.Log("------");
+
+                ActivateColliders(ref __instance.nearcdLogic, ref snaps, snappedPointCount);
+
+                ColliderData colliderData = __instance.handItem.prefabDesc.buildColliders[0];
+
+                var minStep = (int)Math.Floor(2f * Math.Min(colliderData.ext.x, colliderData.ext.z));
+
+
+                var desc = __instance.handPrefabDesc;
+                ColliderData lastCollider = desc.buildCollider;
+                Vector3 lastPos = Vector3.zero;
+
+                for (int s = 0; s < snappedPointCount; s ++)
+                {
+                    var pos = snaps[s];
+                    var rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
+                    ColliderData collider = desc.buildCollider;
+                    collider.pos = pos + rot * collider.pos;
+                    collider.q = rot * collider.q;
+
+
+                    if(s>1)
+                    {
+                        var distance = Vector3.Distance(lastPos, pos);
+
+                        // wind turbines
+                        if (desc.windForcedPower && distance < 110.25f) continue;
+
+                        // ray receivers
+                        if (desc.gammaRayReceiver && distance < 110.25f) continue;
+
+                        // logistic stations
+                        if (desc.isStation && distance < (desc.isStellarStation ? 29f : 15f)) continue;
+
+
+                        if (desc.isEjector && distance < 110.25f) continue;
+
+                        if(desc.)
+                    }
+
+
+                    var bp = BuildPreview.CreateSingle(__instance.handItem, __instance.handPrefabDesc, true);
+                    bp.ResetInfos();
+                    bp.item = __instance.handItem;
+                    bp.desc = desc;
+                    bp.recipeId = __instance.copyRecipeId;
+                    bp.filterId = __instance.copyFilterId;
+                    bp.recipeId = __instance.copyRecipeId;
+                    bp.filterId = __instance.copyFilterId;
+
+                    bp.lpos = pos;
+                    bp.lrot = rot;
+
+                    __instance.AddBuildPreview(bp);
+
+                    lastCollider = collider;
+                    lastPos = pos;
+
+
+
+
+                }
+
+            }
+        }
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
+        public static bool UpdatePreviews_HarmonyPrefix(ref PlayerAction_Build __instance)
+        {
+            return executeBuildUpdatePreviews;
+        }
+
+        public bool Collides(ColliderData c1, ColliderData c2)
+        {
+            return true;
+        }
+
+        public static void ActivateColliders(ref NearColliderLogic nearCdLogic, ref Vector3[] snaps, int snappedPointCount)
+        {
+            for (int s = 0; s < snappedPointCount; s += 4)
+            {
+                nearCdLogic.activeColHashCount = 0;
+                var center = snaps[s];
+
+                Vector3 vector = Vector3.Cross(center, center - GameMain.mainPlayer.position).normalized * (5f);
+                Vector3 vector2 = Vector3.Cross(vector, center).normalized * (5f);
+
+                nearCdLogic.MarkActivePos(center);
+                nearCdLogic.MarkActivePos(center + vector);
+                nearCdLogic.MarkActivePos(center - vector);
+                nearCdLogic.MarkActivePos(center + vector2);
+                nearCdLogic.MarkActivePos(center - vector2);
+                nearCdLogic.MarkActivePos(center + vector + vector2);
+                nearCdLogic.MarkActivePos(center - vector + vector2);
+                nearCdLogic.MarkActivePos(center + vector - vector2);
+                nearCdLogic.MarkActivePos(center - vector - vector2);
+
+                if (nearCdLogic.activeColHashCount > 0)
+                {
+                    for (int i = 0; i < nearCdLogic.activeColHashCount; i++)
+                    {
+                        int num2 = nearCdLogic.activeColHashes[i];
+                        ColliderData[] colliderPool = nearCdLogic.colChunks[num2].colliderPool;
+                        for (int j = 1; j < nearCdLogic.colChunks[num2].cursor; j++)
+                        {
+                            if (colliderPool[j].idType != 0)
+                            {
+                                if ((colliderPool[j].pos - center).sqrMagnitude <= 25f * 4f + colliderPool[j].ext.sqrMagnitude)
+                                {
+                                    if (colliderPool[j].usage != EColliderUsage.Physics || colliderPool[j].objType != EObjectType.Entity)
+                                    {
+                                        int num3 = num2 << 20 | j;
+                                        if (nearCdLogic.colliderObjs.ContainsKey(num3))
+                                        {
+                                            nearCdLogic.colliderObjs[num3].live = true;
+                                        }
+                                        else
+                                        {
+                                            nearCdLogic.colliderObjs[num3] = new ColliderObject(num3, colliderPool[j]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                }
+            }
+
         }
     }
 }
