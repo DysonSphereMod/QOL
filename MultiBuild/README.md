@@ -1,28 +1,46 @@
 # MultiBuild
 
-This mod improves the starmap view by adding additionl information to the star and planet details.
+This mods gives you the ability to build multiple copies of a building, with optional space between the copies.
 
-## Star details
+This mod is **NOT COMPATIBLE** with AdvancedBuildDestruct.
 
-- `Dyson sphere min radius`
-- `Dyson sphere max radius`
-
-## Planet details
-
-_nothing for now_
+![MultiBuild](https://github.com/DysonSphereMod/QOL/blob/master/MultiBuild/screenshot.jpg?raw=true)
+> In this screenshot you can see [MultiBuild](https://dsp.thunderstore.io/package/brokenmass/MultiBuild/) , [CopyInserters](https://dsp.thunderstore.io/package/thisisbrad/CopyInserters/) and [BuildCounter](https://dsp.thunderstore.io/package/brokenmass/BuildCounter/);
 
 
-## TODO list
+## Usage
 
-- Planet/System logistic import and exports
+Select a building from the building bar or copy an exisiting building, then press `LEFT ALT` keyboard button to enter multibuild mode.
+
+`Left Mouse Click` once to start building and `Left Mouse Click` one more time when you are happy with the placement of the copies.
+
+Press `+` and `-` on your keyboard to increase / decrease the spacing between buildings
+
+Press `Z` to 'rotate' the building path (if you are not buildin on a straight line)
+
+
+## FAQ
+
+- **What are the limitations of this mod ?**  
+  This mod doens't allow to place multiple miners, oil extractors or orbital collectors. 
+
+
+- **What are the differences with AdvancedBuildDestruct ?**  
+  This mod uses a 'native-like' collision detection ensuring that your building are always correctly placed. It also take control of the building loop and trigger complex recalculation only when needed thus increasing the performance in building mode (no more frame drops), expecially when used together with CopyInserters.
+
+
+- **Why didn't you contribute to AdvancedBuildDestruct ?**   
+  I've tried and opened a PR to the mod maintainer with an initial set of improvements. Unfortunately he/she doesn't seem to be too active and I decided to publish an alternative mod
+
+
+## TODO
+
+- Add ability to build a full 'loop' of a certain type of building. useful to build a lot of solar panels.
+- Allow to build outside build range (acting as a sort of)
+- Add 'blueprints' (allow to copy an area of the map and paste it somewhere else, while keeping the spacing between building consistent)
 
   
 ## Changelog
 
-
 ### v1.0.0
 - Initial Release
-
-
-
-<div>Icon made by <a href="https://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>

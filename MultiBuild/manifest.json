@@ -1,7 +1,7 @@
 {
     "name": "MultiBuild",
-    "description": "Add more star and planet informations to the starmap",
+    "description": "This mods gives you the ability to build multiple copies of a building, with optional space between the copies. AdvancedBuildDestruct alternative.",
     "version_number": "1.0.0",
     "dependencies": [],
-    "website_url": "https://github.com/DysonSphereMod/MultiBuild"
+    "website_url": "https://github.com/DysonSphereMod/QOL"
 }

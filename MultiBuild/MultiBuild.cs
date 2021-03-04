@@ -21,6 +21,7 @@ namespace MultiBuild
         public static List<UIKeyTipNode> allTips;
         public static Dictionary<String, UIKeyTipNode> tooltips = new Dictionary<String, UIKeyTipNode>();
         public static bool multiBuildEnabled = false;
+        public static bool multiBuildPossible = true;
         public static Vector3 startPos = Vector3.zero;
 
         private static int lastCmdMode = 0;
@@ -92,7 +93,7 @@ namespace MultiBuild
 
         public static bool IsMultiBuildAvailable()
         {
-            return UIGame.viewMode == EViewMode.Build && GameMain.mainPlayer.controller.cmd.mode == 1;
+            return UIGame.viewMode == EViewMode.Build && GameMain.mainPlayer.controller.cmd.mode == 1 && multiBuildPossible;
         }
 
         public static bool IsMultiBuildRunning()
@@ -175,6 +176,17 @@ namespace MultiBuild
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
         public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
         {
+            if (__instance.handPrefabDesc == null ||
+                __instance.handPrefabDesc.minerType != EMinerType.None ||
+                __instance.player.planetData.type == EPlanetType.Gas
+                )
+            {
+                multiBuildPossible = false;
+            } else
+            {
+                multiBuildPossible = true;
+            }
+
             // As multibuild increase calculation exponentially (collision and rendering must be performed for every entity), we hijack the BuildMainLogic
             // and execute the relevant submethods only when needed
             executeBuildUpdatePreviews = true;
@@ -255,7 +267,7 @@ namespace MultiBuild
 
                 var usedSnaps = new List<Vector3>(10);
 
-                for (int s = 0; s < snappedPointCount; s++)
+                for (int s = 0; s < snappedPointCount - spacing; s++)
                 {
                     var pos = snaps[s];
                     var rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
@@ -309,7 +321,6 @@ namespace MultiBuild
                     bp.item = __instance.handItem;
                     bp.recipeId = __instance.copyRecipeId;
                     bp.filterId = __instance.copyFilterId;
-
 
                     if (desc.hasBuildCollider)
                     {
