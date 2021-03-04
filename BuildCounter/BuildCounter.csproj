@@ -57,7 +57,7 @@
     </Reference>
     <Reference Include="Assembly-CSharp.refstub, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\refstub\Assembly-CSharp.refstub.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\refstub\Assembly-CSharp.refstub.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
       <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\BepInEx.dll</HintPath>
