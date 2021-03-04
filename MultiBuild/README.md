@@ -42,5 +42,15 @@ Press `Z` to 'rotate' the building path (if you are not buildin on a straight li
   
 ## Changelog
 
+### v1.0.1
+- Fixes an null pointer error in some cases when the spacing was set to a value higher than the amount of spaces between start and end
+- Add ability to use keypad + and - to increase / decrease spacing
+- Fix spacing of power poles
+
 ### v1.0.0
 - Initial Release
+
+
+## Special Thanks
+
+Thanks to `iskabot` and `Ixosis` for the beta testing.

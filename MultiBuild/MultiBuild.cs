@@ -11,7 +11,7 @@ namespace MultiBuild
 {
 
 
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.0.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.0.1")]
     public class MultiBuild : BaseUnityPlugin
     {
         Harmony harmony;
@@ -267,7 +267,9 @@ namespace MultiBuild
 
                 var usedSnaps = new List<Vector3>(10);
 
-                for (int s = 0; s < snappedPointCount - spacing; s++)
+                var maxSnaps = Math.Max(1, snappedPointCount - spacing);
+
+                for (int s = 0; s < maxSnaps; s++)
                 {
                     var pos = snaps[s];
                     var rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
@@ -275,6 +277,9 @@ namespace MultiBuild
                     if (s > 0)
                     {
                         var sqrDistance = (previousPos - pos).sqrMagnitude;
+
+                        // power towers
+                        if (desc.isPowerNode && sqrDistance < 12.25f) continue;
 
                         // wind turbines
                         if (desc.windForcedPower && sqrDistance < 110.25f) continue;
@@ -285,6 +290,7 @@ namespace MultiBuild
                         // logistic stations
                         if (desc.isStation && sqrDistance < (desc.isStellarStation ? 841f : 225f)) continue;
 
+                        // ejector
                         if (desc.isEjector && sqrDistance < 110.25f) continue;
 
                         if (desc.hasBuildCollider)
@@ -342,12 +348,13 @@ namespace MultiBuild
                     }
 
                     __instance.AddBuildPreview(bp);
-
                 }
 
                 foreach (var collider in colliders)
                 {
-                    ColliderPool.PutCollider(collider);
+                    if (collider != null) {
+                        ColliderPool.PutCollider(collider);
+                    }
                 }
 
 
