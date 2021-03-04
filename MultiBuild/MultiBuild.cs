@@ -73,13 +73,13 @@ namespace MultiBuild
 
             var isRunning = IsMultiBuildRunning();
 
-            if (Input.GetKeyUp(KeyCode.Equals) && isRunning)
+            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isRunning)
             {
                 spacing++;
                 ignoredTicks = MAX_IGNORED_TICKS;
             }
 
-            if (Input.GetKeyUp(KeyCode.Minus) && isRunning && spacing > 0)
+            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isRunning && spacing > 0)
             {
                 spacing--;
                 ignoredTicks = MAX_IGNORED_TICKS;
