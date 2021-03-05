@@ -9,13 +9,12 @@ using UnityEngine.UI;
 
 namespace RailgunsRetargeting
 {
-
-
-
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.1.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.2.0")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
+
+        public static ConfigEntry<bool> ignoreOrbit1;
 
         static readonly int BATCH_COUNT = 60;
 
@@ -35,6 +34,8 @@ namespace RailgunsRetargeting
         internal void Awake()
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.RailgunsRetargeting");
+            ignoreOrbit1 = Config.Bind<bool>("General", "ignoreOrbit1", false, "If you set this to true the railguns will never retarget to orbit 1 (the default, undeletable, orbit) unless is the primary orbit of the railgun");
+
             try
             {
                 harmony.PatchAll(typeof(RailgunsRetargeting));
@@ -220,7 +221,12 @@ namespace RailgunsRetargeting
                     if (testOrbit >= swarm.orbitCursor)
                     {
                         testOrbit = 1;
+                        if (ignoreOrbit1.Value)
+                        {
+                            continue;
+                        }
                     }
+
                     if (IsOrbitReachable(__instance, swarm, astroPoses, testOrbit))
                     {
                         SetOrbit(ref __instance, testOrbit);

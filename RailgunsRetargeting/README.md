@@ -4,7 +4,18 @@ With this mod installed your railguns will try to target an alternative orbit if
 
 ![RailgunsRetargeting](https://github.com/DysonSphereMod/QOL/blob/master/RailgunsRetargeting/screenshot.jpg?raw=true)
 
+## Configuration
+
+The speed up is configurable (you must start the game at least once for the configuration file to be created) using the following parameters:
+
+### ignoreOrbit1
+> Should the auto retargeting ignore the default, undeletable orbit 1 ?
+- `Default value : false (allow retargeting to orbit1)`
+
 ## Changelog
+
+### v1.2.0
+- Add configuration option to disable retargeting to default, undeletable, `orbit 1`
 
 ### v1.1.0
 - Ensure the originally selected orbit (and not the retargeted one) is stored at save time

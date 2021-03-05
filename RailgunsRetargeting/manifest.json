@@ -1,7 +1,7 @@
 {
     "name": "RailgunsRetargeting",
     "description": "With this mod installed your railgun will try to target an alternative orbit if the configured one is not reachable",
-    "version_number": "1.1.0",
+    "version_number": "1.2.0",
     "dependencies": [],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }
