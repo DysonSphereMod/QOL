@@ -174,7 +174,7 @@ namespace MultiBuild
 
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
-        public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
+        public static bool BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
             if (__instance.handPrefabDesc == null ||
                 __instance.handPrefabDesc.minerType != EMinerType.None ||
@@ -182,7 +182,8 @@ namespace MultiBuild
                 )
             {
                 multiBuildPossible = false;
-            } else
+            }
+            else
             {
                 multiBuildPossible = true;
             }
@@ -352,7 +353,8 @@ namespace MultiBuild
 
                 foreach (var collider in colliders)
                 {
-                    if (collider != null) {
+                    if (collider != null)
+                    {
                         ColliderPool.PutCollider(collider);
                     }
                 }
@@ -371,7 +373,7 @@ namespace MultiBuild
 
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> snaps)
         {
-            for (int s = 0; s < snaps.Count; s ++)
+            for (int s = 0; s < snaps.Count; s++)
             {
                 nearCdLogic.activeColHashCount = 0;
                 var center = snaps[s];
