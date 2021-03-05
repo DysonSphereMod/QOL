@@ -279,7 +279,7 @@ namespace MultiBuild
                         var sqrDistance = (previousPos - pos).sqrMagnitude;
 
                         // power towers
-                        if (desc.isPowerNode && sqrDistance < 12.25f) continue;
+                        if (desc.isPowerNode && !desc.isAccumulator && sqrDistance < 12.25f) continue;
 
                         // wind turbines
                         if (desc.windForcedPower && sqrDistance < 110.25f) continue;
