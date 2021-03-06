@@ -168,17 +168,14 @@ namespace MultiDestruct
                 multiDestructPossible = true;
             }
 
-
             if (IsMultiDestructAvailable() && multiDestructEnabled)
             {
                 if (circleGizmo == null)
                 {
                     circleGizmo = CircleGizmo.Create(1, __instance.groundTestPos, area);
 
-                    circleGizmo.fadeInScale = 1.8f;
-                    circleGizmo.fadeInTime = 0.15f;
-                    circleGizmo.fadeOutScale = 1.8f;
-                    circleGizmo.fadeOutTime = 0.15f;
+                    circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
+                    circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
                     circleGizmo.color = DESTRUCT_GIZMO_COLOR;
                     circleGizmo.autoRefresh = true;
                     circleGizmo.Open();
@@ -271,7 +268,19 @@ namespace MultiDestruct
             }
         }
 
-
+        /* Take the code from Destruct Action in the first if block
+        *
+        * if (VFInput._buildConfirm.onDown && this.buildPreviews.Count > 0)
+		8 {
+		*	int num = 0; <------------------- FROM HERE (included)
+		*	bool flag = false;
+		*	foreach (BuildPreview buildPreview in this.buildPreviews)
+        *   ......
+        *
+        *   this.ClearBuildPreviews(); <----- TO HERE (included)
+		* }
+		* if (VFInput._buildConfirm.pressing && !VFInput._chainUX)
+        */
         [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DestructAction")]
         public static void Destruct(PlayerAction_Build __instance)
         {
