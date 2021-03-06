@@ -11,7 +11,7 @@ namespace MultiBuild
 {
 
 
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.0.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.0.2")]
     public class MultiBuild : BaseUnityPlugin
     {
         Harmony harmony;
