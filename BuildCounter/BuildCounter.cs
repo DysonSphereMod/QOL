@@ -10,7 +10,7 @@ using UnityEngine.UI;
 namespace BuildCounter
 {
 
-    [BepInPlugin("com.brokenmass.plugin.DSP.BuildCounter", "BuildCounter", "1.0.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BuildCounter", "BuildCounter", "1.1.0")]
     public class BuildCounter : BaseUnityPlugin
     {
         Harmony harmony;

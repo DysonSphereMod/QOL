@@ -1,6 +1,6 @@
 {
     "name": "MultiDestruct",
-    "description": "This mods gives you the ability to destruct in an area with a configurable filter. AdvancedBuildDestruct alternative.",
+    "description": "This mods gives you the ability to destruct in an area with a configurable filter.",
     "version_number": "1.0.0",
     "dependencies": [],
     "website_url": "https://github.com/DysonSphereMod/QOL"

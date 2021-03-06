@@ -1,7 +1,7 @@
 {
     "name": "BuildCounter",
-    "description": "Your cursor will show the amount of items being used by the current build order. Fully compatible with CopyInserter and AdvancedBuildDestruct",
-    "version_number": "1.0.0",
+    "description": "Your cursor will show the amount of items being used by the current build order. Fully compatible with CopyInserters, MultiBuild/MultiDestruct and AdvancedBuildDestruct",
+    "version_number": "1.1.0",
     "dependencies": [],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }
