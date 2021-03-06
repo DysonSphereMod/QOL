@@ -4,6 +4,7 @@ using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Emit;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -32,13 +33,10 @@ namespace MultiDestruct
     {
         Harmony harmony;
 
-        const int MAX_IGNORED_TICKS = 60;
         const int DEFAULT_DESTRUCT_AREA = 5;
         const int MAX_DESTRUCT_AREA = 15;
 
-        private static Color DESTRUCT_AREA_COLOR = new Color(0.8490566f, 0.3096371f, 0.2843539f, 0.2039216f);
-        private static Color REFORM_AREA_COLOR = new Color(0.2667686f, 0.5636916f, 0.8862745f, 0.552941f);
-        private static Color ORIGINAL_REPEAT_COLOR = new Color(1f, 0.9053909f, 0.8160377f, 0.3647059f);
+        private static Color DESTRUCT_GIZMO_COLOR = new Color(0.9433962f, 0.1843137f, 0.1646493f, 1f);
 
         public static List<UIKeyTipNode> allTips;
         public static Dictionary<String, UIKeyTipNode> tooltips = new Dictionary<String, UIKeyTipNode>();
@@ -47,12 +45,11 @@ namespace MultiDestruct
 
         private static int lastCmdMode = 0;
 
-        private static int ignoredTicks = 0;
         private static int area = DEFAULT_DESTRUCT_AREA;
         private static EDestructFilter filter = EDestructFilter.All;
 
-        private static int[] destructIndices = new int[MAX_DESTRUCT_AREA * MAX_DESTRUCT_AREA];
-        public static Vector3[] destructPoints = new Vector3[MAX_DESTRUCT_AREA * MAX_DESTRUCT_AREA];
+        private static int[] _nearObjectIds = new int[4096];
+        private static CircleGizmo circleGizmo;
         internal void Awake()
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiDestruct");
@@ -64,21 +61,28 @@ namespace MultiDestruct
             {
                 Console.WriteLine(e.ToString());
             }
+
         }
 
         internal void OnDestroy()
         {
+            harmony.UnpatchSelf();
+
+            if (circleGizmo != null)
+            {
+                circleGizmo.Close();
+                circleGizmo = null;
+            }
             // For ScriptEngine hot-reloading
             foreach (var tooltip in tooltips.Values)
             {
                 allTips.Remove(tooltip);
             }
-
-            harmony.UnpatchSelf();
         }
 
         void Update()
         {
+
             if (Input.GetKeyUp(KeyCode.LeftAlt) && IsMultiDestructAvailable())
             {
                 multiDestructEnabled = !multiDestructEnabled;
@@ -89,13 +93,11 @@ namespace MultiDestruct
             if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isRunning && area < MAX_DESTRUCT_AREA)
             {
                 area++;
-                ignoredTicks = MAX_IGNORED_TICKS;
             }
 
             if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isRunning && area > 1)
             {
                 area--;
-                ignoredTicks = MAX_IGNORED_TICKS;
             }
 
             if (Input.GetKeyUp(KeyCode.Tab) && isRunning)
@@ -114,67 +116,19 @@ namespace MultiDestruct
             return IsMultiDestructAvailable() && multiDestructEnabled;
         }
 
-        public static void ResetMultiDestruct()
-        {
-            ignoredTicks = 0;
-            multiDestructEnabled = false;
-            filter = EDestructFilter.All;
-        }
-
-        [HarmonyPostfix, HarmonyPatch(typeof(UIBuildingGrid), "Update")]
-        public static void UIGeneralTips__OnUpdate_Postfix(ref UIBuildingGrid __instance)
-        {
-            if (__instance == null)
-            {
-                return;
-            }
-            if (IsMultiDestructAvailable() && multiDestructEnabled)
-            {
-                __instance.material.SetColor("_RepeatColor", DESTRUCT_AREA_COLOR);
-                __instance.material.SetColor("_CursorColor", DESTRUCT_AREA_COLOR);
-                __instance.material.SetFloat("_ReformMode", 1f);
-                __instance.material.SetFloat("_ZMin", -1.5f);
-
-                int[] reformIndices = destructIndices;
-                var cells = area * area;
-                for (int i = 0; i < area * area; i++)
-                {
-                    int num6 = reformIndices[i];
-                    if (num6 >= 0)
-                    {
-                        if (num6 < __instance.reformCursorMap.Length)
-                        {
-                            __instance.reformCursorMap[num6] = 2;
-                        }
-                    }
-                }
-                __instance.reformCursorBuffer.SetData(__instance.reformCursorMap);
-                for (int i = 0; i < cells; i++)
-                {
-                    int num6 = reformIndices[i];
-                    if (num6 >= 0)
-                    {
-                        if (num6 < __instance.reformCursorMap.Length)
-                        {
-                            __instance.reformCursorMap[num6] = 0;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                __instance.material.SetColor("_CursorColor", REFORM_AREA_COLOR);
-                __instance.material.SetColor("_RepeatColor", ORIGINAL_REPEAT_COLOR);
-            }
-        }
-
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerController), "UpdateCommandState")]
         public static void UpdateCommandState_Prefix(PlayerController __instance)
         {
             if (__instance.cmd.mode != lastCmdMode)
             {
-                multiDestructEnabled = false;
                 lastCmdMode = __instance.cmd.mode;
+
+                multiDestructEnabled = false;
+                if (circleGizmo != null)
+                {
+                    circleGizmo.Close();
+                    circleGizmo = null;
+                }
             }
         }
 
@@ -202,7 +156,6 @@ namespace MultiDestruct
             }
         }
 
-        private static int[] _nearObjectIds = new int[4096];
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "DestructMainLogic")]
         public static bool DestructMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
@@ -215,17 +168,32 @@ namespace MultiDestruct
                 multiDestructPossible = true;
             }
 
+
             if (IsMultiDestructAvailable() && multiDestructEnabled)
             {
-                Vector3 centerPoint;
-                __instance.reformPointsCount = __instance.planetAux.ReformSnap(__instance.groundTestPos, Math.Max(1, area - 1), 1, 1, destructPoints, destructIndices, __instance.factory.platformSystem, out centerPoint);
+                if (circleGizmo == null)
+                {
+                    circleGizmo = CircleGizmo.Create(1, __instance.groundTestPos, area);
+
+                    circleGizmo.fadeInScale = 1.8f;
+                    circleGizmo.fadeInTime = 0.15f;
+                    circleGizmo.fadeOutScale = 1.8f;
+                    circleGizmo.fadeOutTime = 0.15f;
+                    circleGizmo.color = DESTRUCT_GIZMO_COLOR;
+                    circleGizmo.autoRefresh = true;
+                    circleGizmo.Open();
+                }
+
+                circleGizmo.position = __instance.groundTestPos;
+                circleGizmo.radius = 1.2f * area;
+
 
                 if (!VFInput.onGUI)
                 {
                     UICursor.SetCursor(ECursor.Delete);
                 }
                 __instance.ClearBuildPreviews();
-                int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(centerPoint, 1.2f * area / 2f, _nearObjectIds);
+                int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, area, _nearObjectIds);
 
                 var ids = new HashSet<int>();
                 for (int x = 0; x < found; x++)
@@ -285,54 +253,38 @@ namespace MultiDestruct
                 __instance.UpdatePreviews();
                 __instance.UpdateGizmos();
 
-                if (VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 0)
+                if ((VFInput._buildConfirm.onDown || VFInput._buildConfirm.pressing) && __instance.buildPreviews.Count > 0)
                 {
-
+                    Destruct(__instance);
                 }
+
+                return false;
             }
             else
             {
-                __instance.DetermineDestructPreviews();
-                __instance.DetermineMoreDestructionTargets();
-                __instance.UpdatePreviews();
-                __instance.UpdateGizmos();
-                __instance.DestructAction();
+                if (circleGizmo != null)
+                {
+                    circleGizmo.Close();
+                    circleGizmo = null;
+                }
+                return true;
             }
-
-
-
-            return false;
         }
 
 
-        [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
+        [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DestructAction")]
         public static void Destruct(PlayerAction_Build __instance)
         {
             IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
                 List<CodeInstruction> instructionsList = instructions.ToList();
 
-                // Find the idx at which the "cargoTraffic" field of the PlanetFactory
-                // Is first accessed since this is the start of the instructions that compute posing
-
-                /* ex of the code in dotpeek:
-                 * ```
-                 * if (this.cursorValid && this.startObjId != this.castObjId && (this.startObjId > 0 && this.castObjId > 0))
-                 * {
-                 *   CargoTraffic cargoTraffic = this.factory.cargoTraffic; <- WE WANT TO START WITH THIS LINE (INCLUSIVE)
-                 *   EntityData[] entityPool = this.factory.entityPool;
-                 *   BeltComponent[] beltPool = cargoTraffic.beltPool;
-                 *   this.posePairs.Clear();
-                 *   this.startSlots.Clear();
-                 * ```
-                 */
-                // good night friend <3 , see you tomorrow :X
                 int startIdx = -1;
-                for (int i = 0; i < instructionsList.Count; i++)
+                for (int i = 0; i < instructionsList.Count - 1; i++)  // go to the end - 1 b/c we need to check two instructions to find valid loc
                 {
-                    if (instructionsList[i].LoadsConstant(0))
+                    if (instructionsList[i].opcode == OpCodes.Ldc_I4_0 && instructionsList[i + 1].opcode == OpCodes.Stloc_1)
                     {
-                        startIdx = i; // need the two proceeding lines that are ldarg.0 and ldfld PlayerAction_Build::factory
+                        startIdx = i;
                         break;
                     }
                 }
@@ -341,48 +293,23 @@ namespace MultiDestruct
                     throw new InvalidOperationException("Cannot patch sorter posing code b/c the start indicator isn't present");
                 }
 
-                // Find the idx at which the "posePairs" field of the PlayerAction_Build
-                // Is first accessed and followed by a call to get_Count
-
-                /*
-                 * ex of the code in dotpeek:
-                 * ```
-                 *          else
-                 *              flag6 = true;
-                 *      }
-                 *      else
-                 *        flag6 = true;
-                 *    }
-                 *  }
-                 *  if (this.posePairs.Count > 0) <- WE WANT TO END ON THIS LINE (EXCLUSIVE)
-                 *  {
-                 *    float num1 = 1000f;
-                 *    float num2 = Vector3.Distance(this.currMouseRay.origin, this.cursorTarget) + 10f;
-                 *    PlayerAction_Build.PosePair posePair2 = new PlayerAction_Build.PosePair();
-                 * ```
-                 */
-
                 int endIdx = -1;
-                for (int i = startIdx; i < instructionsList.Count - 1; i++) // go to the end - 1 b/c we need to check two instructions to find valid loc
+                for (int i = startIdx; i < instructionsList.Count; i++)
                 {
-                        if (instructionsList[i].Calls(typeof(List<PlayerAction_Build>).GetMethod("ClearBuildPreviews")))
-                        {
-                            endIdx = i; // need the proceeding line that is ldarg.0
-                            break;
-                        }
+                    if (instructionsList[i].Calls(typeof(PlayerAction_Build).GetMethod("ClearBuildPreviews")))
+                    {
+                        endIdx = i;
+                        break;
+                    }
                 }
                 if (endIdx == -1)
                 {
                     throw new InvalidOperationException("Cannot patch sorter posing code b/c the end indicator isn't present");
                 }
 
-                // The first argument to an instance method (arg 0) is the instance itself
-                // Since this is a static method, the instance will still need to be passed
-                // For the IL instructions to work properly so manually pass the instance as
-                // The first argument to the method.
                 List<CodeInstruction> code = new List<CodeInstruction>();
 
-                for (int i = startIdx; i < endIdx; i++)
+                for (int i = startIdx; i <= endIdx; i++)
                 {
                     code.Add(instructionsList[i]);
                 }

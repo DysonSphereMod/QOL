@@ -47,7 +47,7 @@ namespace BuildCounter
                 {
                     var name = buildPreview.item.name;
 
-                    if(!counter.ContainsKey(name))
+                    if (!counter.ContainsKey(name))
                     {
                         counter.Add(name, 0);
                     }
@@ -55,7 +55,19 @@ namespace BuildCounter
                     counter[name]++;
                 }
 
-                __instance.cursorText += $"\nUsing:";
+                if (GameMain.mainPlayer.controller.cmd.mode == -1)
+                {
+                    __instance.cursorText += $"\nDestructing:";
+                }
+                else if (GameMain.mainPlayer.controller.cmd.mode == 1)
+                {
+                    __instance.cursorText += $"\nBuilding:";
+                }
+                else if (GameMain.mainPlayer.controller.cmd.mode == -2)
+                {
+                    __instance.cursorText += $"\nUpdating:";
+                }
+
                 foreach (var entry in counter)
                 {
                     __instance.cursorText += $"\n{SPACING}- {entry.Value} x {entry.Key}";
