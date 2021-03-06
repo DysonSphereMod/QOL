@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{B6454A7A-C46F-400A-906B-E5DFFD72BD73}</ProjectGuid>
+    <ProjectGuid>{44B8F06D-8D9B-4F32-A29C-EFAA1749AEAE}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>DSM.MultiDestruct</RootNamespace>
     <AssemblyName>MultiDestruct</AssemblyName>
