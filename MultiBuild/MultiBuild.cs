@@ -11,12 +11,13 @@ namespace MultiBuild
 {
 
 
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.0.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.1.0")]
     public class MultiBuild : BaseUnityPlugin
     {
         Harmony harmony;
 
         const int MAX_IGNORED_TICKS = 60;
+        public static ConfigEntry<bool> itemSpecificSpacing;
 
         public static List<UIKeyTipNode> allTips;
         public static Dictionary<String, UIKeyTipNode> tooltips = new Dictionary<String, UIKeyTipNode>();
@@ -33,12 +34,17 @@ namespace MultiBuild
         private static bool executeBuildUpdatePreviews = true;
 
         private static int ignoredTicks = 0;
-        private static int spacing = 0;
         private static int path = 0;
+
+        private static Dictionary<int, int> spacingStore = new Dictionary<int, int>();
+        private static int spacingIndex = 0;
 
         internal void Awake()
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild");
+
+            itemSpecificSpacing = Config.Bind<bool>("General", "itemSpecificSpacing", true, "If this option is set to true, the mod will remember the last spacing used for a specific building. Otherwise the spacing will be the same for all entities.");
+            spacingStore[0] = 0;
             try
             {
                 harmony.PatchAll(typeof(MultiBuild));
@@ -62,6 +68,8 @@ namespace MultiBuild
 
         void Update()
         {
+            var isEnabled = IsMultiBuildEnabled();
+
             if (Input.GetKeyUp(KeyCode.LeftAlt) && IsMultiBuildAvailable())
             {
                 multiBuildEnabled = !multiBuildEnabled;
@@ -71,20 +79,24 @@ namespace MultiBuild
                 }
             }
 
-            var isRunning = IsMultiBuildRunning();
-
-            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isRunning)
+            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
             {
-                spacing++;
+                spacingStore[spacingIndex]++;
                 ignoredTicks = MAX_IGNORED_TICKS;
             }
 
-            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isRunning && spacing > 0)
+            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isEnabled && spacingStore[spacingIndex] > 0)
             {
-                spacing--;
+                spacingStore[spacingIndex]--;
                 ignoredTicks = MAX_IGNORED_TICKS;
             }
-            if (Input.GetKeyUp(KeyCode.Z) && isRunning)
+
+            if ((Input.GetKeyUp(KeyCode.Alpha0) || Input.GetKeyUp(KeyCode.Keypad0)) && isEnabled)
+            {
+                spacingStore[spacingIndex] = 0;
+                ignoredTicks = MAX_IGNORED_TICKS;
+            }
+            if (Input.GetKeyUp(KeyCode.Z) && IsMultiBuildRunning())
             {
                 path = 1 - path;
                 ignoredTicks = MAX_IGNORED_TICKS;
@@ -96,18 +108,27 @@ namespace MultiBuild
             return UIGame.viewMode == EViewMode.Build && GameMain.mainPlayer.controller.cmd.mode == 1 && multiBuildPossible;
         }
 
+        public static bool IsMultiBuildEnabled()
+        {
+            return IsMultiBuildAvailable() && multiBuildEnabled;
+        }
         public static bool IsMultiBuildRunning()
         {
-            return IsMultiBuildAvailable() && multiBuildEnabled && startPos != Vector3.zero;
+            return IsMultiBuildEnabled() && startPos != Vector3.zero;
         }
 
         public static void ResetMultiBuild()
         {
-            spacing = 0;
+            spacingIndex = 0;
             path = 0;
             ignoredTicks = 0;
             multiBuildEnabled = false;
             startPos = Vector3.zero;
+
+            if (!itemSpecificSpacing.Value)
+            {
+                spacingStore[spacingIndex] = 0;
+            }
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerController), "UpdateCommandState")]
@@ -130,10 +151,11 @@ namespace MultiBuild
                 tooltips.Add("toggle-build", __instance.RegisterTip("L-ALT", "Toggle multiBuild mode"));
                 tooltips.Add("increase-spacing", __instance.RegisterTip("+", "Increase space between copies"));
                 tooltips.Add("decrease-spacing", __instance.RegisterTip("-", "Decrease space between copies"));
+                tooltips.Add("zero-spacing", __instance.RegisterTip("0", "Reset space between copies"));
                 tooltips.Add("rotate-path", __instance.RegisterTip("Z", "Rotate build path"));
             }
             tooltips["toggle-build"].desired = IsMultiBuildAvailable();
-            tooltips["rotate-path"].desired = tooltips["decrease-spacing"].desired = tooltips["increase-spacing"].desired = IsMultiBuildRunning();
+            tooltips["rotate-path"].desired = tooltips["zero-spacing"].desired = tooltips["decrease-spacing"].desired = tooltips["increase-spacing"].desired = IsMultiBuildRunning();
         }
 
         [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
@@ -143,9 +165,9 @@ namespace MultiBuild
             {
                 ___modeText.text += $"\nMultiBuild [{(startPos == Vector3.zero ? "START" : "END")}]";
 
-                if (spacing > 0)
+                if (spacingStore[spacingIndex] > 0)
                 {
-                    ___modeText.text += $" - Spacing {spacing}";
+                    ___modeText.text += $" - Spacing {spacingStore[spacingIndex]}";
                 }
             }
         }
@@ -176,6 +198,7 @@ namespace MultiBuild
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
         public static bool BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
+
             if (__instance.handPrefabDesc == null ||
                 __instance.handPrefabDesc.minerType != EMinerType.None ||
                 __instance.player.planetData.type == EPlanetType.Gas
@@ -186,6 +209,15 @@ namespace MultiBuild
             else
             {
                 multiBuildPossible = true;
+            }
+
+            if (itemSpecificSpacing.Value && __instance.handItem != null && spacingIndex != __instance.handItem.ID)
+            {
+                spacingIndex = __instance.handItem.ID;
+                if(!spacingStore.ContainsKey(spacingIndex))
+                {
+                    spacingStore[spacingIndex] = 0;
+                }
             }
 
             // As multibuild increase calculation exponentially (collision and rendering must be performed for every entity), we hijack the BuildMainLogic
@@ -268,7 +300,7 @@ namespace MultiBuild
 
                 var usedSnaps = new List<Vector3>(10);
 
-                var maxSnaps = Math.Max(1, snappedPointCount - spacing);
+                var maxSnaps = Math.Max(1, snappedPointCount - spacingStore[spacingIndex]);
 
                 for (int s = 0; s < maxSnaps; s++)
                 {
@@ -310,9 +342,9 @@ namespace MultiBuild
                         }
                     }
 
-                    if (s > 0 && spacing > 0)
+                    if (s > 0 && spacingStore[spacingIndex] > 0)
                     {
-                        s += spacing;
+                        s += spacingStore[spacingIndex];
                         pos = snaps[s];
                         rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
                     }

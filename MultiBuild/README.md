@@ -7,6 +7,12 @@ This mod is **NOT COMPATIBLE** with AdvancedBuildDestruct.
 ![MultiBuild](https://github.com/DysonSphereMod/QOL/blob/master/MultiBuild/screenshot.jpg?raw=true)
 > In this screenshot you can see [MultiBuild](https://dsp.thunderstore.io/package/brokenmass/MultiBuild/) , [CopyInserters](https://dsp.thunderstore.io/package/thisisbrad/CopyInserters/) and [BuildCounter](https://dsp.thunderstore.io/package/brokenmass/BuildCounter/);
 
+## Disclaimer
+
+**This mod does not alter any entity or save anything to disk.**  
+This mean the mod SHOULD be very safe to use and not break your savegame, not even after an update.  
+If it stops working following a game update, you can just disable it and your game will just work, obviously without the extended capabilities provided by the mod.
+
 
 ## Usage
 
@@ -16,8 +22,17 @@ Select a building from the building bar or copy an exisiting building, then pres
 
 Press `+` and `-` on your keyboard to increase / decrease the spacing between buildings
 
+Press `0` to reset spacing to 0
+
 Press `Z` to 'rotate' the building path (if you are not buildin on a straight line)
 
+
+## Configuration
+
+### itemSpecificSpacing
+> If this option is set to true, the mod will remember the last spacing used for a specific building. Otherwise the spacing will be the same for all entities.
+- `Type: boolean [true/false]`
+- `Default value : true`
 
 ## FAQ
 
@@ -41,6 +56,10 @@ Press `Z` to 'rotate' the building path (if you are not buildin on a straight li
 
   
 ## Changelog
+
+### v1.1.0
+- Store spacing indipendently per item so that you can place your power poles with a different spacing than your assembler without having to constantly tap `+` and `-`. You can opt out of this functionality and revert to the hold behavious by setting the \\ config to `false`.
+- Add ability to use key `0` to reset spacing
 
 ### v1.0.2
 - Fixes incorrect (slightly large) spacing of accumulators
