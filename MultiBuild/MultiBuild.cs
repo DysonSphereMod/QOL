@@ -263,6 +263,12 @@ namespace MultiBuild
             if (flag)
             {
                 __instance.CreatePrebuilds();
+
+                if (__instance.waitConfirm && VFInput._buildConfirm.onDown)
+                {
+                    __instance.ClearBuildPreviews();
+                    ignoredTicks = MAX_IGNORED_TICKS;
+                }
             }
 
             return false;
@@ -392,16 +398,6 @@ namespace MultiBuild
         public static bool UpdatePreviews_Prefix(ref PlayerAction_Build __instance)
         {
             return executeBuildUpdatePreviews;
-        }
-
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "AfterPrebuild")]
-        public static void AfterPrebuild_Prefix(ref PlayerAction_Build __instance)
-        {
-            if(IsMultiBuildEnabled())
-            {
-                __instance.ClearBuildPreviews();
-                ignoredTicks = MAX_IGNORED_TICKS;
-            }
         }
 
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> snaps)
