@@ -6,8 +6,21 @@ Fully compatible with [CopyInserter](https://dsp.thunderstore.io/package/thisisb
 
 ![BuildCounter-1](https://github.com/DysonSphereMod/QOL/blob/master/BuildCounter/screenshot.jpg?raw=true)
 ![BuildCounter-2](https://github.com/DysonSphereMod/QOL/blob/master/BuildCounter/screenshot2.jpg?raw=true)
+![BuildCounter-2](https://github.com/DysonSphereMod/QOL/blob/master/BuildCounter/screenshot3.jpg?raw=true)
+
+## Disclaimer
+
+**This mod does not alter any entity or save anything to disk.**  
+This mean the mod SHOULD be very safe to use and not break your savegame, not even after an update.  
+If it stops working following a game update, you can just disable it and your game will just work, obviously without the extended capabilities provided by the mod.
+
 
 ## Changelog
+
+### v1.2.0
+- Hide native item counter
+- Improve updating / downgrading description
+- Show amount of items in inventory (between square brakets)
 
 ### v1.1.0
 - Improve counter text when deleting or updating
