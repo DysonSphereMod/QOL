@@ -3,20 +3,17 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace MultiBuild
 {
-
-
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.1.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.1.1")]
     public class MultiBuild : BaseUnityPlugin
     {
-        Harmony harmony;
+        private Harmony harmony;
 
-        const int MAX_IGNORED_TICKS = 60;
+        private const int MAX_IGNORED_TICKS = 60;
         public static ConfigEntry<bool> itemSpecificSpacing;
 
         public static List<UIKeyTipNode> allTips;
@@ -66,7 +63,7 @@ namespace MultiBuild
             harmony.UnpatchSelf();
         }
 
-        void Update()
+        private void Update()
         {
             var isEnabled = IsMultiBuildEnabled();
 
@@ -112,6 +109,7 @@ namespace MultiBuild
         {
             return IsMultiBuildAvailable() && multiBuildEnabled;
         }
+
         public static bool IsMultiBuildRunning()
         {
             return IsMultiBuildEnabled() && startPos != Vector3.zero;
@@ -185,7 +183,6 @@ namespace MultiBuild
                 }
                 else
                 {
-
                     startPos = Vector3.zero;
                     return true;
                 }
@@ -194,11 +191,9 @@ namespace MultiBuild
             return true;
         }
 
-
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
         public static bool BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
-
             if (__instance.handPrefabDesc == null ||
                 __instance.handPrefabDesc.minerType != EMinerType.None ||
                 __instance.player.planetData.type == EPlanetType.Gas
@@ -214,7 +209,7 @@ namespace MultiBuild
             if (itemSpecificSpacing.Value && __instance.handItem != null && spacingIndex != __instance.handItem.ID)
             {
                 spacingIndex = __instance.handItem.ID;
-                if(!spacingStore.ContainsKey(spacingIndex))
+                if (!spacingStore.ContainsKey(spacingIndex))
                 {
                     spacingStore[spacingIndex] = 0;
                 }
@@ -269,7 +264,6 @@ namespace MultiBuild
             {
                 __instance.CreatePrebuilds();
             }
-
 
             return false;
         }
@@ -376,7 +370,6 @@ namespace MultiBuild
                             colliderData.q = rot * colliderData.q;
                             colliders[j] = ColliderPool.TakeCollider(colliderData);
                             colliders[j].gameObject.layer = 27;
-
                         }
                     }
 
@@ -391,16 +384,24 @@ namespace MultiBuild
                     }
                 }
 
-
                 ActivateColliders(ref __instance.nearcdLogic, usedSnaps);
-
             }
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
-        public static bool UpdatePreviews_HarmonyPrefix(ref PlayerAction_Build __instance)
+        public static bool UpdatePreviews_Prefix(ref PlayerAction_Build __instance)
         {
             return executeBuildUpdatePreviews;
+        }
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "AfterPrebuild")]
+        public static void AfterPrebuild_Prefix(ref PlayerAction_Build __instance)
+        {
+            if(IsMultiBuildEnabled())
+            {
+                __instance.ClearBuildPreviews();
+                ignoredTicks = MAX_IGNORED_TICKS;
+            }
         }
 
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> snaps)
@@ -451,11 +452,8 @@ namespace MultiBuild
                             }
                         }
                     }
-
-
                 }
             }
-
         }
     }
 }
