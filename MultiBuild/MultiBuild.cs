@@ -34,6 +34,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             try
             {
                 harmony.PatchAll(typeof(MultiBuild));
+                harmony.PatchAll(typeof(BlueprintManager));
                 harmony.PatchAll(typeof(PlayerAction_Build_Patch));
                 harmony.PatchAll(typeof(InserterPoses));
             }
@@ -127,12 +128,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 multiBuildEnabled = false;
                 startPos = Vector3.zero;
-                
 
                 if (__instance.cmd.mode != 1)
                 {
                     Debug.Log($"RESETTING {lastCmdMode} - {__instance.cmd.mode} ");
-                    Blueprint.Reset();
+                    BlueprintManager.Reset();
                 }
 
                 lastCmdMode = __instance.cmd.mode;
@@ -168,6 +168,5 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
         }
-
     }
 }
