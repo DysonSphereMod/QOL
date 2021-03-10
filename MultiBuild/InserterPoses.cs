@@ -8,15 +8,44 @@ using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
+    public class InserterPosition
+    {
+        public InserterCopy copiedInserter;
+        public Vector3 absoluteBuildingPos;
+        public Quaternion absoluteBuildingRot;
+
+        public Vector3 absoluteInserterPos;
+        public Vector3 absoluteInserterPos2;
+        public Quaternion absoluteInserterRot;
+        public Quaternion absoluteInserterRot2;
+
+        public Vector3 posDelta;
+        public Vector3 pos2Delta;
+
+        public int startSlot;
+        public int endSlot;
+
+        public short pickOffset;
+        public short insertOffset;
+
+        public int inputOriginalId;
+        public int outputOriginalId;
+
+        public int inputObjId;
+        public int outputObjId;
+
+        public EBuildCondition? condition;
+    }
+
     internal class BuildPreviewOverride
     {
         public Pose pose;
         public ItemProto itemProto;
-
     }
-    class InserterPoses : BaseUnityPlugin
+
+    internal class InserterPoses : BaseUnityPlugin
     {
-        const int INITIAL_OBJ_ID = 2000000000;
+        private const int INITIAL_OBJ_ID = 2000000000;
 
         public static List<BuildPreviewOverride> overrides = new List<BuildPreviewOverride>();
 
@@ -165,7 +194,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (objId >= INITIAL_OBJ_ID)
             {
-                __result = overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
+                __result = false;// overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
                 return false;
             }
 
@@ -195,6 +224,5 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             return true;
         }
-
     }
 }

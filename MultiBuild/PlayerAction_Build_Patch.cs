@@ -1,29 +1,27 @@
 ﻿using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
-using System.Reflection.Emit;
+using System.Text;
 using UnityEngine;
-
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    
-
-    class PlayerAction_Build_Patch
+    internal class PlayerAction_Build_Patch
     {
-
         public static bool lastFlag;
         public static string lastCursorText;
         public static bool lastCursorWarning;
         public static Vector3 lastPosition = Vector3.zero;
+        public static float lastYaw = 0f;
+        public static int lastPath = 0;
 
         public static bool executeBuildUpdatePreviews = true;
 
         public static int ignoredTicks = 0;
         public static int path = 0;
-
-
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
@@ -133,7 +131,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
         {
             var runOriginal = true;
-            
+
             if (__instance.controller.cmd.mode == 1 && __instance.player.planetData.type != EPlanetType.Gas && __instance.cursorValid)
             {
                 if (__instance.handPrefabDesc != null && __instance.handPrefabDesc.minerType != EMinerType.None)
@@ -155,7 +153,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     return true;
                 }
 
-                // full hijacking of DetermineBuildPreviews 
+                // full hijacking of DetermineBuildPreviews
                 runOriginal = false;
 
                 if (VFInput._switchSplitter.onDown)
@@ -177,16 +175,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
                 __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
 
-                /*__instance.previewPose.position = Vector3.zero;
-                __instance.previewPose.rotation = Quaternion.identity;*/
+                __instance.previewPose.position = Vector3.zero;
+                __instance.previewPose.rotation = Quaternion.identity;
 
-                __instance.previewPose.position = __instance.cursorTarget;
-                __instance.previewPose.rotation = Maths.SphericalRotation(__instance.previewPose.position, __instance.yaw);
+                //__instance.previewPose.position = __instance.cursorTarget;
+                //__instance.previewPose.rotation = Maths.SphericalRotation(__instance.previewPose.position, __instance.yaw);
 
                 var inversePreviewRot = Quaternion.Inverse(__instance.previewPose.rotation);
-                if (Blueprint.copiedBuildings.Count == 0)
+                if (BlueprintManager.data.copiedBuildings.Count == 0)
                 {
-                    Blueprint.copiedBuildings.Add(0, new BuildingCopy()
+                    BlueprintManager.data.copiedBuildings.Add(0, new BuildingCopy()
                     {
                         itemProto = __instance.handItem,
 
@@ -194,19 +192,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     });
                 }
 
-                
-
-                if (lastPosition == __instance.groundSnappedPos)
+                if (lastPosition == __instance.groundSnappedPos && lastYaw == __instance.yaw && path == lastPath)
                 {
                     return false;
                 }
                 lastPosition = __instance.groundSnappedPos;
+                lastYaw = __instance.yaw;
+                lastPath = path;
 
                 List<BuildPreview> previews = new List<BuildPreview>();
                 var absolutePositions = new List<Vector3>(10);
-                if (Blueprint.copiedBuildings.Count == 1 && MultiBuild.IsMultiBuildRunning())
+                if (BlueprintManager.data.copiedBuildings.Count == 1 && MultiBuild.IsMultiBuildRunning())
                 {
-                    var building = Blueprint.copiedBuildings[0];
+                    var building = BlueprintManager.data.copiedBuildings[0];
 
                     int snapPath = path;
                     Vector3[] snaps = new Vector3[1024];
@@ -269,14 +267,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         previousPos = pos;
                         absolutePositions.Add(pos);
 
-                        
-
                         var bp = BuildPreview.CreateSingle(building.itemProto, building.itemProto.prefabDesc, true);
                         bp.ResetInfos();
                         bp.desc = building.itemProto.prefabDesc;
                         bp.item = building.itemProto;
-                        bp.lpos = inversePreviewRot * (pos - __instance.previewPose.position);
-                        bp.lrot = inversePreviewRot * rot;
+                        bp.lpos = pos;
+                        bp.lrot = rot;
                         bp.recipeId = building.recipeId;
 
                         //pose.position - this.previewPose.position =  this.previewPose.rotation * buildPreview.lpos;
@@ -300,7 +296,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
 
                         previews.Add(bp);
-
                     }
 
                     foreach (var collider in colliders)
@@ -310,17 +305,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             ColliderPool.PutCollider(collider);
                         }
                     }
-
-                    
                 }
                 else
                 {
-                    previews = Blueprint.toBuildPreviews(__instance.groundSnappedPos, __instance.yaw, out absolutePositions);
+                    previews = BlueprintManager.toBuildPreviews(__instance.groundSnappedPos, __instance.yaw, out absolutePositions);
                 }
 
                 ActivateColliders(ref __instance.nearcdLogic, absolutePositions);
 
-                // synch previews 
+                // synch previews
                 for (var i = 0; i < previews.Count; i++)
                 {
                     if (i >= __instance.buildPreviews.Count)
@@ -336,7 +329,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             original.ResetInfos();
                             original.desc = updated.desc;
                             original.item = updated.item;
-
                         }
                         original.recipeId = updated.recipeId;
                         original.filterId = updated.filterId;
@@ -361,9 +353,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-
-
-
             return runOriginal;
         }
 
@@ -384,14 +373,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 //Vector3 vector2 = Vector3.Cross(vector, center).normalized * (5f);
 
                 nearCdLogic.MarkActivePos(center);
-               /* nearCdLogic.MarkActivePos(center + vector);
-                nearCdLogic.MarkActivePos(center - vector);
-                nearCdLogic.MarkActivePos(center + vector2);
-                nearCdLogic.MarkActivePos(center - vector2);
-                nearCdLogic.MarkActivePos(center + vector + vector2);
-                nearCdLogic.MarkActivePos(center - vector + vector2);
-                nearCdLogic.MarkActivePos(center + vector - vector2);
-                nearCdLogic.MarkActivePos(center - vector - vector2);*/
+                /* nearCdLogic.MarkActivePos(center + vector);
+                 nearCdLogic.MarkActivePos(center - vector);
+                 nearCdLogic.MarkActivePos(center + vector2);
+                 nearCdLogic.MarkActivePos(center - vector2);
+                 nearCdLogic.MarkActivePos(center + vector + vector2);
+                 nearCdLogic.MarkActivePos(center - vector + vector2);
+                 nearCdLogic.MarkActivePos(center + vector - vector2);
+                 nearCdLogic.MarkActivePos(center - vector - vector2);*/
 
                 if (nearCdLogic.activeColHashCount > 0)
                 {
@@ -425,43 +414,38 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-
-
-
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
         public static void SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId, int protoId)
         {
-            Blueprint.Reset();
+            BlueprintManager.Reset();
             if (objectId < 0)
                 return;
 
-            var copiedAssembler = Blueprint.copyAssembler(objectId);
+            var copiedAssembler = BlueprintManager.copyAssembler(objectId);
             // Set the current build rotation to the copied building rotation
             Quaternion zeroRot = Maths.SphericalRotation(copiedAssembler.originalPos, 0f);
             float yaw = Vector3.SignedAngle(zeroRot.Forward(), copiedAssembler.originalRot.Forward(), zeroRot.Up());
 
             __instance.yaw = yaw;
-
-
         }
+
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
         public static void CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
         {
-
-            if (Blueprint.copiedInserters.Count > 0)
+            if (BlueprintManager.data.copiedInserters.Count + BlueprintManager.data.copiedBelts.Count + BlueprintManager.data.copiedBuildings.Count > 0)
             {
                 var flag = true;
                 for (int i = 0; i < __instance.buildPreviews.Count; i++)
                 {
                     BuildPreview buildPreview = __instance.buildPreviews[i];
-                    bool isInserter = buildPreview.desc.isInserter;
-                    bool isConnected = buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
-                    if (isInserter && (
+
+                    if (buildPreview.condition == EBuildCondition.OutOfReach)
+                    {
+                        buildPreview.condition = EBuildCondition.Ok;
+                    }
+                    if (buildPreview.desc.isInserter && (
                         buildPreview.condition == EBuildCondition.TooFar ||
-                        buildPreview.condition == EBuildCondition.TooClose ||
-                        buildPreview.condition == EBuildCondition.OutOfReach ||
-                        // the following fix an incompatibility with AdvanceBuildDestruct where inserter are tagged ascolliding even if they are not
-                        (buildPreview.condition == EBuildCondition.Collide && isConnected)
+                        buildPreview.condition == EBuildCondition.TooClose
                         ))
                     {
                         buildPreview.condition = EBuildCondition.Ok;
@@ -473,7 +457,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
                 }
 
-                if(!__result && flag)
+                if (!__result && flag)
                 {
                     UICursor.SetCursor(ECursor.Default);
                     __instance.cursorText = __instance.prepareCursorText;
@@ -485,7 +469,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-
         private static Color COPY_GIZMO_COLOR = new Color(1f, 1f, 1f, 1f);
         private static CircleGizmo circleGizmo;
         private static int[] _nearObjectIds = new int[4096];
@@ -493,7 +476,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
         public static void GameTick(PlayerAction_Build __instance)
         {
-            if(VFInput.shift && __instance.controller.cmd.mode == 0)
+            if (VFInput.shift && __instance.controller.cmd.mode == 0)
             {
                 if (circleGizmo == null)
                 {
@@ -511,26 +494,37 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 if (VFInput._buildConfirm.onDown)
                 {
-                    Blueprint.Reset();
+                    BlueprintManager.Reset();
                 }
-                if(VFInput._buildConfirm.pressing) { 
+                if (VFInput._buildConfirm.pressing)
+                {
                     int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, 10, _nearObjectIds);
 
-                    for (int i = 0; i< found; i++)
+                    for (int i = 0; i < found; i++)
                     {
-                        Blueprint.copyAssembler(_nearObjectIds[i]);
+                        BlueprintManager.copyAssembler(_nearObjectIds[i]);
+                    }
+
+                    for (int i = 0; i < found; i++)
+                    {
+                        BlueprintManager.copyBelt(_nearObjectIds[i]);
                     }
                 }
                 if (VFInput._buildConfirm.onUp)
                 {
-                    if (Blueprint.copiedBuildings.Count > 0)
+                    if (BlueprintManager.data.copiedBuildings.Count > 0)
                     {
-                        __instance.player.SetHandItems(Blueprint.copiedBuildings.First().Value.itemProto.ID, 0, 0);
+                        __instance.player.SetHandItems(BlueprintManager.data.copiedBuildings.First().Value.itemProto.ID, 0, 0);
                         __instance.controller.cmd.type = ECommand.Build;
                         __instance.controller.cmd.mode = 1;
                     }
+
+                    Debug.Log($"blueprint size: {BlueprintManager.data.export().Length}");
+
+                   
                 }
-            } else
+            }
+            else
             {
                 if (circleGizmo != null)
                 {
@@ -539,5 +533,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
         }
+
+        
+      
     }
 }
