@@ -35,6 +35,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 harmony.PatchAll(typeof(MultiBuild));
                 harmony.PatchAll(typeof(PlayerAction_Build_Patch));
+                harmony.PatchAll(typeof(InserterPoses));
             }
             catch (Exception e)
             {
@@ -131,8 +132,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (__instance.cmd.mode != 1)
                 {
                     Debug.Log($"RESETTING {lastCmdMode} - {__instance.cmd.mode} ");
-                    PlayerAction_Build_Patch.copiedAssemblers.Clear();
-                    PlayerAction_Build_Patch.copiedInserters.Clear();
+                    Blueprint.Reset();
                 }
 
                 lastCmdMode = __instance.cmd.mode;

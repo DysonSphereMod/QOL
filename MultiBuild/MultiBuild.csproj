@@ -6,7 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{B6454A7A-C46F-400A-906B-E5DFFD72BD73}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>DSM.MultiBuild</RootNamespace>
+    <RootNamespace>com.brokenmass.plugin.DSP.MultiBuild</RootNamespace>
     <AssemblyName>MultiBuild</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -102,6 +102,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ACPublic.cs" />
+    <Compile Include="Blueprint.cs" />
+    <Compile Include="InserterPoses.cs" />
     <Compile Include="PlayerAction_Build_Patch.cs" />
     <Compile Include="MultiBuild.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
