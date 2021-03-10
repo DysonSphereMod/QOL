@@ -141,7 +141,7 @@ namespace MultiDestruct
                 tooltips.Add("toggle-destruct", __instance.RegisterTip("L-ALT", "Toggle MultiDestruct mode"));
                 tooltips.Add("increase-area", __instance.RegisterTip("+", "Increase delete area"));
                 tooltips.Add("decrease-area", __instance.RegisterTip("-", "Decrease delete area"));
-                tooltips.Add("change-filter", __instance.RegisterTip("-", "Change destruct filter"));
+                tooltips.Add("change-filter", __instance.RegisterTip("TAB", "Change destruct filter"));
             }
             tooltips["toggle-destruct"].desired = IsMultiDestructAvailable();
             tooltips["change-filter"].desired = tooltips["decrease-area"].desired = tooltips["increase-area"].desired = IsMultiDestructRunning();
