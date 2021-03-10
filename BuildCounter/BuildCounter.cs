@@ -113,9 +113,6 @@ namespace BuildCounter
                 }
 
                 __instance.cursorText += text.ToString();
-
-
-
             }
 
             PlayerController controller = GameMain.mainPlayer.controller;
@@ -128,8 +125,6 @@ namespace BuildCounter
             {
                 UIRoot.instance.uiGame.handTip.SetHandTip();
             }
-
-
         }
     }
 }

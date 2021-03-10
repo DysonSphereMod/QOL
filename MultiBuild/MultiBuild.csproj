@@ -102,6 +102,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ACPublic.cs" />
+    <Compile Include="PlayerAction_Build_Patch.cs" />
     <Compile Include="MultiBuild.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
