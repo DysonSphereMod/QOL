@@ -8,48 +8,7 @@ using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    public class AssemblerCopy
-    {
-        public ItemProto itemProto;
-        public EntityData originalEntity;
-        public Vector3 originalPos;
-        public Quaternion originalRot;
-
-        public Vector3 cursorRelativePos = Vector3.zero;
-        public float cursorRelativeYaw = 0f;
-        public int snapCount = 0;
-        public Vector3[] snapMoves;
-
-
-        public int recipeId;
-    }
-
-    public class InserterCopy
-    {
-        public int fromID;
-        public int toID;
-
-        public int originalId;
-        public ItemProto itemProto;
-        public EntityData originalEntity;
-
-        public bool incoming;
-        public int startSlot;
-        public int endSlot;
-        public Vector3 posDelta;
-        public Vector3 pos2Delta;
-        public Quaternion rot;
-        public Quaternion rot2;
-        public int snapCount;
-        public Vector3[] snapMoves;
-        public short pickOffset;
-        public short insertOffset;
-        public short t1;
-        public short t2;
-        public int filterId;
-        public int refCount;
-        public bool otherIsBelt;
-    }
+    
 
     class PlayerAction_Build_Patch
     {
@@ -64,8 +23,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int ignoredTicks = 0;
         public static int path = 0;
 
-        public static Dictionary<int, AssemblerCopy> copiedAssemblers = new Dictionary<int, AssemblerCopy>();
-        public static Dictionary<int, InserterCopy> copiedInserters = new Dictionary<int, InserterCopy>();
+
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
@@ -226,9 +184,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 __instance.previewPose.rotation = Maths.SphericalRotation(__instance.previewPose.position, __instance.yaw);
 
                 var inversePreviewRot = Quaternion.Inverse(__instance.previewPose.rotation);
-                if (copiedAssemblers.Count == 0)
+                if (Blueprint.copiedBuildings.Count == 0)
                 {
-                    copiedAssemblers.Add(0, new AssemblerCopy()
+                    Blueprint.copiedBuildings.Add(0, new BuildingCopy()
                     {
                         itemProto = __instance.handItem,
 
@@ -236,25 +194,28 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     });
                 }
 
-                var previews = new List<BuildPreview>();
+                
 
                 if (lastPosition == __instance.groundSnappedPos)
                 {
                     return false;
                 }
                 lastPosition = __instance.groundSnappedPos;
-                if (copiedAssemblers.Count == 1 && MultiBuild.IsMultiBuildRunning())
+
+                List<BuildPreview> previews = new List<BuildPreview>();
+                var absolutePositions = new List<Vector3>(10);
+                if (Blueprint.copiedBuildings.Count == 1 && MultiBuild.IsMultiBuildRunning())
                 {
+                    var building = Blueprint.copiedBuildings[0];
+
                     int snapPath = path;
                     Vector3[] snaps = new Vector3[1024];
 
                     var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
 
-                    var desc = copiedAssemblers[0].itemProto.prefabDesc;
+                    var desc = building.itemProto.prefabDesc;
                     Collider[] colliders = new Collider[desc.buildColliders.Length];
                     Vector3 previousPos = Vector3.zero;
-
-                    var usedSnaps = new List<Vector3>(10);
 
                     var maxSnaps = Math.Max(1, snappedPointCount - MultiBuild.spacingStore[MultiBuild.spacingIndex]);
 
@@ -306,15 +267,17 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
 
                         previousPos = pos;
-                        usedSnaps.Add(pos);
+                        absolutePositions.Add(pos);
 
-                        var bp = BuildPreview.CreateSingle(copiedAssemblers[0].itemProto, copiedAssemblers[0].itemProto.prefabDesc, true);
+                        
+
+                        var bp = BuildPreview.CreateSingle(building.itemProto, building.itemProto.prefabDesc, true);
                         bp.ResetInfos();
-                        bp.desc = copiedAssemblers[0].itemProto.prefabDesc;
-                        bp.item = copiedAssemblers[0].itemProto;
+                        bp.desc = building.itemProto.prefabDesc;
+                        bp.item = building.itemProto;
                         bp.lpos = inversePreviewRot * (pos - __instance.previewPose.position);
                         bp.lrot = inversePreviewRot * rot;
-                        bp.recipeId = copiedAssemblers[0].recipeId;
+                        bp.recipeId = building.recipeId;
 
                         //pose.position - this.previewPose.position =  this.previewPose.rotation * buildPreview.lpos;
                         //pose.rotation = this.previewPose.rotation * buildPreview.lrot;
@@ -348,35 +311,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
                     }
 
-                    ActivateColliders(ref __instance.nearcdLogic, usedSnaps);
+                    
                 }
                 else
                 {
-                    foreach (var copiedAssembler in copiedAssemblers.Values)
-                    {
-                        var absoluteBuildingRot = Maths.SphericalRotation(__instance.groundSnappedPos, __instance.yaw);
-                        var absolutePosition = __instance.planetAux.Snap(__instance.groundSnappedPos + absoluteBuildingRot * copiedAssembler.cursorRelativePos, true, true);
-
-                        if (copiedAssembler.snapCount > 0)
-                        {
-                            absolutePosition = __instance.groundSnappedPos;
-                            // Note: rotates each move relative to the rotation of the new building
-                            for (int u = 0; u < copiedAssembler.snapCount; u++)
-                                absolutePosition = __instance.planetAux.Snap(absolutePosition + absoluteBuildingRot * copiedAssembler.snapMoves[u], true, false);
-                        }
-
-                        BuildPreview bp = BuildPreview.CreateSingle(copiedAssembler.itemProto, copiedAssembler.itemProto.prefabDesc, true);
-                        bp.ResetInfos();
-                        bp.desc = copiedAssembler.itemProto.prefabDesc;
-                        bp.item = copiedAssembler.itemProto;
-                        bp.recipeId = copiedAssembler.recipeId;
-                        bp.lpos = inversePreviewRot * (absolutePosition - __instance.previewPose.position);
-                        bp.lrot = inversePreviewRot * Maths.SphericalRotation(absolutePosition, __instance.yaw + copiedAssembler.cursorRelativeYaw);
-
-                        previews.Add(bp);
-                    }
+                    previews = Blueprint.toBuildPreviews(__instance.groundSnappedPos, __instance.yaw, out absolutePositions);
                 }
 
+                ActivateColliders(ref __instance.nearcdLogic, absolutePositions);
+
+                // synch previews 
                 for (var i = 0; i < previews.Count; i++)
                 {
                     if (i >= __instance.buildPreviews.Count)
@@ -429,25 +373,25 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return executeBuildUpdatePreviews;
         }
 
-        public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> snaps)
+        public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> positions)
         {
-            for (int s = 0; s < snaps.Count; s++)
+            for (int s = 0; s < positions.Count; s++)
             {
                 nearCdLogic.activeColHashCount = 0;
-                var center = snaps[s];
+                var center = positions[s];
 
-                Vector3 vector = Vector3.Cross(center, center - GameMain.mainPlayer.position).normalized * (5f);
-                Vector3 vector2 = Vector3.Cross(vector, center).normalized * (5f);
+                //Vector3 vector = Vector3.Cross(center, center - GameMain.mainPlayer.position).normalized * (5f);
+                //Vector3 vector2 = Vector3.Cross(vector, center).normalized * (5f);
 
                 nearCdLogic.MarkActivePos(center);
-                nearCdLogic.MarkActivePos(center + vector);
+               /* nearCdLogic.MarkActivePos(center + vector);
                 nearCdLogic.MarkActivePos(center - vector);
                 nearCdLogic.MarkActivePos(center + vector2);
                 nearCdLogic.MarkActivePos(center - vector2);
                 nearCdLogic.MarkActivePos(center + vector + vector2);
                 nearCdLogic.MarkActivePos(center - vector + vector2);
                 nearCdLogic.MarkActivePos(center + vector - vector2);
-                nearCdLogic.MarkActivePos(center - vector - vector2);
+                nearCdLogic.MarkActivePos(center - vector - vector2);*/
 
                 if (nearCdLogic.activeColHashCount > 0)
                 {
@@ -481,262 +425,64 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
+
+
+
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
         public static void SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId, int protoId)
         {
-            copiedAssemblers.Clear();
-            copiedInserters.Clear();
+            Blueprint.Reset();
             if (objectId < 0)
                 return;
 
-
-            var sourceEntityProto = LDB.items.Select(protoId);
-
-            if (sourceEntityProto.prefabDesc.insertPoses.Length == 0)
-                return;
-
-            var sourceEntityId = objectId;
-            var sourceEntity = __instance.factory.entityPool[sourceEntityId];
-            var sourcePos = sourceEntity.pos;
-            var sourceRot = sourceEntity.rot;
-
-            copiedAssemblers.Add(sourceEntityId, new AssemblerCopy()
-            {
-                itemProto = sourceEntityProto,
-                originalEntity = sourceEntity,
-                originalPos = sourcePos,
-                originalRot = sourceRot,
-
-                recipeId = __instance.copyRecipeId
-            });
-
+            var copiedAssembler = Blueprint.copyAssembler(objectId);
             // Set the current build rotation to the copied building rotation
-            Quaternion zeroRot = Maths.SphericalRotation(sourcePos, 0f);
-            float yaw = Vector3.SignedAngle(zeroRot.Forward(), sourceRot.Forward(), zeroRot.Up());
-            if (sourceEntityProto.prefabDesc.minerType != EMinerType.Vein)
-            {
-                yaw = Mathf.Round(yaw / 90f) * 90f;
-            }
+            Quaternion zeroRot = Maths.SphericalRotation(copiedAssembler.originalPos, 0f);
+            float yaw = Vector3.SignedAngle(zeroRot.Forward(), copiedAssembler.originalRot.Forward(), zeroRot.Up());
+
             __instance.yaw = yaw;
 
-            // Ignore building without inserter slots
 
-
-            // Find connected inserters
-            var inserterPool = __instance.factory.factorySystem.inserterPool;
-            var entityPool = __instance.factory.entityPool;
-            var prebuildPool = __instance.factory.prebuildPool;
-
-            for (int i = 1; i < __instance.factory.factorySystem.inserterCursor; i++)
-            {
-                if (inserterPool[i].id != i) continue;
-
-                var inserter = inserterPool[i];
-                var inserterEntity = entityPool[inserter.entityId];
-
-                var pickTarget = inserter.pickTarget;
-                var insertTarget = inserter.insertTarget;
-
-                if (pickTarget == sourceEntityId || insertTarget == sourceEntityId)
-                {
-                    ItemProto itemProto = LDB.items.Select(inserterEntity.protoId);
-
-                    bool incoming = insertTarget == sourceEntityId;
-                    var otherId = incoming ? pickTarget : insertTarget; // The belt or other building this inserter is attached to
-                    Vector3 otherPos;
-                    ItemProto otherProto;
-
-                    if (otherId > 0)
-                    {
-                        otherPos = entityPool[otherId].pos;
-                        otherProto = LDB.items.Select((int)entityPool[otherId].protoId);
-                    }
-                    else
-                    {
-                        otherPos = prebuildPool[-otherId].pos;
-                        otherProto = LDB.items.Select((int)entityPool[-otherId].protoId);
-                    }
-
-                    // Store the Grid-Snapped moves from assembler to belt/other
-                    int path = 0;
-                    Vector3[] snaps = new Vector3[6];
-                    var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(sourcePos, otherPos, ref path, snaps);
-                    Vector3 lastSnap = sourcePos;
-                    Vector3[] snapMoves = new Vector3[snappedPointCount];
-                    for (int s = 0; s < snappedPointCount; s++)
-                    {
-                        // note: reverse rotation of the delta so that rotation works
-                        Vector3 snapMove = Quaternion.Inverse(sourceRot) * (snaps[s] - lastSnap);
-                        snapMoves[s] = snapMove;
-                        lastSnap = snaps[s];
-                    }
-
-                    bool otherIsBelt = otherProto != null && otherProto.prefabDesc.isBelt;
-
-                    // Cache info for this inserter
-                    InserterCopy copiedInserter = new InserterCopy
-                    {
-                        fromID = pickTarget,
-                        toID = insertTarget,
-                        incoming = incoming,
-
-                        originalId = inserter.entityId,
-                        itemProto = itemProto,
-                        originalEntity = inserterEntity,
-
-                        // rotations + deltas relative to the source building's rotation
-                        rot = Quaternion.Inverse(sourceRot) * inserterEntity.rot,
-                        rot2 = Quaternion.Inverse(sourceRot) * inserter.rot2,
-                        posDelta = Quaternion.Inverse(sourceRot) * (inserterEntity.pos - sourcePos), // Delta from copied building to inserter pos
-                        pos2Delta = Quaternion.Inverse(sourceRot) * (inserter.pos2 - sourcePos), // Delta from copied building to inserter pos2
-
-                        // store to restore inserter speed
-                        refCount = Mathf.RoundToInt((float)(inserter.stt - 0.499f) / itemProto.prefabDesc.inserterSTT),
-
-                        // not important?
-                        pickOffset = inserter.pickOffset,
-                        insertOffset = inserter.insertOffset,
-
-                        // needed for pose?
-                        t1 = inserter.t1,
-                        t2 = inserter.t2,
-
-                        filterId = inserter.filter,
-                        snapMoves = snapMoves,
-                        snapCount = snappedPointCount,
-
-                        startSlot = -1,
-                        endSlot = -1,
-
-                        otherIsBelt = otherIsBelt
-                    };
-
-
-                    // compute the start and end slot that the cached inserter uses
-                    CalculatePose(__instance, pickTarget, insertTarget);
-
-                    if (__instance.posePairs.Count > 0)
-                    {
-                        float minDistance = 1000f;
-                        for (int j = 0; j < __instance.posePairs.Count; ++j)
-                        {
-                            var posePair = __instance.posePairs[j];
-                            float startDistance = Vector3.Distance(posePair.startPose.position, inserterEntity.pos);
-                            float endDistance = Vector3.Distance(posePair.endPose.position, inserter.pos2);
-                            float poseDistance = startDistance + endDistance;
-
-                            if (poseDistance < minDistance)
-                            {
-                                minDistance = poseDistance;
-                                copiedInserter.startSlot = posePair.startSlot;
-                                copiedInserter.endSlot = posePair.endSlot;
-                            }
-                        }
-                    }
-
-                    copiedInserters.Add(copiedInserter.originalId, copiedInserter);
-                }
-            }
         }
-
-        [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
-        public static void CalculatePose(PlayerAction_Build __instance, int startObjId, int castObjId)
+        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
+        public static void CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
         {
-            IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+
+            if (Blueprint.copiedInserters.Count > 0)
             {
-                List<CodeInstruction> instructionsList = instructions.ToList();
-
-                // Find the idx at which the "cargoTraffic" field of the PlanetFactory
-                // Is first accessed since this is the start of the instructions that compute posing
-
-                /* ex of the code in dotpeek:
-                 * ```
-                 * if (this.cursorValid && this.startObjId != this.castObjId && (this.startObjId > 0 && this.castObjId > 0))
-                 * {
-                 *   CargoTraffic cargoTraffic = this.factory.cargoTraffic; <- WE WANT TO START WITH THIS LINE (INCLUSIVE)
-                 *   EntityData[] entityPool = this.factory.entityPool;
-                 *   BeltComponent[] beltPool = cargoTraffic.beltPool;
-                 *   this.posePairs.Clear();
-                 *   this.startSlots.Clear();
-                 * ```
-                 */
-
-                int startIdx = -1;
-                for (int i = 0; i < instructionsList.Count; i++)
+                var flag = true;
+                for (int i = 0; i < __instance.buildPreviews.Count; i++)
                 {
-                    if (instructionsList[i].LoadsField(typeof(PlanetFactory).GetField("cargoTraffic")))
+                    BuildPreview buildPreview = __instance.buildPreviews[i];
+                    bool isInserter = buildPreview.desc.isInserter;
+                    bool isConnected = buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
+                    if (isInserter && (
+                        buildPreview.condition == EBuildCondition.TooFar ||
+                        buildPreview.condition == EBuildCondition.TooClose ||
+                        buildPreview.condition == EBuildCondition.OutOfReach ||
+                        // the following fix an incompatibility with AdvanceBuildDestruct where inserter are tagged ascolliding even if they are not
+                        (buildPreview.condition == EBuildCondition.Collide && isConnected)
+                        ))
                     {
-                        startIdx = i - 2; // need the two proceeding lines that are ldarg.0 and ldfld PlayerAction_Build::factory
-                        break;
+                        buildPreview.condition = EBuildCondition.Ok;
+                    }
+
+                    if (buildPreview.condition != EBuildCondition.Ok)
+                    {
+                        flag = false;
                     }
                 }
-                if (startIdx == -1)
+
+                if(!__result && flag)
                 {
-                    throw new InvalidOperationException("Cannot patch sorter posing code b/c the start indicator isn't present");
+                    UICursor.SetCursor(ECursor.Default);
+                    __instance.cursorText = __instance.prepareCursorText;
+                    __instance.prepareCursorText = string.Empty;
+                    __instance.cursorWarning = false;
                 }
 
-                // Find the idx at which the "posePairs" field of the PlayerAction_Build
-                // Is first accessed and followed by a call to get_Count
-
-                /*
-                 * ex of the code in dotpeek:
-                 * ```
-                 *          else
-                 *              flag6 = true;
-                 *      }
-                 *      else
-                 *        flag6 = true;
-                 *    }
-                 *  }
-                 *  if (this.posePairs.Count > 0) <- WE WANT TO END ON THIS LINE (EXCLUSIVE)
-                 *  {
-                 *    float num1 = 1000f;
-                 *    float num2 = Vector3.Distance(this.currMouseRay.origin, this.cursorTarget) + 10f;
-                 *    PlayerAction_Build.PosePair posePair2 = new PlayerAction_Build.PosePair();
-                 * ```
-                 */
-
-                int endIdx = -1;
-                for (int i = startIdx; i < instructionsList.Count - 1; i++) // go to the end - 1 b/c we need to check two instructions to find valid loc
-                {
-                    if (instructionsList[i].LoadsField(typeof(PlayerAction_Build).GetField("posePairs")))
-                    {
-                        if (instructionsList[i + 1].Calls(typeof(List<PlayerAction_Build.PosePair>).GetMethod("get_Count")))
-                        {
-                            endIdx = i - 1; // need the proceeding line that is ldarg.0
-                            break;
-                        }
-                    }
-                }
-                if (endIdx == -1)
-                {
-                    throw new InvalidOperationException("Cannot patch sorter posing code b/c the end indicator isn't present");
-                }
-
-                // The first argument to an instance method (arg 0) is the instance itself
-                // Since this is a static method, the instance will still need to be passed
-                // For the IL instructions to work properly so manually pass the instance as
-                // The first argument to the method.
-                List<CodeInstruction> code = new List<CodeInstruction>()
-                    {
-                        new CodeInstruction(OpCodes.Ldarg_0),
-                        new CodeInstruction(OpCodes.Ldarg_1),
-                        CodeInstruction.StoreField(typeof(PlayerAction_Build), "startObjId"),
-                        new CodeInstruction(OpCodes.Ldarg_0),
-                        new CodeInstruction(OpCodes.Ldarg_2),
-                        CodeInstruction.StoreField(typeof(PlayerAction_Build), "castObjId"),
-                    };
-
-                for (int i = startIdx; i < endIdx; i++)
-                {
-                    code.Add(instructionsList[i]);
-                }
-                return code.AsEnumerable();
+                __result = flag;
             }
-
-            // make compiler happy
-            _ = Transpiler(null);
-            return;
         }
 
 
@@ -763,78 +509,26 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 circleGizmo.position = __instance.groundTestPos;
                 circleGizmo.radius = 1.2f * 10;
 
-                if(VFInput._buildConfirm.onDown)
+                if (VFInput._buildConfirm.onDown)
                 {
-                    copiedAssemblers.Clear();
-                    copiedInserters.Clear();
+                    Blueprint.Reset();
+                }
+                if(VFInput._buildConfirm.pressing) { 
                     int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, 10, _nearObjectIds);
 
-                    AssemblerCopy firstItem = null;
                     for (int i = 0; i< found; i++)
                     {
-                        
-
-                        var sourceEntityId = _nearObjectIds[i];
-                        var sourceEntity = __instance.factory.entityPool[sourceEntityId];
-                        var sourcePos = sourceEntity.pos;
-                        var sourceRot = sourceEntity.rot;
-
-                        var sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
-
-                        if (sourceEntityProto.prefabDesc.insertPoses.Length == 0)
-                            continue;
-                        
-                        var assemblerCopy = new AssemblerCopy()
-                        {
-                            itemProto = sourceEntityProto,
-                            originalEntity = sourceEntity,
-                            originalPos = sourcePos,
-                            originalRot = sourceRot
-                        };
-
-                        if (!sourceEntityProto.prefabDesc.isAssembler)
-                        {
-                            assemblerCopy.recipeId = __instance.factory.factorySystem.assemblerPool[sourceEntity.assemblerId].recipeId;
-                        }
-
-                        if (firstItem == null)
-                        {
-                            firstItem = assemblerCopy;
-                        } else
-                        {
-                            
-                            var inverseRot = Quaternion.Inverse(firstItem.originalRot);
-
-                            assemblerCopy.cursorRelativePos = inverseRot * (assemblerCopy.originalPos - firstItem.originalPos);
-                            int path = 0;
-                            Vector3[] snaps = new Vector3[1000];
-                            var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(firstItem.originalPos, assemblerCopy.originalPos, ref path, snaps);
-                            Vector3 lastSnap = firstItem.originalPos;
-                            Vector3[] snapMoves = new Vector3[snappedPointCount];
-                            for (int s = 0; s < snappedPointCount; s++)
-                            {
-                                // note: reverse rotation of the delta so that rotation works
-                                Vector3 snapMove = inverseRot * (snaps[s] - lastSnap);
-                                snapMoves[s] = snapMove;
-                                lastSnap = snaps[s];
-                            }
-
-                            assemblerCopy.snapCount = snappedPointCount;
-                            assemblerCopy.snapMoves = snapMoves;
-                            //assemblerCopy.cursorRelativeRot = Quaternion.Inverse(firstItem.originalRot) * assemblerCopy.originalRot;
-                        }
-
-                        copiedAssemblers.Add(sourceEntityId, assemblerCopy);
-
+                        Blueprint.copyAssembler(_nearObjectIds[i]);
                     }
-
-                    if(copiedAssemblers.Count > 0)
+                }
+                if (VFInput._buildConfirm.onUp)
+                {
+                    if (Blueprint.copiedBuildings.Count > 0)
                     {
-                        __instance.player.SetHandItems(firstItem.itemProto.ID, 0, 0);
+                        __instance.player.SetHandItems(Blueprint.copiedBuildings.First().Value.itemProto.ID, 0, 0);
                         __instance.controller.cmd.type = ECommand.Build;
                         __instance.controller.cmd.mode = 1;
                     }
-                    
                 }
             } else
             {
