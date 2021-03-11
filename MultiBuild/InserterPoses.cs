@@ -1,5 +1,6 @@
 ﻿using BepInEx;
 using HarmonyLib;
+using NGPT;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -49,7 +50,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static List<BuildPreviewOverride> overrides = new List<BuildPreviewOverride>();
 
-        public static void ResetBuildPreviewsData()
+        public static void resetOverrides()
         {
             overrides.Clear();
         }
@@ -165,6 +166,63 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return;
         }
 
+
+        // CalculatePose TODO :
+        /*
+
+        if (flag13)
+        {
+            foreach (Pose pose in __instance.belt_slots)
+            {
+                PlayerAction_Build.SlotPoint item;
+                item.objId = __instance.startObjId;
+                item.pose = pose.GetTransformedBy(objectPose8);
+                item.slotIdx = -1;
+                __instance.startSlots.Add(item);
+            }
+
+            // REMOVE OTHER STUFF
+        }
+        ...
+        if (flag14)
+        {
+            foreach (Pose pose in __instance.belt_slots)
+            {
+                PlayerAction_Build.SlotPoint item;
+                item.objId = __instance.castObjId;
+                item.pose = pose.GetTransformedBy(objectPose9);
+                item.slotIdx = -1;
+                __instance.endSlots.Add(item);
+            }
+
+
+            // REMOVE OTHER STUFF
+        }
+        ...
+
+
+        __instance.posePairs.Add(posePair2);
+        if (false && num38 < 40f)
+        {
+            if (flag18 && flag19)
+            {
+                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it 
+                // perpendicular to the belt
+            }
+            else if (flag19)
+            {
+                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it 
+                // perpendicular to the belt
+            }
+            else if (flag18)
+            {
+                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it 
+				// perpendicular to the belt
+            }
+        }
+        ...
+        */
+
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerAction_Build), "GetObjectPose")]
         public static bool GetObjectPose_Prefix(int objId, ref Pose __result)
         {
@@ -194,7 +252,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (objId >= INITIAL_OBJ_ID)
             {
-                __result = false;// overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
+                // we always ahve to return false otherwise calculatePose will throw (See TODO above)
+				__result = false; // overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
                 return false;
             }
 
