@@ -9,6 +9,12 @@ using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
+    internal class SorterReconnection
+    {
+        public int objId = 0;
+        public int belt1 = 0;
+        public int belt2 = 0;
+    }
     internal class PlayerAction_Build_Patch
     {
         public static bool lastFlag;
@@ -23,6 +29,25 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int ignoredTicks = 0;
         public static int path = 0;
 
+        public static Dictionary<int, SorterReconnection> SortersToFix = new Dictionary<int, SorterReconnection>();
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlanetFactory), "WriteObjectConn")]
+        public static void WriteObjectConn_Prefix(ref PlanetFactory __instance, int objId, int slot, bool isOutput, int otherObjId, ref int otherSlot)
+        {
+            if (otherSlot == -1 && otherObjId < 0)
+            {
+                for (int i = 4; i < 12; i++)
+                {
+                    if (__instance.prebuildConnPool[-otherObjId * 16 + i] == 0)
+                    {
+                        otherSlot = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
@@ -41,9 +66,239 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
+
+
             return true;
+
+/*            
+        if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 0)
+        {
+            __instance.tmp_links.Clear();
+            foreach (BuildPreview buildPreview in __instance.buildPreviews)
+            {
+                if (buildPreview.isConnNode)
+                {
+                    buildPreview.lrot = Maths.SphericalRotation(buildPreview.lpos, 0f);
+                }
+                PrebuildData prebuild = default(PrebuildData);
+                prebuild.protoId = (short)buildPreview.item.ID;
+                prebuild.modelIndex = (short)buildPreview.desc.modelIndex;
+                prebuild.pos = __instance.previewPose.position + __instance.previewPose.rotation * buildPreview.lpos;
+                prebuild.pos2 = __instance.previewPose.position + __instance.previewPose.rotation * buildPreview.lpos2;
+                prebuild.rot = __instance.previewPose.rotation * buildPreview.lrot;
+                prebuild.rot2 = __instance.previewPose.rotation * buildPreview.lrot2;
+                prebuild.pickOffset = (short)buildPreview.inputOffset;
+                prebuild.insertOffset = (short)buildPreview.outputOffset;
+                prebuild.recipeId = buildPreview.recipeId;
+                prebuild.filterId = buildPreview.filterId;
+                prebuild.InitRefArray(buildPreview.refCount);
+                for (int i = 0; i < buildPreview.refCount; i++)
+                {
+                    prebuild.refArr[i] = buildPreview.refArr[i];
+                }
+                bool flag = true;
+                if (buildPreview.coverObjId == 0 || buildPreview.willCover)
+                {
+                    int id = buildPreview.item.ID;
+                    int num = 1;
+                    if (__instance.player.inhandItemId == id && __instance.player.inhandItemCount > 0)
+                    {
+                        __instance.player.UseHandItems(1);
+                    }
+                    else
+                    {
+                        __instance.player.package.TakeTailItems(ref id, ref num, false);
+                    }
+                    flag = (num == 1);
+                }
+                if (flag)
+                {
+                    if (buildPreview.coverObjId == 0)
+                    {
+                        buildPreview.objId = -__instance.factory.AddPrebuildDataWithComponents(prebuild);
+                    }
+                    else if (buildPreview.willCover)
+                    {
+                        int coverObjId = buildPreview.coverObjId;
+                        bool flag2 = __instance.ObjectIsBelt(coverObjId);
+                        if (flag2)
+                        {
+                            for (int j = 0; j < 4; j++)
+                            {
+                                bool flag3;
+                                int num2;
+                                int num3;
+                                __instance.factory.ReadObjectConn(coverObjId, j, out flag3, out num2, out num3);
+                                int num4 = num2;
+                                if (num4 != 0 && __instance.ObjectIsBelt(num4))
+                                {
+                                    bool flag4 = false;
+                                    for (int k = 0; k < 2; k++)
+                                    {
+                                        __instance.factory.ReadObjectConn(num4, k, out flag3, out num2, out num3);
+                                        if (num2 != 0)
+                                        {
+                                            bool flag5 = __instance.ObjectIsBelt(num2);
+                                            bool flag6 = __instance.ObjectIsInserter(num2);
+                                            if (!flag5 && !flag6)
+                                            {
+                                                flag4 = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (flag4)
+                                    {
+                                        __instance.tmp_links.Add(num4);
+                                    }
+                                }
+                            }
+                        }
+                        if (buildPreview.coverObjId > 0)
+                        {
+                            Array.Copy(__instance.factory.entityConnPool, buildPreview.coverObjId * 16, __instance.tmp_conn, 0, 16);
+                            for (int l = 0; l < 16; l++)
+                            {
+                                bool flag7;
+                                int num5;
+                                int otherSlotId;
+                                __instance.factory.ReadObjectConn(buildPreview.coverObjId, l, out flag7, out num5, out otherSlotId);
+                                if (num5 > 0)
+                                {
+                                    __instance.factory.ApplyEntityDisconnection(num5, buildPreview.coverObjId, otherSlotId, l);
+                                }
+                            }
+                            Array.Clear(__instance.factory.entityConnPool, buildPreview.coverObjId * 16, 16);
+                        }
+                        else
+                        {
+                            Array.Copy(__instance.factory.prebuildConnPool, -buildPreview.coverObjId * 16, __instance.tmp_conn, 0, 16);
+                            Array.Clear(__instance.factory.prebuildConnPool, -buildPreview.coverObjId * 16, 16);
+                        }
+                        buildPreview.objId = -__instance.factory.AddPrebuildDataWithComponents(prebuild);
+                        if (buildPreview.objId > 0)
+                        {
+                            Array.Copy(__instance.tmp_conn, 0, __instance.factory.entityConnPool, buildPreview.objId * 16, 16);
+                        }
+                        else
+                        {
+                            Array.Copy(__instance.tmp_conn, 0, __instance.factory.prebuildConnPool, -buildPreview.objId * 16, 16);
+                        }
+                        __instance.factory.EnsureObjectConn(buildPreview.objId);
+                    }
+                    else
+                    {
+                        buildPreview.objId = buildPreview.coverObjId;
+                    }
+                }
+                else
+                {
+                    Assert.CannotBeReached();
+                    UIRealtimeTip.Popup("物品不足".Translate(), true, 1);
+                }
+            }
+            foreach (BuildPreview buildPreview2 in __instance.buildPreviews)
+            {
+                if (buildPreview2.objId != 0)
+                {
+
+                    if (buildPreview2.outputObjId != 0)
+                    {
+                        //Debug.Log($"a = {buildPreview2.outputObjId} {buildPreview2.item.name}");
+
+                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.outputFromSlot, true, buildPreview2.outputObjId, buildPreview2.outputToSlot);
+                    }
+                    else if (buildPreview2.output != null)
+                    {
+                        //Debug.Log($"b = {buildPreview2.output.objId} {buildPreview2.item.name}");
+                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.outputFromSlot, true, buildPreview2.output.objId, buildPreview2.outputToSlot);
+                    }
+                    if (buildPreview2.inputObjId != 0)
+                    {
+                        //Debug.Log($"c = {buildPreview2.inputObjId} {buildPreview2.item.name}");
+                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.inputToSlot, false, buildPreview2.inputObjId, buildPreview2.inputFromSlot);
+                    }
+                    else if (buildPreview2.input != null)
+                    {
+                        //Debug.Log($"d = {buildPreview2.input.objId} {buildPreview2.item.name}");
+                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.inputToSlot, false, buildPreview2.input.objId, buildPreview2.inputFromSlot);
+                    }
+                    Debug.Log(buildPreview2.item.name);
+                    Debug.Log($"EEE = {(buildPreview2.output != null ? buildPreview2.output.objId : 0)} / {buildPreview2.outputObjId}   {buildPreview2.outputFromSlot} {buildPreview2.outputToSlot}");
+                    Debug.Log($"EEE = {(buildPreview2.input != null ? buildPreview2.input.objId : 0)} / {buildPreview2.outputObjId}   {buildPreview2.inputFromSlot} {buildPreview2.inputToSlot}");
+                }
+            }
+            foreach (BuildPreview buildPreview3 in __instance.buildPreviews)
+            {
+                if (buildPreview3.coverObjId != 0 && buildPreview3.willCover && buildPreview3.objId != 0 && __instance.ObjectIsBelt(buildPreview3.objId))
+                {
+                    bool flag8;
+                    int num6;
+                    int num7;
+                    __instance.factory.ReadObjectConn(buildPreview3.objId, 0, out flag8, out num6, out num7);
+                    if (num6 != 0 && flag8 && __instance.ObjectIsBelt(buildPreview3.objId))
+                    {
+                        int num8;
+                        __instance.factory.ReadObjectConn(num6, 0, out flag8, out num8, out num7);
+                        if (num8 == buildPreview3.objId)
+                        {
+                            __instance.factory.ClearObjectConn(num6, 0);
+                        }
+                    }
+                }
+            }
+            int num9 = 0;
+            foreach (BuildPreview buildPreview4 in __instance.buildPreviews)
+            {
+                if (buildPreview4.coverObjId != 0 && buildPreview4.willCover)
+                {
+                    __instance.DoDestructObject(buildPreview4.coverObjId, out num9);
+                }
+                foreach (int objId in __instance.tmp_links)
+                {
+                    __instance.DoDestructObject(objId, out num9);
+                }
+            }
+
+            __instance.AfterPrebuild();
         }
 
+*/
+
+        return false;
+            
+        }
+/*
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "AfterPrebuild")]
+        public static void AfterPrebuild_Prefix(ref PlayerAction_Build __instance)
+        {
+            foreach (var buildPreview in __instance.buildPreviews)
+            {
+                if (buildPreview.desc.isInserter)
+                {
+                    var belt1 = 0;
+                    var belt2 = 0;
+                    if (buildPreview.input != null)
+                    {
+                        belt1 = buildPreview.input.objId;
+                    }
+                    if (buildPreview.output != null)
+                    {
+                        belt2 = buildPreview.output.objId;
+                    }
+                    if (belt1 != 0 || belt2 != 0)
+                    {
+                        SortersToFix.Add(buildPreview.objId, new SorterReconnection
+                        {
+                            objId = buildPreview.objId,
+                            belt1 = belt1,
+                            belt2 = belt2
+                        });
+                    }
+                }
+            }
+        }
+*/
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
         public static bool BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
@@ -89,7 +344,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
              }*/
 
             // Run the preview methods if we have changed position, if we have received a relevant keyboard input or in any case every MAX_IGNORED_TICKS ticks.
-            executeBuildUpdatePreviews = true; // executeBuildUpdatePreviews || VFInput._rotate || VFInput._counterRotate || ignoredTicks >= MultiBuild.MAX_IGNORED_TICKS;
+            executeBuildUpdatePreviews = true; 
 
             bool flag;
             if (executeBuildUpdatePreviews)
@@ -126,6 +381,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             return false;
         }
+
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
@@ -308,7 +564,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
                 else
                 {
-                    previews = BlueprintManager.toBuildPreviews(__instance.groundSnappedPos, __instance.yaw, out absolutePositions);
+                    previews = BlueprintManager.paste(__instance.groundSnappedPos, __instance.yaw, out absolutePositions);
                 }
 
                 ActivateColliders(ref __instance.nearcdLogic, absolutePositions);
@@ -316,30 +572,33 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 // synch previews
                 for (var i = 0; i < previews.Count; i++)
                 {
+                    var updated = previews[i];
                     if (i >= __instance.buildPreviews.Count)
                     {
-                        __instance.AddBuildPreview(previews[i]);
+                        __instance.AddBuildPreview(updated);
+                        continue;
                     }
-                    else
+
+                    var original = __instance.buildPreviews[i];
+
+                    if (original.desc != updated.desc || original.item != updated.item)
                     {
-                        var original = __instance.buildPreviews[i];
-                        var updated = previews[i];
-                        if (original.desc != updated.desc || original.item != updated.item)
-                        {
-                            original.ResetInfos();
-                            original.desc = updated.desc;
-                            original.item = updated.item;
-                        }
-                        original.recipeId = updated.recipeId;
-                        original.filterId = updated.filterId;
-                        original.condition = EBuildCondition.Ok;
-
-                        original.lpos = updated.lpos;
-                        original.lrot = updated.lrot;
-
-                        original.lpos2 = updated.lpos2;
-                        original.lrot2 = updated.lrot2;
+                        __instance.RemoveBuildPreview(original);
+                        __instance.AddBuildPreview(previews[i]);
+                        continue;
                     }
+
+                    updated.previewIndex = original.previewIndex;
+                    __instance.buildPreviews[i] = updated;
+                    /*         original.recipeId = updated.recipeId;
+                             original.filterId = updated.filterId;
+                             original.condition = EBuildCondition.Ok;
+
+                             original.lpos = updated.lpos;
+                             original.lrot = updated.lrot;
+
+                             original.lpos2 = updated.lpos2;
+                             original.lrot2 = updated.lrot2;*/
                 }
 
                 if (__instance.buildPreviews.Count > previews.Count)
@@ -490,7 +749,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
 
                 circleGizmo.position = __instance.groundTestPos;
-                circleGizmo.radius = 1.2f * 10;
+                circleGizmo.radius = 1.2f * 5;
 
                 if (VFInput._buildConfirm.onDown)
                 {
@@ -498,7 +757,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
                 if (VFInput._buildConfirm.pressing)
                 {
-                    int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, 10, _nearObjectIds);
+                    int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, 5, _nearObjectIds);
 
                     for (int i = 0; i < found; i++)
                     {
@@ -521,7 +780,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     Debug.Log($"blueprint size: {BlueprintManager.data.export().Length}");
 
-                   
+
                 }
             }
             else
@@ -534,7 +793,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        
-      
+
+
     }
 }
