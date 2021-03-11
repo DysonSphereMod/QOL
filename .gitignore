@@ -6,7 +6,7 @@
 !*.gif
 !*.cs
 !*.csproj
-
+!.editorconfig
 !.gitignore
 !README.md
 

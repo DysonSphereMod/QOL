@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
@@ -13,7 +13,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     {
         public const int MAX_IGNORED_TICKS = 60;
 
-        private Harmony harmony;
+        private Harmony harmony;   
+
 
         public static int lastCmdMode = 0;
         public static ConfigEntry<bool> itemSpecificSpacing;
@@ -24,6 +25,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static Vector3 startPos = Vector3.zero;
         public static Dictionary<int, int> spacingStore = new Dictionary<int, int>();
         public static int spacingIndex = 0;
+        public static int selectionRadius = 5;
 
         internal void Awake()
         {
@@ -36,6 +38,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 harmony.PatchAll(typeof(MultiBuild));
                 harmony.PatchAll(typeof(BlueprintManager));
                 harmony.PatchAll(typeof(PlayerAction_Build_Patch));
+                harmony.PatchAll(typeof(PlanetFactory_Patch));
                 harmony.PatchAll(typeof(InserterPoses));
             }
             catch (Exception e)
@@ -66,6 +69,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     startPos = Vector3.zero;
                 }
+            }
+
+            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && PlayerAction_Build_Patch.bpMode)
+            {
+                ++selectionRadius;
+            }
+
+            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && PlayerAction_Build_Patch.bpMode && selectionRadius > 0)
+            {
+                --selectionRadius;
             }
 
             if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
@@ -131,10 +144,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 if (__instance.cmd.mode != 1)
                 {
-                    Debug.Log($"RESETTING {lastCmdMode} - {__instance.cmd.mode} ");
                     BlueprintManager.Reset();
                 }
 
+                if (PlayerAction_Build_Patch.bpMode)
+                {
+                    PlayerAction_Build_Patch.EndBpMode(false);
+                }
                 lastCmdMode = __instance.cmd.mode;
             }
         }

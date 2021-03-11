@@ -1,20 +1,22 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Text;
 using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    internal class SorterReconnection
+    public static class ClipboardExtension
     {
-        public int objId = 0;
-        public int belt1 = 0;
-        public int belt2 = 0;
+        /// <summary>
+        /// Puts the string into the Clipboard.
+        /// </summary>
+        public static void CopyToClipboard(this string str)
+        {
+            GUIUtility.systemCopyBuffer = str;
+        }
     }
+
     internal class PlayerAction_Build_Patch
     {
         public static bool lastFlag;
@@ -29,25 +31,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int ignoredTicks = 0;
         public static int path = 0;
 
-        public static Dictionary<int, SorterReconnection> SortersToFix = new Dictionary<int, SorterReconnection>();
+        private static Color ADD_SELECTION_GIZMO_COLOR = new Color(1f, 1f, 1f, 1f);
+        private static Color REMOVE_SELECTION_GIZMO_COLOR = new Color(1f, 0f, 0f, 1f);
+        private static CircleGizmo circleGizmo;
+        private static int[] _nearObjectIds = new int[4096];
 
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlanetFactory), "WriteObjectConn")]
-        public static void WriteObjectConn_Prefix(ref PlanetFactory __instance, int objId, int slot, bool isOutput, int otherObjId, ref int otherSlot)
-        {
-            if (otherSlot == -1 && otherObjId < 0)
-            {
-                for (int i = 4; i < 12; i++)
-                {
-                    if (__instance.prebuildConnPool[-otherObjId * 16 + i] == 0)
-                    {
-                        otherSlot = i;
-                        break;
-                    }
-                }
-            }
-        }
-
-        
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
@@ -57,6 +45,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (MultiBuild.startPos == Vector3.zero)
                 {
                     MultiBuild.startPos = __instance.groundSnappedPos;
+                    lastPosition = Vector3.zero;
                     return false;
                 }
                 else
@@ -66,245 +55,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-
-
             return true;
-
-/*            
-        if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 0)
-        {
-            __instance.tmp_links.Clear();
-            foreach (BuildPreview buildPreview in __instance.buildPreviews)
-            {
-                if (buildPreview.isConnNode)
-                {
-                    buildPreview.lrot = Maths.SphericalRotation(buildPreview.lpos, 0f);
-                }
-                PrebuildData prebuild = default(PrebuildData);
-                prebuild.protoId = (short)buildPreview.item.ID;
-                prebuild.modelIndex = (short)buildPreview.desc.modelIndex;
-                prebuild.pos = __instance.previewPose.position + __instance.previewPose.rotation * buildPreview.lpos;
-                prebuild.pos2 = __instance.previewPose.position + __instance.previewPose.rotation * buildPreview.lpos2;
-                prebuild.rot = __instance.previewPose.rotation * buildPreview.lrot;
-                prebuild.rot2 = __instance.previewPose.rotation * buildPreview.lrot2;
-                prebuild.pickOffset = (short)buildPreview.inputOffset;
-                prebuild.insertOffset = (short)buildPreview.outputOffset;
-                prebuild.recipeId = buildPreview.recipeId;
-                prebuild.filterId = buildPreview.filterId;
-                prebuild.InitRefArray(buildPreview.refCount);
-                for (int i = 0; i < buildPreview.refCount; i++)
-                {
-                    prebuild.refArr[i] = buildPreview.refArr[i];
-                }
-                bool flag = true;
-                if (buildPreview.coverObjId == 0 || buildPreview.willCover)
-                {
-                    int id = buildPreview.item.ID;
-                    int num = 1;
-                    if (__instance.player.inhandItemId == id && __instance.player.inhandItemCount > 0)
-                    {
-                        __instance.player.UseHandItems(1);
-                    }
-                    else
-                    {
-                        __instance.player.package.TakeTailItems(ref id, ref num, false);
-                    }
-                    flag = (num == 1);
-                }
-                if (flag)
-                {
-                    if (buildPreview.coverObjId == 0)
-                    {
-                        buildPreview.objId = -__instance.factory.AddPrebuildDataWithComponents(prebuild);
-                    }
-                    else if (buildPreview.willCover)
-                    {
-                        int coverObjId = buildPreview.coverObjId;
-                        bool flag2 = __instance.ObjectIsBelt(coverObjId);
-                        if (flag2)
-                        {
-                            for (int j = 0; j < 4; j++)
-                            {
-                                bool flag3;
-                                int num2;
-                                int num3;
-                                __instance.factory.ReadObjectConn(coverObjId, j, out flag3, out num2, out num3);
-                                int num4 = num2;
-                                if (num4 != 0 && __instance.ObjectIsBelt(num4))
-                                {
-                                    bool flag4 = false;
-                                    for (int k = 0; k < 2; k++)
-                                    {
-                                        __instance.factory.ReadObjectConn(num4, k, out flag3, out num2, out num3);
-                                        if (num2 != 0)
-                                        {
-                                            bool flag5 = __instance.ObjectIsBelt(num2);
-                                            bool flag6 = __instance.ObjectIsInserter(num2);
-                                            if (!flag5 && !flag6)
-                                            {
-                                                flag4 = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    if (flag4)
-                                    {
-                                        __instance.tmp_links.Add(num4);
-                                    }
-                                }
-                            }
-                        }
-                        if (buildPreview.coverObjId > 0)
-                        {
-                            Array.Copy(__instance.factory.entityConnPool, buildPreview.coverObjId * 16, __instance.tmp_conn, 0, 16);
-                            for (int l = 0; l < 16; l++)
-                            {
-                                bool flag7;
-                                int num5;
-                                int otherSlotId;
-                                __instance.factory.ReadObjectConn(buildPreview.coverObjId, l, out flag7, out num5, out otherSlotId);
-                                if (num5 > 0)
-                                {
-                                    __instance.factory.ApplyEntityDisconnection(num5, buildPreview.coverObjId, otherSlotId, l);
-                                }
-                            }
-                            Array.Clear(__instance.factory.entityConnPool, buildPreview.coverObjId * 16, 16);
-                        }
-                        else
-                        {
-                            Array.Copy(__instance.factory.prebuildConnPool, -buildPreview.coverObjId * 16, __instance.tmp_conn, 0, 16);
-                            Array.Clear(__instance.factory.prebuildConnPool, -buildPreview.coverObjId * 16, 16);
-                        }
-                        buildPreview.objId = -__instance.factory.AddPrebuildDataWithComponents(prebuild);
-                        if (buildPreview.objId > 0)
-                        {
-                            Array.Copy(__instance.tmp_conn, 0, __instance.factory.entityConnPool, buildPreview.objId * 16, 16);
-                        }
-                        else
-                        {
-                            Array.Copy(__instance.tmp_conn, 0, __instance.factory.prebuildConnPool, -buildPreview.objId * 16, 16);
-                        }
-                        __instance.factory.EnsureObjectConn(buildPreview.objId);
-                    }
-                    else
-                    {
-                        buildPreview.objId = buildPreview.coverObjId;
-                    }
-                }
-                else
-                {
-                    Assert.CannotBeReached();
-                    UIRealtimeTip.Popup("物品不足".Translate(), true, 1);
-                }
-            }
-            foreach (BuildPreview buildPreview2 in __instance.buildPreviews)
-            {
-                if (buildPreview2.objId != 0)
-                {
-
-                    if (buildPreview2.outputObjId != 0)
-                    {
-                        //Debug.Log($"a = {buildPreview2.outputObjId} {buildPreview2.item.name}");
-
-                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.outputFromSlot, true, buildPreview2.outputObjId, buildPreview2.outputToSlot);
-                    }
-                    else if (buildPreview2.output != null)
-                    {
-                        //Debug.Log($"b = {buildPreview2.output.objId} {buildPreview2.item.name}");
-                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.outputFromSlot, true, buildPreview2.output.objId, buildPreview2.outputToSlot);
-                    }
-                    if (buildPreview2.inputObjId != 0)
-                    {
-                        //Debug.Log($"c = {buildPreview2.inputObjId} {buildPreview2.item.name}");
-                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.inputToSlot, false, buildPreview2.inputObjId, buildPreview2.inputFromSlot);
-                    }
-                    else if (buildPreview2.input != null)
-                    {
-                        //Debug.Log($"d = {buildPreview2.input.objId} {buildPreview2.item.name}");
-                        __instance.factory.WriteObjectConn(buildPreview2.objId, buildPreview2.inputToSlot, false, buildPreview2.input.objId, buildPreview2.inputFromSlot);
-                    }
-                    Debug.Log(buildPreview2.item.name);
-                    Debug.Log($"EEE = {(buildPreview2.output != null ? buildPreview2.output.objId : 0)} / {buildPreview2.outputObjId}   {buildPreview2.outputFromSlot} {buildPreview2.outputToSlot}");
-                    Debug.Log($"EEE = {(buildPreview2.input != null ? buildPreview2.input.objId : 0)} / {buildPreview2.outputObjId}   {buildPreview2.inputFromSlot} {buildPreview2.inputToSlot}");
-                }
-            }
-            foreach (BuildPreview buildPreview3 in __instance.buildPreviews)
-            {
-                if (buildPreview3.coverObjId != 0 && buildPreview3.willCover && buildPreview3.objId != 0 && __instance.ObjectIsBelt(buildPreview3.objId))
-                {
-                    bool flag8;
-                    int num6;
-                    int num7;
-                    __instance.factory.ReadObjectConn(buildPreview3.objId, 0, out flag8, out num6, out num7);
-                    if (num6 != 0 && flag8 && __instance.ObjectIsBelt(buildPreview3.objId))
-                    {
-                        int num8;
-                        __instance.factory.ReadObjectConn(num6, 0, out flag8, out num8, out num7);
-                        if (num8 == buildPreview3.objId)
-                        {
-                            __instance.factory.ClearObjectConn(num6, 0);
-                        }
-                    }
-                }
-            }
-            int num9 = 0;
-            foreach (BuildPreview buildPreview4 in __instance.buildPreviews)
-            {
-                if (buildPreview4.coverObjId != 0 && buildPreview4.willCover)
-                {
-                    __instance.DoDestructObject(buildPreview4.coverObjId, out num9);
-                }
-                foreach (int objId in __instance.tmp_links)
-                {
-                    __instance.DoDestructObject(objId, out num9);
-                }
-            }
-
-            __instance.AfterPrebuild();
         }
 
-*/
-
-        return false;
-            
-        }
-/*
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "AfterPrebuild")]
-        public static void AfterPrebuild_Prefix(ref PlayerAction_Build __instance)
-        {
-            foreach (var buildPreview in __instance.buildPreviews)
-            {
-                if (buildPreview.desc.isInserter)
-                {
-                    var belt1 = 0;
-                    var belt2 = 0;
-                    if (buildPreview.input != null)
-                    {
-                        belt1 = buildPreview.input.objId;
-                    }
-                    if (buildPreview.output != null)
-                    {
-                        belt2 = buildPreview.output.objId;
-                    }
-                    if (belt1 != 0 || belt2 != 0)
-                    {
-                        SortersToFix.Add(buildPreview.objId, new SorterReconnection
-                        {
-                            objId = buildPreview.objId,
-                            belt1 = belt1,
-                            belt2 = belt2
-                        });
-                    }
-                }
-            }
-        }
-*/
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
         public static bool BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
             if (__instance.handPrefabDesc == null ||
                 __instance.handPrefabDesc.minerType != EMinerType.None ||
-                __instance.player.planetData.type == EPlanetType.Gas
+                __instance.player.planetData.type == EPlanetType.Gas ||
+                BlueprintManager.data.copiedBuildings.Count > 1
                 )
             {
                 MultiBuild.multiBuildPossible = false;
@@ -344,7 +104,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
              }*/
 
             // Run the preview methods if we have changed position, if we have received a relevant keyboard input or in any case every MAX_IGNORED_TICKS ticks.
-            executeBuildUpdatePreviews = true; 
+            executeBuildUpdatePreviews = true;
 
             bool flag;
             if (executeBuildUpdatePreviews)
@@ -381,7 +141,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             return false;
         }
-
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
@@ -438,14 +197,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 //__instance.previewPose.rotation = Maths.SphericalRotation(__instance.previewPose.position, __instance.yaw);
 
                 var inversePreviewRot = Quaternion.Inverse(__instance.previewPose.rotation);
-                if (BlueprintManager.data.copiedBuildings.Count == 0)
+                if (!BlueprintManager.hasData)
                 {
                     BlueprintManager.data.copiedBuildings.Add(0, new BuildingCopy()
                     {
                         itemProto = __instance.handItem,
-
                         recipeId = __instance.copyRecipeId
                     });
+                    BlueprintManager.hasData = true;
                 }
 
                 if (lastPosition == __instance.groundSnappedPos && lastYaw == __instance.yaw && path == lastPath)
@@ -460,7 +219,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 var absolutePositions = new List<Vector3>(10);
                 if (BlueprintManager.data.copiedBuildings.Count == 1 && MultiBuild.IsMultiBuildRunning())
                 {
-                    var building = BlueprintManager.data.copiedBuildings[0];
+                    var building = BlueprintManager.data.copiedBuildings.First().Value;
 
                     int snapPath = path;
                     Vector3[] snaps = new Vector3[1024];
@@ -523,14 +282,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         previousPos = pos;
                         absolutePositions.Add(pos);
 
-                        var bp = BuildPreview.CreateSingle(building.itemProto, building.itemProto.prefabDesc, true);
-                        bp.ResetInfos();
-                        bp.desc = building.itemProto.prefabDesc;
-                        bp.item = building.itemProto;
-                        bp.lpos = pos;
-                        bp.lrot = rot;
-                        bp.recipeId = building.recipeId;
-
                         //pose.position - this.previewPose.position =  this.previewPose.rotation * buildPreview.lpos;
                         //pose.rotation = this.previewPose.rotation * buildPreview.lrot;
                         if (desc.hasBuildCollider)
@@ -551,7 +302,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             }
                         }
 
-                        previews.Add(bp);
+                        previews = previews.Concat(BlueprintManager.paste(pos, __instance.yaw, out _)).ToList();
                     }
 
                     foreach (var collider in colliders)
@@ -621,6 +372,185 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return executeBuildUpdatePreviews;
         }
 
+        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
+        public static void SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId)
+        {
+            BlueprintManager.Reset();
+            if (objectId < 0)
+                return;
+
+            if (BlueprintManager.copyBuilding(objectId) != null)
+            {
+                __instance.yaw = BlueprintManager.data.referenceYaw;
+            }
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
+        public static void CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
+        {
+            if (BlueprintManager.data.copiedInserters.Count + BlueprintManager.data.copiedBelts.Count + BlueprintManager.data.copiedBuildings.Count > 0)
+            {
+                var flag = true;
+                for (int i = 0; i < __instance.buildPreviews.Count; i++)
+                {
+                    BuildPreview buildPreview = __instance.buildPreviews[i];
+
+                    if (buildPreview.condition == EBuildCondition.OutOfReach)
+                    {
+                        buildPreview.condition = EBuildCondition.Ok;
+                    }
+                    bool isConnected = buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
+                    if (buildPreview.desc.isInserter && (
+                        buildPreview.condition == EBuildCondition.TooFar ||
+                        buildPreview.condition == EBuildCondition.TooClose ||
+                        (buildPreview.condition == EBuildCondition.Collide && isConnected)
+                        ))
+                    {
+                        buildPreview.condition = EBuildCondition.Ok;
+                    }
+
+                    if (buildPreview.condition != EBuildCondition.Ok)
+                    {
+                        flag = false;
+                    }
+                }
+
+                if (!__result && flag)
+                {
+                    UICursor.SetCursor(ECursor.Default);
+                    __instance.cursorText = __instance.prepareCursorText;
+                    __instance.prepareCursorText = string.Empty;
+                    __instance.cursorWarning = false;
+                }
+
+                __result = flag;
+            }
+        }
+
+        private static bool acceptCommand = true;
+        public static bool bpMode = false;
+        private static Dictionary<int, BoxGizmo> bpSelection = new Dictionary<int, BoxGizmo>();
+
+        [HarmonyPrefix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
+        public static void GameTick_Prefix(PlayerAction_Build __instance)
+        {
+            if (BlueprintManager.hasData && Input.GetKeyUp(KeyCode.Backslash))
+            {
+                var data = BlueprintManager.data.export();
+                Debug.Log($"blueprint size: {data.Length}");
+                data.CopyToClipboard();
+            }
+
+            if (acceptCommand && VFInput.shift && VFInput.control)
+            {
+                acceptCommand = false;
+                bpMode = !bpMode;
+                if (bpMode)
+                {
+                    BlueprintManager.Reset();
+                    if (circleGizmo == null)
+                    {
+                        circleGizmo = CircleGizmo.Create(4, __instance.groundTestPos, 10);
+
+                        circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
+                        circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
+                        circleGizmo.autoRefresh = true;
+                        circleGizmo.Open();
+                    }
+                }
+                else
+                {
+                    EndBpMode(true);
+                    if (BlueprintManager.hasData)
+                    {
+                        // if no building use storage id as fake buildingId as we need something with buildmode == 1
+                        var firstItemProtoID = BlueprintManager.data.copiedBuildings.Count > 0 ?
+                            BlueprintManager.data.copiedBuildings.First().Value.itemProto.ID :
+                            2101;
+
+                        __instance.player.SetHandItems(firstItemProtoID, 0, 0);
+                        __instance.controller.cmd.type = ECommand.Build;
+                        __instance.controller.cmd.mode = 1;
+                        lastPosition = Vector3.zero;
+                    }
+                }
+            }
+            if (!VFInput.shift && !VFInput.control)
+            {
+                acceptCommand = true;
+            }
+
+            if (bpMode)
+            {
+                //Debug.Log(__instance.controller.cmd.type);
+                __instance.PrepareBuild();
+                var removeMode = acceptCommand && VFInput.control;
+                circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
+                circleGizmo.position = __instance.groundTestPos;
+                circleGizmo.radius = 1.2f * MultiBuild.selectionRadius;
+
+                if (VFInput._buildConfirm.pressing)
+                {
+                    int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, MultiBuild.selectionRadius, _nearObjectIds);
+
+                    for (int i = 0; i < found; i++)
+                    {
+                        var entityId = _nearObjectIds[i];
+                        if (removeMode)
+                        {
+                            if (bpSelection.ContainsKey(entityId))
+                            {
+                                bpSelection[entityId].Close();
+                                bpSelection.Remove(entityId);
+                            }
+                        }
+                        else if (!bpSelection.ContainsKey(entityId))
+                        {
+                            var entityData = __instance.factory.entityPool[entityId];
+                            ItemProto itemProto = LDB.items.Select((int)entityData.protoId);
+                            var gizmo = BoxGizmo.Create(entityData.pos, entityData.rot, itemProto.prefabDesc.selectCenter, itemProto.prefabDesc.selectSize);
+                            gizmo.multiplier = 1f;
+                            gizmo.alphaMultiplier = itemProto.prefabDesc.selectAlpha;
+                            gizmo.fadeInScale = gizmo.fadeOutScale = 1.3f;
+                            gizmo.fadeInTime = gizmo.fadeOutTime = 0.05f;
+                            gizmo.fadeInFalloff = gizmo.fadeOutFalloff = 0.5f;
+                            gizmo.color = Color.white;
+                            gizmo.Open();
+
+                            bpSelection.Add(entityId, gizmo);
+                        }
+                    }
+
+                    for (int i = 0; i < found; i++)
+                    {
+                        //BlueprintManager.copyBelt(_nearObjectIds[i]);
+                    }
+                }
+            }
+
+            //return !bpMode;
+        }
+
+        public static void EndBpMode(bool createBp)
+        {
+            foreach (var entry in bpSelection)
+            {
+                if (createBp)
+                {
+                    BlueprintManager.copyBuilding(entry.Key);
+                    BlueprintManager.copyBelt(entry.Key);
+                }
+                entry.Value.Close();
+            }
+            bpSelection.Clear();
+
+            if (circleGizmo != null)
+            {
+                circleGizmo.Close();
+                circleGizmo = null;
+            }
+        }
+
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> positions)
         {
             for (int s = 0; s < positions.Count; s++)
@@ -628,18 +558,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 nearCdLogic.activeColHashCount = 0;
                 var center = positions[s];
 
-                //Vector3 vector = Vector3.Cross(center, center - GameMain.mainPlayer.position).normalized * (5f);
-                //Vector3 vector2 = Vector3.Cross(vector, center).normalized * (5f);
-
                 nearCdLogic.MarkActivePos(center);
-                /* nearCdLogic.MarkActivePos(center + vector);
-                 nearCdLogic.MarkActivePos(center - vector);
-                 nearCdLogic.MarkActivePos(center + vector2);
-                 nearCdLogic.MarkActivePos(center - vector2);
-                 nearCdLogic.MarkActivePos(center + vector + vector2);
-                 nearCdLogic.MarkActivePos(center - vector + vector2);
-                 nearCdLogic.MarkActivePos(center + vector - vector2);
-                 nearCdLogic.MarkActivePos(center - vector - vector2);*/
 
                 if (nearCdLogic.activeColHashCount > 0)
                 {
@@ -672,128 +591,5 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
         }
-
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
-        public static void SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId, int protoId)
-        {
-            BlueprintManager.Reset();
-            if (objectId < 0)
-                return;
-
-            var copiedAssembler = BlueprintManager.copyAssembler(objectId);
-            // Set the current build rotation to the copied building rotation
-            Quaternion zeroRot = Maths.SphericalRotation(copiedAssembler.originalPos, 0f);
-            float yaw = Vector3.SignedAngle(zeroRot.Forward(), copiedAssembler.originalRot.Forward(), zeroRot.Up());
-
-            __instance.yaw = yaw;
-        }
-
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
-        public static void CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
-        {
-            if (BlueprintManager.data.copiedInserters.Count + BlueprintManager.data.copiedBelts.Count + BlueprintManager.data.copiedBuildings.Count > 0)
-            {
-                var flag = true;
-                for (int i = 0; i < __instance.buildPreviews.Count; i++)
-                {
-                    BuildPreview buildPreview = __instance.buildPreviews[i];
-
-                    if (buildPreview.condition == EBuildCondition.OutOfReach)
-                    {
-                        buildPreview.condition = EBuildCondition.Ok;
-                    }
-                    if (buildPreview.desc.isInserter && (
-                        buildPreview.condition == EBuildCondition.TooFar ||
-                        buildPreview.condition == EBuildCondition.TooClose
-                        ))
-                    {
-                        buildPreview.condition = EBuildCondition.Ok;
-                    }
-
-                    if (buildPreview.condition != EBuildCondition.Ok)
-                    {
-                        flag = false;
-                    }
-                }
-
-                if (!__result && flag)
-                {
-                    UICursor.SetCursor(ECursor.Default);
-                    __instance.cursorText = __instance.prepareCursorText;
-                    __instance.prepareCursorText = string.Empty;
-                    __instance.cursorWarning = false;
-                }
-
-                __result = flag;
-            }
-        }
-
-        private static Color COPY_GIZMO_COLOR = new Color(1f, 1f, 1f, 1f);
-        private static CircleGizmo circleGizmo;
-        private static int[] _nearObjectIds = new int[4096];
-
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
-        public static void GameTick(PlayerAction_Build __instance)
-        {
-            if (VFInput.shift && __instance.controller.cmd.mode == 0)
-            {
-                if (circleGizmo == null)
-                {
-                    circleGizmo = CircleGizmo.Create(1, __instance.groundTestPos, 10);
-
-                    circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
-                    circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
-                    circleGizmo.color = COPY_GIZMO_COLOR;
-                    circleGizmo.autoRefresh = true;
-                    circleGizmo.Open();
-                }
-
-                circleGizmo.position = __instance.groundTestPos;
-                circleGizmo.radius = 1.2f * 5;
-
-                if (VFInput._buildConfirm.onDown)
-                {
-                    BlueprintManager.Reset();
-                }
-                if (VFInput._buildConfirm.pressing)
-                {
-                    int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, 5, _nearObjectIds);
-
-                    for (int i = 0; i < found; i++)
-                    {
-                        BlueprintManager.copyAssembler(_nearObjectIds[i]);
-                    }
-
-                    for (int i = 0; i < found; i++)
-                    {
-                        BlueprintManager.copyBelt(_nearObjectIds[i]);
-                    }
-                }
-                if (VFInput._buildConfirm.onUp)
-                {
-                    if (BlueprintManager.data.copiedBuildings.Count > 0)
-                    {
-                        __instance.player.SetHandItems(BlueprintManager.data.copiedBuildings.First().Value.itemProto.ID, 0, 0);
-                        __instance.controller.cmd.type = ECommand.Build;
-                        __instance.controller.cmd.mode = 1;
-                    }
-
-                    Debug.Log($"blueprint size: {BlueprintManager.data.export().Length}");
-
-
-                }
-            }
-            else
-            {
-                if (circleGizmo != null)
-                {
-                    circleGizmo.Close();
-                    circleGizmo = null;
-                }
-            }
-        }
-
-
-
     }
 }

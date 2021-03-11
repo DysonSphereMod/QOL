@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -141,6 +141,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     {
         public Vector3 referencePos = Vector3.zero;
         public Quaternion inverseReferenceRot = Quaternion.identity;
+        public float referenceYaw = 0f;
 
         public Dictionary<int, BuildingCopy> copiedBuildings = new Dictionary<int, BuildingCopy>();
         public Dictionary<int, InserterCopy> copiedInserters = new Dictionary<int, InserterCopy>();
@@ -186,6 +187,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 dest.Write(bytes, 0, cnt);
             }
         }
+
         private byte[] Zip(string str)
         {
             var bytes = Encoding.UTF8.GetBytes(str);
@@ -216,5 +218,4 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
     }
-
 }
