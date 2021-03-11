@@ -1,6 +1,5 @@
-﻿using BepInEx;
+using BepInEx;
 using HarmonyLib;
-using NGPT;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -166,7 +165,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return;
         }
 
-
         // CalculatePose TODO :
         /*
 
@@ -195,28 +193,26 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 __instance.endSlots.Add(item);
             }
 
-
             // REMOVE OTHER STUFF
         }
         ...
-
 
         __instance.posePairs.Add(posePair2);
         if (false && num38 < 40f)
         {
             if (flag18 && flag19)
             {
-                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it 
+                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it
                 // perpendicular to the belt
             }
             else if (flag19)
             {
-                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it 
+                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it
                 // perpendicular to the belt
             }
             else if (flag18)
             {
-                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it 
+                // fix stuff here to get pose offset (this is the code that moves the inserter head 'a bit' from the actual snap poit to keep it
 				// perpendicular to the belt
             }
         }
@@ -253,7 +249,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (objId >= INITIAL_OBJ_ID)
             {
                 // we always ahve to return false otherwise calculatePose will throw (See TODO above)
-				__result = false; // overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
+                __result = false; // overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
                 return false;
             }
 

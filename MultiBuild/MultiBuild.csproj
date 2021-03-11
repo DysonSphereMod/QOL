@@ -89,6 +89,10 @@
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\SteamLibrary\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.JSONSerializeModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
@@ -105,6 +109,7 @@
     <Compile Include="BlueprintData.cs" />
     <Compile Include="BlueprintManager.cs" />
     <Compile Include="InserterPoses.cs" />
+    <Compile Include="PlanetFactory_Patch.cs" />
     <Compile Include="PlayerAction_Build_Patch.cs" />
     <Compile Include="MultiBuild.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
