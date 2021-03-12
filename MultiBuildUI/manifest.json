@@ -1,0 +1,7 @@
+{
+    "name": "MultiBuildUI",
+    "description": "This mods gives you the ability to build multiple copies of a building, with optional space between the copies. AdvancedBuildDestruct alternative.",
+    "version_number": "1.1.2",
+    "dependencies": [],
+    "website_url": "https://github.com/DysonSphereMod/QOL"
+}

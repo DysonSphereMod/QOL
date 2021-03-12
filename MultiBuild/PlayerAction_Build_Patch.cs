@@ -17,7 +17,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
     }
 
-    internal class PlayerAction_Build_Patch
+    public class PlayerAction_Build_Patch
     {
         public static bool lastFlag;
         public static string lastCursorText;
@@ -31,6 +31,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int ignoredTicks = 0;
         public static int path = 0;
 
+        private static Color BP_GRID_COLOR = new Color(1f, 1f, 1f, 0.2f);
         private static Color ADD_SELECTION_GIZMO_COLOR = new Color(1f, 1f, 1f, 1f);
         private static Color REMOVE_SELECTION_GIZMO_COLOR = new Color(0.9433962f, 0.1843137f, 0.1646493f, 1f);
         private static CircleGizmo circleGizmo;
@@ -533,6 +534,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         private static Dictionary<int, BoxGizmo> bpSelection = new Dictionary<int, BoxGizmo>();
         private static Collider[] _tmp_cols = new Collider[1024];
 
+        [HarmonyPostfix, HarmonyPatch(typeof(UIBuildingGrid), "Update")]
+        public static void UIBuildingGrid_Update_Postfix(ref UIBuildingGrid __instance)
+        {
+            if(bpMode)
+            {
+                __instance.material.SetColor("_TintColor", BP_GRID_COLOR);
+            }
+        }
+        
+
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
         public static void GameTick_Postfix(ref PlayerAction_Build __instance)
         {
@@ -545,41 +556,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (acceptCommand && VFInput.shift && VFInput.control)
             {
-                __instance.controller.cmd.type = ECommand.Build;
+                ToggleBpMode();
                 acceptCommand = false;
-                lastPosition = Vector3.zero;
-                if (!bpMode)
-                {
-                    bpMode = true;
-                    __instance.player.SetHandItems(0, 0, 0);
-                    
-                    BlueprintManager.Reset();
-                    if (circleGizmo == null)
-                    {
-                        circleGizmo = CircleGizmo.Create(6, __instance.groundTestPos, 10);
-
-                        circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
-                        circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
-                        circleGizmo.autoRefresh = true;
-                        circleGizmo.Open();
-                    }
-                }
-                else
-                {
-                    EndBpMode(true);
-                    if (BlueprintManager.hasData)
-                    {
-                        // if no building use storage id as fake buildingId as we need something with buildmode == 1
-                        var firstItemProtoID = BlueprintManager.data.copiedBuildings.Count > 0 ?
-                            BlueprintManager.data.copiedBuildings.First().Value.itemProto.ID :
-                            2101;
-                        __instance.yaw = BlueprintManager.data.referenceYaw;
-                        __instance.player.SetHandItems(firstItemProtoID, 0, 0);
-                        __instance.controller.cmd.type = ECommand.Build;
-                        __instance.controller.cmd.mode = 1;
-                        
-                    }
-                }
             }
             if (!VFInput.shift && !VFInput.control)
             {
@@ -643,6 +621,37 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
         }
+
+        public static void ToggleBpMode()
+        {
+            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+            actionBuild.controller.cmd.type = ECommand.Build;
+            acceptCommand = false;
+            lastPosition = Vector3.zero;
+            if (!bpMode)
+            {
+                bpMode = true;
+                actionBuild.player.SetHandItems(0, 0, 0);
+
+                BlueprintManager.Reset();
+                if (circleGizmo == null)
+                {
+                    circleGizmo = CircleGizmo.Create(6, Vector3.zero, 10);
+
+                    circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
+                    circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
+                    circleGizmo.autoRefresh = true;
+                    circleGizmo.Open();
+                }
+            }
+            else
+            {
+                EndBpMode(true);
+                BlueprintManager.EnterBuildModeAfterBp();
+            }
+        }
+
+        
 
         public static void EndBpMode(bool createBp)
         {
