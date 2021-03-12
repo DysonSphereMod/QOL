@@ -57,11 +57,14 @@ Press `Z` to 'rotate' the building path (if you are not buildin on a straight li
   
 ## Changelog
 
+### v1.1.2
+- Fix incompatibility issue with CopyInserters where inserters were not being copied when in multibuild mode
+
 ### v1.1.1
 - Fix a bug where the build preview disappears and the game reports "building out of range", if, when in multibuild mode, only a single copy of the building is placed.
 
 ### v1.1.0
-- Store spacing indipendently per item so that you can place your power poles with a different spacing than your assembler without having to constantly tap `+` and `-`. You can opt out of this functionality and revert to the hold behavious by setting the \\ config to `false`.
+- Store spacing indipendently per item so that you can place your power poles with a different spacing than your assembler without having to constantly tap `+` and `-`. You can opt out of this functionality and revert to the hold behavious by setting the `itemSpecificSpacing` config to `false`.
 - Add ability to use key `0` to reset spacing
 
 ### v1.0.2

@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.1.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.1.2")]
     public class MultiBuild : BaseUnityPlugin
     {
         private Harmony harmony;
