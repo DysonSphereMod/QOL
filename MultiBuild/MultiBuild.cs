@@ -45,8 +45,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 UIBlueprintGroup.onCreate = () => PlayerAction_Build_Patch.ToggleBpMode();
                 UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
-                UIBlueprintGroup.onImport = () => Debug.Log("test import");
-                UIBlueprintGroup.onExport = () => Debug.Log("test export");
+                UIBlueprintGroup.onImport = () => {
+                    BlueprintData.import();
+                    Debug.Log("test import");
+                    };
+                UIBlueprintGroup.onExport = () => {
+                    BlueprintManager.data.export().CopyToClipboard();
+                    UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 2);
+
+                };
             }
             catch (Exception e)
             {
@@ -79,7 +86,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && PlayerAction_Build_Patch.bpMode)
+            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && PlayerAction_Build_Patch.bpMode && selectionRadius < 14)
             {
                 ++selectionRadius;
             }

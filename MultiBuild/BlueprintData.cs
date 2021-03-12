@@ -9,11 +9,6 @@ using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [Serializable]
-    public class BeltConnection
-    {
-        
-    }
 
     [Serializable]
     public class BeltCopy
@@ -39,7 +34,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int connectedBuildingSlot;
         public bool connectedBuildingIsOutput;
 
-        //public int outputSlot = 
         public string toJSON()
         {
             return "{" +
@@ -52,6 +46,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 $"\"leftInputId\" : {leftInputId}," +
                 $"\"rightInputId\" : {rightInputId}," +
                 $"\"outputId\" : {outputId}," +
+                $"\"connectedBuildingId\" : {connectedBuildingId}," +
+                $"\"connectedBuildingSlot\" : {connectedBuildingSlot}," +
+                $"\"connectedBuildingIsOutput\" : {BlueprintData.BoolToJson(connectedBuildingIsOutput)}," +
                 $"\"cursorRelativePos\" : {BlueprintData.Vector3ToJson(cursorRelativePos)}," +
                 $"\"movesFromReference\" : [{movesFromReference.Select(i => BlueprintData.Vector3ToJson(i)).Join(null, ",")}]" +
             "}";
@@ -129,7 +126,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 $"\"pickTarget\" : {pickTarget}," +
                 $"\"insertTarget\" : {insertTarget}," +
                 $"\"referenceBuildingId\" : {referenceBuildingId}," +
-                $"\"incoming\" : {(incoming ? "true" : "false")}," +
+                $"\"incoming\" : {BlueprintData.BoolToJson(incoming)}," +
                 $"\"startSlot\" : {startSlot}," +
                 $"\"endSlot\" : {endSlot}," +
                 $"\"posDelta\" : {BlueprintData.Vector3ToJson(posDelta)}," +
@@ -143,13 +140,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 $"\"t2\" : {t2}," +
                 $"\"filterId\" : {filterId}," +
                 $"\"refCount\" : {refCount}," +
-                $"\"otherIsBelt\" : {(otherIsBelt ? "true" : "false")}" +
+                $"\"otherIsBelt\" : {BlueprintData.BoolToJson(otherIsBelt)}" +
             "}";
         }
     }
 
     public class BlueprintData
     {
+        public int version = 1;
         public Vector3 referencePos = Vector3.zero;
         public Quaternion inverseReferenceRot = Quaternion.identity;
         public float referenceYaw = 0f;
@@ -160,6 +158,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public const double JSON_PRECISION = 100;
 
+        public static void import(string input)
+        {
+            var unzipped = Unzip(Convert.FromBase64String(input));
+
+            Debug.Log(unzipped);
+            var data = JsonUtility.FromJson<object>(unzipped);
+
+            Debug.Log(data);
+        }
         public string export()
         {
             var buildings = "{" + copiedBuildings.Select(x => $"\"{x.Key}\": {x.Value.toJSON()}").Join(null, ",\n") + "}";
@@ -167,7 +174,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             var belts = "{" + copiedBelts.Select(x => $"\"{x.Key}\": {x.Value.toJSON()}").Join(null, ",\n") + "}";
 
             var json = "{" +
-                $"\"version\": 1," +
+                $"\"version\": {version}," +
                 $"\"referencePos\": {Vector3ToJson(referencePos)}," +
                 $"\"inverseReferenceRot\": {JsonUtility.ToJson(inverseReferenceRot)}," +
                 $"\"buildings\": {buildings}," +
@@ -178,7 +185,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return Convert.ToBase64String(Zip(json));
         }
 
-        internal static string Vector3ToJson(Vector3 input)
+        public static string Vector3ToJson(Vector3 input)
         {
             return "{" +
                 $"\"x\": {Math.Round(input.x * JSON_PRECISION) / JSON_PRECISION}," +
@@ -187,7 +194,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 "}";
         }
 
-        private void CopyTo(Stream src, Stream dest)
+        public static string BoolToJson(bool input)
+        {
+            return input ? "true" : "false";
+        }
+
+        private static void CopyTo(Stream src, Stream dest)
         {
             byte[] bytes = new byte[4096];
 
@@ -199,7 +211,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        private byte[] Zip(string str)
+        private static byte[] Zip(string str)
         {
             var bytes = Encoding.UTF8.GetBytes(str);
 
@@ -215,7 +227,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        private string Unzip(byte[] bytes)
+        private static string Unzip(byte[] bytes)
         {
             using (var msi = new MemoryStream(bytes))
             using (var mso = new MemoryStream())
