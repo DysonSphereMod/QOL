@@ -2,6 +2,7 @@ using BepInEx;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
@@ -15,6 +16,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
     public class BlueprintManager : BaseUnityPlugin
     {
+        public static BlueprintData previousData;
         public static BlueprintData data = new BlueprintData();
         public static bool hasData = false;
 
@@ -39,10 +41,52 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static void Reset()
         {
+            if (!hasData)
+            {
+                return;
+            }
             hasData = false;
+            previousData = data;
             data = new BlueprintData();
             pastedEntities.Clear();
             GC.Collect();
+        }
+
+        public static void Restore()
+        {
+            if(previousData != null)
+            {
+                hasData = true;
+                var temp = data;
+                data = previousData;
+                previousData = temp;
+                pastedEntities.Clear();
+                GC.Collect();
+
+                EnterBuildModeAfterBp();
+            }
+        }
+
+        public static void EnterBuildModeAfterBp()
+        {
+            if (!hasData)
+            {
+                return;
+            }
+
+            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
+            // if no building use storage id as fake buildingId as we need something with buildmode == 1
+            var firstItemProtoID = data.copiedBuildings.Count > 0 ?
+                        data.copiedBuildings.First().Value.itemProto.ID :
+                        2101;
+
+            actionBuild.yaw = data.referenceYaw;
+            actionBuild.player.SetHandItems(firstItemProtoID, 0, 0);
+            actionBuild.controller.cmd.type = ECommand.Build;
+            actionBuild.controller.cmd.mode = 1;
+
+            UIRoot.instance.uiGame.functionPanel.buildMenu.SetCurrentCategory(0);
         }
 
         public static Vector3[] GetMovesBetweenPoints(Vector3 from, Vector3 to, Quaternion inverseFromRotation)
@@ -724,10 +768,24 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 __instance.objs_1.Add(item);
 
+                if (preview.output != null)
+                {
+                    Vector3 vector2 = preview.output.lpos - preview.lpos;
+                    item.rot = Quaternion.LookRotation(vector2.normalized, preview.lpos.normalized);
+                    item.size = vector2.magnitude;
+                    __instance.objs_2.Add(item);
+                }
+
                 if (preview.input != null)
                 {
                     item.pos = preview.input.lpos;
                     item.rot = Quaternion.FromToRotation(Vector3.up, preview.input.lpos.normalized);
+                    item.color = 3u;
+                    item.size = 1f;
+                    if (preview.condition != EBuildCondition.Ok)
+                    {
+                        item.color = 0u;
+                    }
                     __instance.objs_1.Add(item);
 
                     Vector3 vector2 = preview.lpos - preview.input.lpos;
@@ -736,13 +794,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     __instance.objs_2.Add(item);
                 }
 
-                if (preview.output != null)
-                {
-                    Vector3 vector2 = preview.output.lpos - preview.lpos;
-                    item.rot = Quaternion.LookRotation(vector2.normalized, preview.lpos.normalized);
-                    item.size = vector2.magnitude;
-                    __instance.objs_2.Add(item);
-                }
+                
             }
 
             __instance.cbuffer_0.SetData<ConnGizmoObj>(__instance.objs_0);

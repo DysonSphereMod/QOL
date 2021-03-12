@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using com.brokenmass.plugin.DSP.MultiBuildUI;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
@@ -14,7 +15,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public const int MAX_IGNORED_TICKS = 60;
 
         private Harmony harmony;   
-
 
         public static int lastCmdMode = 0;
         public static ECommand lastCmdType;
@@ -41,6 +41,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 harmony.PatchAll(typeof(PlayerAction_Build_Patch));
                 harmony.PatchAll(typeof(PlanetFactory_Patch));
                 harmony.PatchAll(typeof(InserterPoses));
+
+
+                UIBlueprintGroup.onCreate = () => PlayerAction_Build_Patch.ToggleBpMode();
+                UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
+                UIBlueprintGroup.onImport = () => Debug.Log("test import");
+                UIBlueprintGroup.onExport = () => Debug.Log("test export");
             }
             catch (Exception e)
             {
@@ -57,7 +63,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 allTips.Remove(tooltip);
             }
-
             harmony.UnpatchSelf();
         }
 
@@ -188,6 +193,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     ___modeText.text += $" - Spacing {spacingStore[spacingIndex]}";
                 }
+            }
+
+            if(PlayerAction_Build_Patch.bpMode)
+            {
+                ___modeText.text = "Blueprint Mode";
             }
         }
     }

@@ -4,10 +4,10 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{B6454A7A-C46F-400A-906B-E5DFFD72BD73}</ProjectGuid>
+    <ProjectGuid>{07FB7229-75EA-488F-92A5-9B6C1DBCAF60}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>com.brokenmass.plugin.DSP.MultiBuild</RootNamespace>
-    <AssemblyName>MultiBuild</AssemblyName>
+    <RootNamespace>com.brokenmass.plugin.DSP.MultiBuildUI</RootNamespace>
+    <AssemblyName>MultiBuildUI</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -115,13 +115,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ACPublic.cs" />
-    <Compile Include="BlueprintData.cs" />
-    <Compile Include="BlueprintManager.cs" />
-    <Compile Include="InserterPoses.cs" />
-    <Compile Include="PlanetFactory_Patch.cs" />
-    <Compile Include="PlayerAction_Build_Patch.cs" />
-    <Compile Include="MultiBuild.cs" />
+    <Compile Include="MultiBuildUI.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Registry.cs" />
+    <Compile Include="UIBlueprintGroup.cs">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.8">
@@ -136,13 +135,19 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MultiBuildUI\MultiBuildUI.csproj">
-      <Project>{07fb7229-75ea-488f-92a5-9b6c1dbcaf60}</Project>
-      <Name>MultiBuildUI</Name>
-    </ProjectReference>
+    <None Include="bundle data\blueprint-group.prefab" />
+    <None Include="blueprintsbundle" />
+    <None Include="bundle data\button.prefab" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="bundle data\bpaddicon.png" />
+    <Content Include="bundle data\bpexporticon.png" />
+    <Content Include="bundle data\bpicon.png" />
+    <Content Include="bundle data\bpimporticon.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\scripts\$(TargetFileName)"</PostBuildEvent>
+    <PostBuildEvent>copy $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\plugins\$(TargetFileName)"
+copy "$(ProjectDir)\blueprintsbundle" "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\plugins\blueprintsbundle"</PostBuildEvent>
   </PropertyGroup>
 </Project>
