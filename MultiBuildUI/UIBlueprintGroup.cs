@@ -47,6 +47,8 @@ public class UIBlueprintGroup : MonoBehaviour
         button.highlighted = true;
 
         mainGroup.interactable = true;
+        mainGroup.blocksRaycasts = true;
+
     }
 
     public void _Close()
@@ -56,6 +58,8 @@ public class UIBlueprintGroup : MonoBehaviour
         mainGroup.alpha = 0;
         mainGroup.interactable = false;
         button.highlighted = false;
+        mainGroup.blocksRaycasts = false;
+
     }
 
     private void Update()
@@ -139,14 +143,14 @@ static class UIFunctionPanelPatch
             Transform mainTrs = menu.gameObject.transform.Find("main-group");
             if (mainTrs == null) return;
 
-            GameObject buttonPrefab = Registry.bundle.LoadAsset<GameObject>("assets/blueprints/ui/button.prefab");
+            GameObject buttonPrefab = MultiBuildUI.bundle.LoadAsset<GameObject>("assets/blueprints/ui/button.prefab");
             GameObject button = Object.Instantiate(buttonPrefab, Vector3.zero, Quaternion.identity, mainTrs);
             button.transform.localPosition = new Vector3(260, 0, 0);
             menu.categoryButtons[10].transform.localPosition += new Vector3(52, 0, 0);
             menu.mainCanvas.transform.localPosition += new Vector3(-26, 0, 0);
             Button blueprintButton = button.GetComponent<Button>();
 
-            GameObject prefab = Registry.bundle.LoadAsset<GameObject>("assets/blueprints/ui/blueprint-group.prefab");
+            GameObject prefab = MultiBuildUI.bundle.LoadAsset<GameObject>("assets/blueprints/ui/blueprint-group.prefab");
             GameObject group = Object.Instantiate(prefab, menu.transform, false);
             blueprintGroup = group.GetComponent<UIBlueprintGroup>();
             blueprintGroup.Init(menu, button.GetComponent<UIButton>());

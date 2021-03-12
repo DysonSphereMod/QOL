@@ -1,6 +1,8 @@
 using BepInEx;
 using HarmonyLib;
 using System;
+using System.IO;
+using System.Reflection;
 using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuildUI
@@ -9,6 +11,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuildUI
     public class MultiBuildUI : BaseUnityPlugin
     {
         private Harmony harmony;
+
+        public static AssetBundle bundle;
 
         internal void Awake()
         {
@@ -20,9 +24,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuildUI
                 harmony.PatchAll(typeof(UIFunctionPanelPatch));
                 harmony.PatchAll(typeof(UIBuildMenuPatch));
 
-                Registry.Init("blueprintsbundle", "blueprints", true, false);
-
-                Debug.Log(Registry.bundle);
+                string pluginfolder = Path.GetDirectoryName(Assembly.GetAssembly(typeof(MultiBuildUI)).Location);
+                bundle = AssetBundle.LoadFromFile($"{pluginfolder}/blueprintsbundle");
             }
             catch (Exception e)
             {
@@ -33,7 +36,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuildUI
         internal void OnDestroy()
         {
             // For ScriptEngine hot-reloading
-            Registry.bundle.Unload(true);
+            if (bundle != null)
+            {
+                bundle.Unload(true);
+            }
             harmony.UnpatchSelf();
         }
     }
