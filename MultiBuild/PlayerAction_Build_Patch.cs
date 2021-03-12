@@ -32,7 +32,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int path = 0;
 
         private static Color ADD_SELECTION_GIZMO_COLOR = new Color(1f, 1f, 1f, 1f);
-        private static Color REMOVE_SELECTION_GIZMO_COLOR = new Color(1f, 0f, 0f, 1f);
+        private static Color REMOVE_SELECTION_GIZMO_COLOR = new Color(0.9433962f, 0.1843137f, 0.1646493f, 1f);
         private static CircleGizmo circleGizmo;
         private static int[] _nearObjectIds = new int[4096];
 
@@ -142,7 +142,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return false;
         }
 
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
+        [HarmonyPrefix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
         {
             var runOriginal = true;
@@ -167,6 +167,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     return true;
                 }
+                if(!MultiBuild.IsMultiBuildRunning() && !BlueprintManager.hasData)
+                {
+                    return true;
+                }
 
                 // full hijacking of DetermineBuildPreviews
                 runOriginal = false;
@@ -188,8 +192,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
                     __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
                 }
-                __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
 
+                __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
                 __instance.previewPose.position = Vector3.zero;
                 __instance.previewPose.rotation = Quaternion.identity;
 
@@ -197,15 +201,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 //__instance.previewPose.rotation = Maths.SphericalRotation(__instance.previewPose.position, __instance.yaw);
 
                 var inversePreviewRot = Quaternion.Inverse(__instance.previewPose.rotation);
-                if (!BlueprintManager.hasData)
-                {
-                    BlueprintManager.data.copiedBuildings.Add(0, new BuildingCopy()
-                    {
-                        itemProto = __instance.handItem,
-                        recipeId = __instance.copyRecipeId
-                    });
-                    BlueprintManager.hasData = true;
-                }
 
                 if (lastPosition == __instance.groundSnappedPos && lastYaw == __instance.yaw && path == lastPath)
                 {
@@ -341,15 +336,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     updated.previewIndex = original.previewIndex;
                     __instance.buildPreviews[i] = updated;
-                    /*         original.recipeId = updated.recipeId;
-                             original.filterId = updated.filterId;
-                             original.condition = EBuildCondition.Ok;
-
-                             original.lpos = updated.lpos;
-                             original.lrot = updated.lrot;
-
-                             original.lpos2 = updated.lpos2;
-                             original.lrot2 = updated.lrot2;*/
                 }
 
                 if (__instance.buildPreviews.Count > previews.Count)
@@ -369,7 +355,118 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
         public static bool UpdatePreviews_Prefix(ref PlayerAction_Build __instance)
         {
-            return executeBuildUpdatePreviews;
+            if(__instance.upgrading || __instance.destructing)
+            {
+                return true;
+            }
+            int graphPoints = 0;
+            int pointCount = __instance.connGraph.pointCount;
+            __instance.connRenderer.ClearXSigns();
+            __instance.connRenderer.ClearUpgradeArrows();
+            for (int i = 0; i < __instance.buildPreviews.Count; i++)
+            {
+                BuildPreview buildPreview = __instance.buildPreviews[i];
+                if (buildPreview.needModel)
+                {
+                    __instance.CreatePreviewModel(buildPreview);
+                    int previewIndex = buildPreview.previewIndex;
+                    if (previewIndex >= 0)
+                    {
+                        __instance.previewRenderers[previewIndex].transform.localPosition = __instance.previewPose.position + __instance.previewPose.rotation * buildPreview.lpos;
+                        __instance.previewRenderers[previewIndex].transform.localRotation = __instance.previewPose.rotation * buildPreview.lrot;
+                        bool isInserter = buildPreview.desc.isInserter;
+                        Material material;
+                        if (isInserter)
+                        {
+                            Material original = ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat_Inserter : Configs.builtin.previewOkMat_Inserter);
+                            Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
+
+                            if(existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
+                            {
+                                UnityEngine.Object.Destroy(existingMaterial);
+                                existingMaterial = null;
+                            }
+
+                            if (existingMaterial == null)
+                            {                               
+                                material = UnityEngine.Object.Instantiate<Material>(original);
+                            } else
+                            {
+                                material = existingMaterial;
+                            }
+
+                            bool t;
+                            bool t2;
+                            __instance.GetInserterT1T2(buildPreview.objId, out t, out t2);
+                            if (buildPreview.outputObjId != 0 && !__instance.ObjectIsBelt(buildPreview.outputObjId) && !__instance.ObjectIsInserter(buildPreview.outputObjId))
+                            {
+                                t2 = true;
+                            }
+                            if (buildPreview.inputObjId != 0 && !__instance.ObjectIsBelt(buildPreview.inputObjId) && !__instance.ObjectIsInserter(buildPreview.inputObjId))
+                            {
+                                t = true;
+                            }
+                            material.SetVector("_Position1", __instance.Vector3BoolToVector4(Vector3.zero, t));
+                            material.SetVector("_Position2", __instance.Vector3BoolToVector4(Quaternion.Inverse(buildPreview.lrot) * (buildPreview.lpos2 - buildPreview.lpos), t2));
+                            material.SetVector("_Rotation1", __instance.QuaternionToVector4(Quaternion.identity));
+                            material.SetVector("_Rotation2", __instance.QuaternionToVector4(Quaternion.Inverse(buildPreview.lrot) * buildPreview.lrot2));
+                            __instance.previewRenderers[previewIndex].enabled = (buildPreview.condition != EBuildCondition.NeedConn);
+                        }
+                        else
+                        {
+                            __instance.previewRenderers[previewIndex].enabled = true;
+                            Material original =  ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat : Configs.builtin.previewOkMat);;
+
+                            Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
+
+                            if (existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
+                            {
+                                UnityEngine.Object.Destroy(existingMaterial);
+                                existingMaterial = null;
+                            }
+
+                            if (existingMaterial == null)
+                            {
+                                material = UnityEngine.Object.Instantiate<Material>(original);
+                            }
+                            else
+                            {
+                                material = existingMaterial;
+                            }
+                        }
+                        __instance.previewRenderers[previewIndex].sharedMaterial = material;
+                    }
+                }
+                else if (buildPreview.previewIndex >= 0)
+                {
+                    __instance.FreePreviewModel(buildPreview);
+                }
+                if (buildPreview.isConnNode)
+                {
+                    uint color = 4U;
+                    if (buildPreview.condition != EBuildCondition.Ok)
+                    {
+                        color = 0U;
+                    }
+                    if (graphPoints < pointCount)
+                    {
+                        __instance.connGraph.points[graphPoints] = buildPreview.lpos;
+                        __instance.connGraph.colors[graphPoints] = color;
+                    }
+                    else
+                    {
+                        __instance.connGraph.AddPoint(buildPreview.lpos, color);
+                    }
+                    graphPoints++;
+                }
+            }
+            __instance.connGraph.SetPointCount(graphPoints);
+            if (graphPoints > 0)
+            {
+                __instance.showConnGraph = true;
+            }
+        
+            return false;
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
@@ -388,9 +485,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
         public static void CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
         {
-            if (BlueprintManager.data.copiedInserters.Count + BlueprintManager.data.copiedBelts.Count + BlueprintManager.data.copiedBuildings.Count > 0)
+            if (BlueprintManager.pastedEntities.Count > 1 && !__result)
             {
-                var flag = true;
+                var allGood = true;
+                __instance.cursorWarning = false;
                 for (int i = 0; i < __instance.buildPreviews.Count; i++)
                 {
                     BuildPreview buildPreview = __instance.buildPreviews[i];
@@ -411,28 +509,32 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     if (buildPreview.condition != EBuildCondition.Ok)
                     {
-                        flag = false;
+                        allGood = false;
+                        if(!__instance.cursorWarning)
+                        {
+                            __instance.cursorWarning = true;
+                            __instance.cursorText = buildPreview.conditionText;
+                        }
                     }
                 }
 
-                if (!__result && flag)
+                if (allGood)
                 {
                     UICursor.SetCursor(ECursor.Default);
-                    __instance.cursorText = __instance.prepareCursorText;
-                    __instance.prepareCursorText = string.Empty;
-                    __instance.cursorWarning = false;
+                    __instance.cursorText = "点击鼠标建造".Translate();
                 }
 
-                __result = flag;
+                __result = allGood;
             }
         }
 
         private static bool acceptCommand = true;
         public static bool bpMode = false;
         private static Dictionary<int, BoxGizmo> bpSelection = new Dictionary<int, BoxGizmo>();
+        private static Collider[] _tmp_cols = new Collider[1024];
 
-        [HarmonyPrefix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
-        public static void GameTick_Prefix(PlayerAction_Build __instance)
+        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
+        public static void GameTick_Postfix(ref PlayerAction_Build __instance)
         {
             if (BlueprintManager.hasData && Input.GetKeyUp(KeyCode.Backslash))
             {
@@ -443,14 +545,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (acceptCommand && VFInput.shift && VFInput.control)
             {
+                __instance.controller.cmd.type = ECommand.Build;
                 acceptCommand = false;
-                bpMode = !bpMode;
-                if (bpMode)
+                lastPosition = Vector3.zero;
+                if (!bpMode)
                 {
+                    bpMode = true;
+                    __instance.player.SetHandItems(0, 0, 0);
+                    
                     BlueprintManager.Reset();
                     if (circleGizmo == null)
                     {
-                        circleGizmo = CircleGizmo.Create(4, __instance.groundTestPos, 10);
+                        circleGizmo = CircleGizmo.Create(6, __instance.groundTestPos, 10);
 
                         circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
                         circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
@@ -467,11 +573,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         var firstItemProtoID = BlueprintManager.data.copiedBuildings.Count > 0 ?
                             BlueprintManager.data.copiedBuildings.First().Value.itemProto.ID :
                             2101;
-
+                        __instance.yaw = BlueprintManager.data.referenceYaw;
                         __instance.player.SetHandItems(firstItemProtoID, 0, 0);
                         __instance.controller.cmd.type = ECommand.Build;
                         __instance.controller.cmd.mode = 1;
-                        lastPosition = Vector3.zero;
+                        
                     }
                 }
             }
@@ -482,57 +588,71 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (bpMode)
             {
-                //Debug.Log(__instance.controller.cmd.type);
-                __instance.PrepareBuild();
                 var removeMode = acceptCommand && VFInput.control;
-                circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
-                circleGizmo.position = __instance.groundTestPos;
-                circleGizmo.radius = 1.2f * MultiBuild.selectionRadius;
+
+                if (circleGizmo != null)
+                {
+                    circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
+                    circleGizmo.position = __instance.groundTestPos;
+                    circleGizmo.radius = MultiBuild.selectionRadius;
+                }
 
                 if (VFInput._buildConfirm.pressing)
                 {
-                    int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, MultiBuild.selectionRadius, _nearObjectIds);
+                    circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
 
+                    // target only buildings
+                    int mask = 131072;
+                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 1f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
+
+                    PlanetPhysics planetPhysics = __instance.player.planetData.physics;
                     for (int i = 0; i < found; i++)
                     {
-                        var entityId = _nearObjectIds[i];
-                        if (removeMode)
+                        ColliderData colliderData;
+                        planetPhysics.GetColliderData(_tmp_cols[i], out colliderData);
+                        if(colliderData.objId > 0)
                         {
-                            if (bpSelection.ContainsKey(entityId))
+                            var entityId = colliderData.objId;
+                            if (removeMode)
                             {
-                                bpSelection[entityId].Close();
-                                bpSelection.Remove(entityId);
+                                if (bpSelection.ContainsKey(entityId))
+                                {
+                                    bpSelection[entityId].Close();
+                                    bpSelection.Remove(entityId);
+                                }
+                            }
+                            else if (!bpSelection.ContainsKey(entityId))
+                            {
+                                var entityData = __instance.factory.entityPool[entityId];
+                                ItemProto itemProto = LDB.items.Select((int)entityData.protoId);
+                                var gizmo = BoxGizmo.Create(entityData.pos, entityData.rot, itemProto.prefabDesc.selectCenter, itemProto.prefabDesc.selectSize);
+                                gizmo.multiplier = 1f;
+                                gizmo.alphaMultiplier = itemProto.prefabDesc.selectAlpha;
+                                gizmo.fadeInScale = gizmo.fadeOutScale = 1.3f;
+                                gizmo.fadeInTime = gizmo.fadeOutTime = 0.05f;
+                                gizmo.fadeInFalloff = gizmo.fadeOutFalloff = 0.5f;
+                                gizmo.color = Color.white;
+
+                                gizmo.Open();
+
+                                bpSelection.Add(entityId, gizmo);
                             }
                         }
-                        else if (!bpSelection.ContainsKey(entityId))
-                        {
-                            var entityData = __instance.factory.entityPool[entityId];
-                            ItemProto itemProto = LDB.items.Select((int)entityData.protoId);
-                            var gizmo = BoxGizmo.Create(entityData.pos, entityData.rot, itemProto.prefabDesc.selectCenter, itemProto.prefabDesc.selectSize);
-                            gizmo.multiplier = 1f;
-                            gizmo.alphaMultiplier = itemProto.prefabDesc.selectAlpha;
-                            gizmo.fadeInScale = gizmo.fadeOutScale = 1.3f;
-                            gizmo.fadeInTime = gizmo.fadeOutTime = 0.05f;
-                            gizmo.fadeInFalloff = gizmo.fadeOutFalloff = 0.5f;
-                            gizmo.color = Color.white;
-                            gizmo.Open();
-
-                            bpSelection.Add(entityId, gizmo);
-                        }
                     }
-
-                    for (int i = 0; i < found; i++)
-                    {
-                        //BlueprintManager.copyBelt(_nearObjectIds[i]);
-                    }
+                   
                 }
             }
-
-            //return !bpMode;
         }
 
         public static void EndBpMode(bool createBp)
         {
+
+            if(!bpMode || (!acceptCommand && !createBp))
+            {
+                return;
+            }
+
+            bpMode = false;
             foreach (var entry in bpSelection)
             {
                 if (createBp)

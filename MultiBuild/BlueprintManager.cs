@@ -1,5 +1,6 @@
 using BepInEx;
 using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -17,7 +18,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static BlueprintData data = new BlueprintData();
         public static bool hasData = false;
 
-        private static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
+        public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
         /*
                 private static Dictionary<int, BuildPreview> previews = new Dictionary<int, BuildPreview>();
                 private static Dictionary<int, Vector3> positions = new Dictionary<int, Vector3>();
@@ -40,8 +41,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             hasData = false;
             data = new BlueprintData();
-
             pastedEntities.Clear();
+            GC.Collect();
         }
 
         public static Vector3[] GetMovesBetweenPoints(Vector3 from, Vector3 to, Quaternion inverseFromRotation)
@@ -148,7 +149,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 Vector3 testPos = GetPointFromMoves(absoluteBuildingPos, copiedInserter.movesFromReference, absoluteBuildingRot);
 
                 // find building nearby
-                int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds);
+                int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
 
                 // find nearest building
                 float maxDistance = 1f;
@@ -323,6 +324,26 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 outputId = factory.cargoTraffic.beltPool[belt.outputId].entityId,
             };
 
+            bool isOutput;
+            int otherId;
+            int otherSlot;
+
+            factory.ReadObjectConn(sourceEntityId, 0, out isOutput, out otherId, out otherSlot);
+            if(otherId>0 && factory.entityPool[otherId].beltId == 0)
+            {
+                copiedBelt.connectedBuildingId = otherId;
+                copiedBelt.connectedBuildingIsOutput = isOutput;
+                copiedBelt.connectedBuildingSlot = otherSlot;
+
+            }
+            factory.ReadObjectConn(sourceEntityId, 1, out isOutput, out otherId, out otherSlot);
+            if (otherId > 0 && factory.entityPool[otherId].beltId == 0)
+            {
+                copiedBelt.connectedBuildingId = otherId;
+                copiedBelt.connectedBuildingIsOutput = isOutput;
+                copiedBelt.connectedBuildingSlot = otherSlot;
+            }
+
             if (data.referencePos == Vector3.zero)
             {
                 data.referencePos = sourcePos;
@@ -353,7 +374,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             var sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
 
-            if (sourceEntityProto.prefabDesc.isBelt || sourceEntityProto.prefabDesc.isInserter)
+            if (sourceEntityProto.prefabDesc.isBelt || sourceEntityProto.prefabDesc.isInserter || sourceEntityProto.prefabDesc.minerType != EMinerType.None)
             {
                 return null;
             }
@@ -371,7 +392,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 itemProto = sourceEntityProto,
                 originalPos = sourcePos,
                 originalRot = sourceRot,
+                //modelIndex = sourceEntity.modelIndex
             };
+
 
             if (sourceEntityProto.prefabDesc.isAssembler)
             {
@@ -523,15 +546,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             pastedEntities.Clear();
             InserterPoses.resetOverrides();
 
-            var inversePreviewRot = Quaternion.Inverse(Maths.SphericalRotation(targetPos, yaw));
             var absoluteTargetRot = Maths.SphericalRotation(targetPos, yaw);
             var previews = new List<BuildPreview>();
             absolutePositions = new List<Vector3>();
 
             foreach (var building in data.copiedBuildings.Values)
             {
-                var absoluteBuildingPos = GetPointFromMoves(targetPos, building.movesFromReference, absoluteTargetRot);
-                var absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
+                Vector3 absoluteBuildingPos = GetPointFromMoves(targetPos, building.movesFromReference, absoluteTargetRot);
+                Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
 
                 BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, building.itemProto.prefabDesc, true);
                 bp.ResetInfos();
@@ -569,9 +591,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 bp.lrot = absoluteBeltRot;
                 bp.outputToSlot = -1;
                 bp.outputFromSlot = 0;
-                bp.outputOffset = 0;
+
                 bp.inputFromSlot = -1;
                 bp.inputToSlot = 1;
+
+                bp.outputOffset = 0;
                 bp.inputOffset = 0;
 
                 var pose = new Pose(absoluteBeltPos, absoluteBeltRot);
@@ -608,6 +632,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         preview.outputToSlot = 3;
                     }
                 }
+
+                if (belt.connectedBuildingId != 0 && pastedEntities.ContainsKey(belt.connectedBuildingId))
+                {
+                    if(belt.connectedBuildingIsOutput)
+                    {
+                        preview.output = pastedEntities[belt.connectedBuildingId].buildPreview;
+                        preview.outputToSlot = belt.connectedBuildingSlot;
+                    } else
+                    {
+                        preview.input = pastedEntities[belt.connectedBuildingId].buildPreview;
+                        preview.inputFromSlot = belt.connectedBuildingSlot;
+                    }
+                }
             }
 
             foreach (var copiedInserter in data.copiedInserters.Values)
@@ -632,6 +669,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 bp.outputOffset = positionData.insertOffset;
                 bp.outputToSlot = positionData.endSlot;
                 bp.inputFromSlot = positionData.startSlot;
+
+                bp.filterId = copiedInserter.filterId;
 
                 if (pastedEntities.ContainsKey(positionData.inputOriginalId))
                 {
@@ -662,12 +701,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(ConnGizmoRenderer), "Update")]
-        public static void ConnGizmoRenderer_Update(ref ConnGizmoRenderer __instance)
+        public static void ConnGizmoRenderer_Update_Postfix(ref ConnGizmoRenderer __instance)
         {
             foreach (var pastedEntity in pastedEntities)
             {
                 var preview = pastedEntity.Value.buildPreview;
-                if (!preview.desc.isBelt)
+                if (preview.desc.beltSpeed <= 0)
                 {
                     continue;
                 }
@@ -684,6 +723,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
 
                 __instance.objs_1.Add(item);
+
+                if (preview.input != null)
+                {
+                    item.pos = preview.input.lpos;
+                    item.rot = Quaternion.FromToRotation(Vector3.up, preview.input.lpos.normalized);
+                    __instance.objs_1.Add(item);
+
+                    Vector3 vector2 = preview.lpos - preview.input.lpos;
+                    item.rot = Quaternion.LookRotation(vector2.normalized, preview.input.lpos.normalized);
+                    item.size = vector2.magnitude;
+                    __instance.objs_2.Add(item);
+                }
 
                 if (preview.output != null)
                 {
