@@ -213,9 +213,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 List<BuildPreview> previews = new List<BuildPreview>();
                 var absolutePositions = new List<Vector3>(10);
-                if (BlueprintManager.data.copiedBuildings.Count == 1 && MultiBuild.IsMultiBuildRunning())
+
+                if (MultiBuild.IsMultiBuildRunning())
                 {
-                    var building = BlueprintManager.data.copiedBuildings.First().Value;
+                    if(!BlueprintManager.hasData)
+                    {
+                        BlueprintManager.data.copiedBuildings.Add(0, new BuildingCopy()
+                        {
+                            itemProto = __instance.handItem,
+                            recipeId = __instance.copyRecipeId
+                        });
+                    }
+                    var building =  BlueprintManager.data.copiedBuildings.First().Value;
+
 
                     int snapPath = path;
                     Vector3[] snaps = new Vector3[1024];
@@ -301,6 +311,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         previews = previews.Concat(BlueprintManager.paste(pos, __instance.yaw, out _)).ToList();
                     }
 
+
+                    BlueprintManager.data.copiedBuildings.Remove(0);
                     foreach (var collider in colliders)
                     {
                         if (collider != null)
@@ -542,7 +554,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 __instance.material.SetColor("_TintColor", BP_GRID_COLOR);
             }
         }
-        
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Inspect), "SetInspectee")]
+        public static bool PlayerAction_Inspect_SetInspectee_Prefix(ref PlayerAction_Build __instance)
+        {
+            return !bpMode;
+        }
+
 
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
         public static void GameTick_Postfix(ref PlayerAction_Build __instance)
@@ -581,7 +599,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     // target only buildings
                     int mask = 131072;
-                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 1f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
+                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 0.2f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
 
                     PlanetPhysics planetPhysics = __instance.player.planetData.physics;
                     for (int i = 0; i < found; i++)
@@ -631,6 +649,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (!bpMode)
             {
                 bpMode = true;
+                actionBuild.altitude = 0;
                 actionBuild.player.SetHandItems(0, 0, 0);
 
                 BlueprintManager.Reset();
@@ -649,6 +668,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 EndBpMode(true);
                 BlueprintManager.EnterBuildModeAfterBp();
             }
+
         }
 
         
