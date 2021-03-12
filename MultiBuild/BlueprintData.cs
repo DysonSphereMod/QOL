@@ -10,6 +10,12 @@ using UnityEngine;
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     [Serializable]
+    public class BeltConnection
+    {
+        
+    }
+
+    [Serializable]
     public class BeltCopy
     {
         [System.NonSerialized]
@@ -29,6 +35,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int rightInputId;
         public int outputId;
 
+        public int connectedBuildingId;
+        public int connectedBuildingSlot;
+        public bool connectedBuildingIsOutput;
+
+        //public int outputSlot = 
         public string toJSON()
         {
             return "{" +

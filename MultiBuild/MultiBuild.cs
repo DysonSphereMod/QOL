@@ -17,6 +17,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
         public static int lastCmdMode = 0;
+        public static ECommand lastCmdType;
         public static ConfigEntry<bool> itemSpecificSpacing;
         public static List<UIKeyTipNode> allTips;
         public static Dictionary<String, UIKeyTipNode> tooltips = new Dictionary<String, UIKeyTipNode>();
@@ -50,6 +51,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         internal void OnDestroy()
         {
             // For ScriptEngine hot-reloading
+            PlayerAction_Build_Patch.EndBpMode(false);
+            BlueprintManager.Reset();
             foreach (var tooltip in tooltips.Values)
             {
                 allTips.Remove(tooltip);
@@ -76,7 +79,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 ++selectionRadius;
             }
 
-            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && PlayerAction_Build_Patch.bpMode && selectionRadius > 0)
+            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && PlayerAction_Build_Patch.bpMode && selectionRadius > 1)
             {
                 --selectionRadius;
             }
@@ -137,21 +140,21 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerController), "UpdateCommandState")]
         public static void UpdateCommandState_Prefix(PlayerController __instance)
         {
-            if (__instance.cmd.mode != lastCmdMode)
+            if (__instance.cmd.type != ECommand.None &&__instance.cmd.type != ECommand.Follow &&
+                (__instance.cmd.mode != lastCmdMode || __instance.cmd.type != lastCmdType))
             {
+
                 multiBuildEnabled = false;
                 startPos = Vector3.zero;
 
                 if (__instance.cmd.mode != 1)
                 {
                     BlueprintManager.Reset();
-                }
-
-                if (PlayerAction_Build_Patch.bpMode)
-                {
                     PlayerAction_Build_Patch.EndBpMode(false);
                 }
+
                 lastCmdMode = __instance.cmd.mode;
+                lastCmdType = __instance.cmd.type;
             }
         }
 
@@ -164,11 +167,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 tooltips.Add("toggle-build", __instance.RegisterTip("L-ALT", "Toggle multiBuild mode"));
                 tooltips.Add("increase-spacing", __instance.RegisterTip("+", "Increase space between copies"));
                 tooltips.Add("decrease-spacing", __instance.RegisterTip("-", "Decrease space between copies"));
+                tooltips.Add("increase-radius", __instance.RegisterTip("+", "Increase selection area"));
+                tooltips.Add("decrease-radius", __instance.RegisterTip("-", "Decrease selection area"));
                 tooltips.Add("zero-spacing", __instance.RegisterTip("0", "Reset space between copies"));
                 tooltips.Add("rotate-path", __instance.RegisterTip("Z", "Rotate build path"));
             }
             tooltips["toggle-build"].desired = IsMultiBuildAvailable();
             tooltips["rotate-path"].desired = tooltips["zero-spacing"].desired = tooltips["decrease-spacing"].desired = tooltips["increase-spacing"].desired = IsMultiBuildRunning();
+            tooltips["decrease-radius"].desired = tooltips["increase-radius"].desired = PlayerAction_Build_Patch.bpMode;
         }
 
         [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
