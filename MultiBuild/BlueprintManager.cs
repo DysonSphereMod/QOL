@@ -77,8 +77,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             actionBuild.player.SetHandItems(firstItemProtoID, 0, 0);
             actionBuild.controller.cmd.type = ECommand.Build;
             actionBuild.controller.cmd.mode = 1;
-
-            UIRoot.instance.uiGame.functionPanel.buildMenu.SetCurrentCategory(0);
         }
 
         public static Vector3[] GetMovesBetweenPoints(Vector3 from, Vector3 to, Quaternion inverseFromRotation)
@@ -371,14 +369,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return copiedBuilding;
         }
 
-        public static List<BuildPreview> paste(Vector3 targetPos, float yaw, out List<Vector3> absolutePositions)
+        public static List<BuildPreview> paste(Vector3 targetPos, float yaw)
         {
             pastedEntities.Clear();
             InserterPoses.resetOverrides();
 
             var absoluteTargetRot = Maths.SphericalRotation(targetPos, yaw);
             var previews = new List<BuildPreview>();
-            absolutePositions = new List<Vector3>();
+            var absolutePositions = new List<Vector3>();
 
             foreach (var building in data.copiedBuildings.Values)
             {
@@ -442,6 +440,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 previews.Add(bp);
             }
 
+
             // after creating the belt previews this restore the correct connection to other belts and buildings
             foreach (var belt in data.copiedBelts.Values)
             {
@@ -478,6 +477,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
                 }
             }
+
+            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
+            BuildLogic.ActivateColliders(ref actionBuild.nearcdLogic, absolutePositions);
 
             foreach (var copiedInserter in data.copiedInserters.Values)
             {

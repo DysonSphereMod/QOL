@@ -1,11 +1,22 @@
 # MultiBuild
 
 This mods gives you the ability to build multiple copies of a building, with optional space between the copies.
+It also allow you to create / restore/ export/ import blueprints, allowing you to copy and paste whole parts of your base
 
-This mod is **NOT COMPATIBLE** with AdvancedBuildDestruct.
+This mod is **NOT COMPATIBLE** with AdvancedBuildDestruct and Copyinserters, but that shouldn't be a problem as this mod provides the same functionalities (multibuild, copy of inserters, etc).
+
+The mod will not initialise if any of the incompatible mods are loaded. please remove them from your modman profile or from your plugins (if you are installing mods manually)
 
 ![MultiBuild](https://github.com/DysonSphereMod/QOL/blob/master/MultiBuild/screenshot.jpg?raw=true)
-> In this screenshot you can see [MultiBuild](https://dsp.thunderstore.io/package/brokenmass/MultiBuild/) , [CopyInserters](https://dsp.thunderstore.io/package/thisisbrad/CopyInserters/) and [BuildCounter](https://dsp.thunderstore.io/package/brokenmass/BuildCounter/);
+> In this screenshot you can see [MultiBuild](https://dsp.thunderstore.io/package/brokenmass/MultiBuild/) in multibuild mode and [BuildCounter](https://dsp.thunderstore.io/package/brokenmass/BuildCounter/);
+
+
+## Beta Notice
+
+This version is under development and cannot , yet, be considered fully stable. It should not affect in any destructive manner your savegame, but you might experience some 'weirdness' and graphic glitches when using this mod. 
+
+Please carefully read the limitation of the current beta version of this mod.
+
 
 ## Disclaimer
 
@@ -16,7 +27,13 @@ If it stops working following a game update, you can just disable it and your ga
 
 ## Usage
 
+
+
+
+### MultiBuild Mode
 Select a building from the building bar or copy an exisiting building, then press `LEFT ALT` keyboard button to enter multibuild mode.
+
+This mode is disabled while holding a blueprint (for now).
 
 `Left Mouse Click` once to start building and `Left Mouse Click` one more time when you are happy with the placement of the copies.
 
@@ -27,6 +44,22 @@ Press `0` to reset spacing to 0
 Press `Z` to 'rotate' the building path (if you are not buildin on a straight line)
 
 
+### Blueprint Mode
+
+Click the blueprint button in the build dock
+
+- The first button initiate the creation of a new blueprint
+  - `left click (and hold)` to add entities to the blueprint
+  - `hold control` and `left click (and hold)` to remove entities from the blueprint
+  - `right click` to exit blueprint creation mode
+
+- The second button restore the last used blueprint 
+- The 3rd button exports the current blueprint to your clipboard 
+- The 4th button import the data from your clipboard into your blueprint
+
+### Inserter copy functionality
+When `shift+click` an exisisting building it will be copied with all the connected insters (creating a minimal blueprint , that you can store and reload);
+
 ## Configuration
 
 ### itemSpecificSpacing
@@ -36,26 +69,28 @@ Press `Z` to 'rotate' the building path (if you are not buildin on a straight li
 
 ## FAQ
 
-- **What are the limitations of this mod ?**  
+- **What are the limitations of this mod (MultiBuild mode)?**  
   This mod doens't allow to place multiple miners, oil extractors or orbital collectors. 
 
 
-- **What are the differences with AdvancedBuildDestruct ?**  
-  This mod uses a 'native-like' collision detection ensuring that your building are always correctly placed. It also take control of the building loop and trigger complex recalculation only when needed thus increasing the performance in building mode (no more frame drops), expecially when used together with CopyInserters.
+- **What are the limitations of this mod (Blueprint mode)?**  
+  This mod is still in development and so has one or more know issue:
+  - positionin of entities around the poles is a bit finicky
+  - in some conditions, when pasting a blueprint, it's possible to place building nearer than what is possible in vanilla
+  - splitter / logistic stations / boxes settings are not copied
 
-
-- **Why didn't you contribute to AdvancedBuildDestruct ?**   
-  I've tried and opened a PR to the mod maintainer with an initial set of improvements. Unfortunately he/she doesn't seem to be too active and I decided to publish an alternative mod
 
 
 ## TODO
 
 - Add ability to build a full 'loop' of a certain type of building. useful to build a lot of solar panels.
 - Allow to build outside build range (acting as a sort of)
-- Add 'blueprints' (allow to copy an area of the map and paste it somewhere else, while keeping the spacing between building consistent)
 
   
 ## Changelog
+
+### v2.0.0-Beta
+- Blueprints !!!
 
 ### v1.1.2
 - Fix incompatibility issue with CopyInserters where inserters were not being copied when in multibuild mode
@@ -81,4 +116,5 @@ Press `Z` to 'rotate' the building path (if you are not buildin on a straight li
 
 ## Special Thanks
 
-Thanks to `iskabot` and `Ixosis` for the beta testing.
+Thanks to `Kremnev8` for the amazing work on the UI !
+Thanks to `Nordblum`, `Fury_Fairy`, `iskabot` , `Ixosis`, `NZ_Wanderer`, `Kodu`, `Wingless` for the closed beta testing.

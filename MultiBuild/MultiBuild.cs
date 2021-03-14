@@ -6,13 +6,23 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using com.brokenmass.plugin.DSP.MultiBuildUI;
+using System.Linq;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild", "MultiBuild", "1.1.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.0.1")]
+    [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("com.brokenmass.plugin.DSP.MultiBuildUI", BepInDependency.DependencyFlags.HardDependency)]
     public class MultiBuild : BaseUnityPlugin
     {
-        public const int MAX_IGNORED_TICKS = 60;
+        public const string CHANNEL = "Beta";
+        public static List<string> BLACKLISTED_MODS = new List<string>() {
+            CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
+            "org.fezeral.plugins.copyinserters",
+            "me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct"
+        };
 
         private Harmony harmony;
 
@@ -28,60 +38,80 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int spacingIndex = 0;
         public static int selectionRadius = 5;
 
+        public static bool isValidInstallation = true;
+        public static List<string> incompatiblePlugins = new List<string>();
         internal void Awake()
         {
-            harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild");
-
+            harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL);
+            
             itemSpecificSpacing = Config.Bind<bool>("General", "itemSpecificSpacing", true, "If this option is set to true, the mod will remember the last spacing used for a specific building. Otherwise the spacing will be the same for all entities.");
             spacingStore[0] = 0;
             try
             {
-                harmony.PatchAll(typeof(MultiBuild));
-                harmony.PatchAll(typeof(BlueprintManager));
-                harmony.PatchAll(typeof(BuildLogic));
-                harmony.PatchAll(typeof(BlueprintCreator));
-                harmony.PatchAll(typeof(InserterPoses));
-
-
-                UIBlueprintGroup.onCreate = () => BlueprintCreator.StartBpMode();
-                UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
-                UIBlueprintGroup.onImport = () =>
+                foreach (var pluginInfo in BepInEx.Bootstrap.Chainloader.PluginInfos)
                 {
-                    if (BlueprintCreator.bpMode)
+                    Debug.Log($"Found plugin '{pluginInfo.Key}'  / '{pluginInfo.Value.Metadata.GUID}'");
+                    if(BLACKLISTED_MODS.Contains(pluginInfo.Value.Metadata.GUID))
                     {
-                        BlueprintCreator.EndBpMode(true);
+                        incompatiblePlugins.Add(" - " + pluginInfo.Value.Metadata.Name);
                     }
-                    var data = BlueprintData.Import(GUIUtility.systemCopyBuffer);
-                    if (data != null)
-                    {
-                        BlueprintManager.Restore(data);
-                        UIMessageBox.Show("Blueprint imported", "Blueprint successfully imported from your clipboard", "OK", 1);
-                    }
-                    else
-                    {
-                        UIMessageBox.Show("Blueprint import error", "Blueprint successfully imported from your clipboard", "OK", 1);
-                    }
-                };
-                UIBlueprintGroup.onExport = () =>
-                {
-                    if(BlueprintCreator.bpMode)
-                    {
-                        BlueprintCreator.EndBpMode();
-                    }
-                    if (BlueprintManager.hasData)
-                    {
-                        GUIUtility.systemCopyBuffer = BlueprintManager.data.Export();
-                        UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 0);
-                    }
-                    else
-                    {
-                        UIMessageBox.Show("Blueprint export error", "No blueprint data to export", "OK", 0);
-                    }
+                }
 
-                };
+                if(incompatiblePlugins.Count > 0)
+                {
+                    isValidInstallation = false;
+                    harmony.PatchAll(typeof(IncompatibilityNotice));
+                }
+
+                if (isValidInstallation)
+                {
+                    harmony.PatchAll(typeof(MultiBuild));
+                    harmony.PatchAll(typeof(BlueprintManager));
+                    harmony.PatchAll(typeof(BuildLogic));
+                    harmony.PatchAll(typeof(BlueprintCreator));
+                    harmony.PatchAll(typeof(InserterPoses));
+
+                    UIBlueprintGroup.onCreate = () => BlueprintCreator.StartBpMode();
+                    UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
+                    UIBlueprintGroup.onImport = () =>
+                    {
+                        if (BlueprintCreator.bpMode)
+                        {
+                            BlueprintCreator.EndBpMode(true);
+                        }
+                        var data = BlueprintData.Import(GUIUtility.systemCopyBuffer);
+                        if (data != null)
+                        {
+                            BlueprintManager.Restore(data);
+                            UIMessageBox.Show("Blueprint imported", "Blueprint successfully imported from your clipboard", "OK", 1);
+                        }
+                        else
+                        {
+                            UIMessageBox.Show("Blueprint import error", "Blueprint successfully imported from your clipboard", "OK", 1);
+                        }
+                    };
+                    UIBlueprintGroup.onExport = () =>
+                    {
+                        if (BlueprintCreator.bpMode)
+                        {
+                            BlueprintCreator.EndBpMode();
+                        }
+                        if (BlueprintManager.hasData)
+                        {
+                            GUIUtility.systemCopyBuffer = BlueprintManager.data.Export();
+                            UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 0);
+                        }
+                        else
+                        {
+                            UIMessageBox.Show("Blueprint export error", "No blueprint data to export", "OK", 0);
+                        }
+
+                    };
+                }
             }
             catch (Exception e)
             {
+                isValidInstallation = false;
                 Console.WriteLine(e.ToString());
             }
         }
@@ -100,6 +130,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         private void Update()
         {
+            if(!isValidInstallation)
+            {
+                return;
+            }
             var isEnabled = IsMultiBuildEnabled();
 
             if (Input.GetKeyUp(KeyCode.LeftAlt) && IsMultiBuildAvailable())
