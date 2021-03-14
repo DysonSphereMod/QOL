@@ -471,6 +471,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         buildPreview.condition = EBuildCondition.Ok;
                     }
 
+                    if (buildPreview.desc.isBelt && 
+                        buildPreview.condition == EBuildCondition.TooClose &&
+                        (buildPreview.input != null || buildPreview.output != null)
+                        )
+                    {
+                        buildPreview.condition = EBuildCondition.Ok;
+                    }
+
                     if (buildPreview.condition != EBuildCondition.Ok)
                     {
                         allGood = false;
