@@ -530,6 +530,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     buildPreview = bp
                 });
+
                 previews.Add(bp);
             }
 

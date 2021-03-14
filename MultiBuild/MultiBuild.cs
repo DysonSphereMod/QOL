@@ -15,6 +15,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("com.brokenmass.plugin.DSP.MultiBuildUI", BepInDependency.DependencyFlags.HardDependency)]
+
+    //KG-Long_Building_Selection_and_Free_M_Globalmap-1.0.0
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "Beta";
