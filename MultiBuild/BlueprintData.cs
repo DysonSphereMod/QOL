@@ -1,3 +1,4 @@
+using FullSerializer;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -7,13 +8,14 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
+
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
 
     [Serializable]
     public class BeltCopy
     {
-        [System.NonSerialized]
+        [NonSerialized]
         public ItemProto itemProto;
 
         public int protoId;
@@ -33,32 +35,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int connectedBuildingId;
         public int connectedBuildingSlot;
         public bool connectedBuildingIsOutput;
-
-        public string toJSON()
-        {
-            return "{" +
-                $"\"protoId\" : {protoId}," +
-                $"\"originalId\" : {originalId}," +
-                $"\"originalPos\" : {BlueprintData.Vector3ToJson(originalPos)}," +
-                $"\"originalRot\" : {JsonUtility.ToJson(originalRot)}," +
-                $"\"beltId\" : {beltId}," +
-                $"\"backInputId\" : {backInputId}," +
-                $"\"leftInputId\" : {leftInputId}," +
-                $"\"rightInputId\" : {rightInputId}," +
-                $"\"outputId\" : {outputId}," +
-                $"\"connectedBuildingId\" : {connectedBuildingId}," +
-                $"\"connectedBuildingSlot\" : {connectedBuildingSlot}," +
-                $"\"connectedBuildingIsOutput\" : {BlueprintData.BoolToJson(connectedBuildingIsOutput)}," +
-                $"\"cursorRelativePos\" : {BlueprintData.Vector3ToJson(cursorRelativePos)}," +
-                $"\"movesFromReference\" : [{movesFromReference.Select(i => BlueprintData.Vector3ToJson(i)).Join(null, ",")}]" +
-            "}";
-        }
     }
 
     [Serializable]
     public class BuildingCopy
     {
-        [System.NonSerialized]
+        [NonSerialized]
         public ItemProto itemProto;
 
         public int protoId;
@@ -71,27 +53,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public float cursorRelativeYaw = 0f;
 
         public int recipeId;
-
-        public string toJSON()
-        {
-            return "{" +
-                $"\"protoId\" : {protoId}," +
-                $"\"originalId\" : {originalId}," +
-                $"\"originalPos\" : {BlueprintData.Vector3ToJson(originalPos)}," +
-                $"\"originalRot\" : {JsonUtility.ToJson(originalRot)}," +
-                $"\"cursorRelativePos\" : {BlueprintData.Vector3ToJson(cursorRelativePos)}," +
-                $"\"movesFromReference\" : [{movesFromReference.Select(i => BlueprintData.Vector3ToJson(i)).Join(null, ",")}]," +
-
-                $"\"cursorRelativeYaw\" : {cursorRelativeYaw.ToString("F2")}," +
-                $"\"recipeId\" : {recipeId}" +
-            "}";
-        }
     }
 
     [Serializable]
     public class InserterCopy
     {
-        [System.NonSerialized]
+        [NonSerialized]
         public ItemProto itemProto;
 
         public int protoId;
@@ -117,31 +84,40 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int filterId;
         public int refCount;
         public bool otherIsBelt;
+    }
+    public class BlueprintDataDAO
+    {
+        public int varsion = 1;
+        public List<BuildingCopy> buildings;
+    }
 
-        public string toJSON()
+
+    public class Vector3Converter : fsDirectConverter<Vector3>
+    {
+        public const float JSON_PRECISION = 100f;
+        public override Type ModelType { get { return typeof(Vector3); } }
+
+        public override object CreateInstance(fsData data, Type storageType)
         {
-            return "{" +
-                $"\"protoId\" : {protoId}," +
-                $"\"originalId\" : {originalId}," +
-                $"\"pickTarget\" : {pickTarget}," +
-                $"\"insertTarget\" : {insertTarget}," +
-                $"\"referenceBuildingId\" : {referenceBuildingId}," +
-                $"\"incoming\" : {BlueprintData.BoolToJson(incoming)}," +
-                $"\"startSlot\" : {startSlot}," +
-                $"\"endSlot\" : {endSlot}," +
-                $"\"posDelta\" : {BlueprintData.Vector3ToJson(posDelta)}," +
-                $"\"pos2Delta\" : {BlueprintData.Vector3ToJson(pos2Delta)}," +
-                $"\"rot\" : {JsonUtility.ToJson(rot)}," +
-                $"\"rot2\" : {JsonUtility.ToJson(rot2)}," +
-                $"\"movesFromReference\" : [{movesFromReference.Select(i => BlueprintData.Vector3ToJson(i)).Join(null, ",")}]," +
-                $"\"pickOffset\" : {pickOffset}," +
-                $"\"insertOffset\" : {insertOffset}," +
-                $"\"t1\" : {t1}," +
-                $"\"t2\" : {t2}," +
-                $"\"filterId\" : {filterId}," +
-                $"\"refCount\" : {refCount}," +
-                $"\"otherIsBelt\" : {BlueprintData.BoolToJson(otherIsBelt)}" +
-            "}";
+            return new Vector3();
+        }
+
+        protected override fsResult DoSerialize(Vector3 instance, Dictionary<string, fsData> serialized)
+        {
+            serialized["x"] = new fsData((float)Math.Round(((Vector3)instance).x * JSON_PRECISION) / JSON_PRECISION);
+            serialized["y"] = new fsData((float)Math.Round(((Vector3)instance).y * JSON_PRECISION) / JSON_PRECISION);
+            serialized["z"] = new fsData((float)Math.Round(((Vector3)instance).z * JSON_PRECISION) / JSON_PRECISION);
+
+            return fsResult.Success;
+        }
+
+        protected override fsResult DoDeserialize(Dictionary<string, fsData> serialized, ref Vector3 model)
+        {
+            model.x = (float)serialized["x"].AsDouble;
+            model.y = (float)serialized["y"].AsDouble;
+            model.z = (float)serialized["z"].AsDouble;
+
+            return fsResult.Success;
         }
     }
 
@@ -156,43 +132,58 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Dictionary<int, InserterCopy> copiedInserters = new Dictionary<int, InserterCopy>();
         public Dictionary<int, BeltCopy> copiedBelts = new Dictionary<int, BeltCopy>();
 
-        public const double JSON_PRECISION = 100;
-
-        public static void import(string input)
+        public static BlueprintData import(string input)
         {
-            var unzipped = Unzip(Convert.FromBase64String(input));
+            try
+            {
+                var unzipped = Unzip(Convert.FromBase64String(input));
 
-            Debug.Log(unzipped);
-            var data = JsonUtility.FromJson<object>(unzipped);
+                fsSerializer serializer = new fsSerializer();
+                fsData data = fsJsonParser.Parse(unzipped);
 
-            Debug.Log(data);
+                // step 2: deserialize the data
+                BlueprintData deserialized = null;
+
+                serializer.TryDeserialize<BlueprintData>(data, ref deserialized).AssertSuccessWithoutWarnings();
+
+                foreach (var building in deserialized.copiedBuildings.Values)
+                {
+                    building.itemProto = LDB.items.Select((int)building.protoId);
+                }
+                foreach (var belt in deserialized.copiedBelts.Values)
+                {
+                    belt.itemProto = LDB.items.Select((int)belt.protoId);
+                }
+                foreach (var inserter in deserialized.copiedInserters.Values)
+                {
+                    inserter.itemProto = LDB.items.Select((int)inserter.protoId);
+                }
+
+                Debug.Log(deserialized.copiedBuildings.Count);
+
+                return deserialized;
+            }
+            catch
+            {
+                return null;
+            }
         }
+
+
         public string export()
         {
-            var buildings = "{" + copiedBuildings.Select(x => $"\"{x.Key}\": {x.Value.toJSON()}").Join(null, ",\n") + "}";
-            var inserters = "{" + copiedInserters.Select(x => $"\"{x.Key}\": {x.Value.toJSON()}").Join(null, ",\n") + "}";
-            var belts = "{" + copiedBelts.Select(x => $"\"{x.Key}\": {x.Value.toJSON()}").Join(null, ",\n") + "}";
+            fsSerializer serializer = new fsSerializer();
+            fsData data;
 
-            var json = "{" +
-                $"\"version\": {version}," +
-                $"\"referencePos\": {Vector3ToJson(referencePos)}," +
-                $"\"inverseReferenceRot\": {JsonUtility.ToJson(inverseReferenceRot)}," +
-                $"\"buildings\": {buildings}," +
-                $"\"inserters\": {inserters}," +
-                $"\"belts\": {belts}" +
-                "}";
+            serializer.AddConverter(new Vector3Converter());
 
+            serializer.TrySerialize<BlueprintData>(this, out data).AssertSuccessWithoutWarnings();
+
+            // emit the data via JSON
+            string json = fsJsonPrinter.CompressedJson(data);
             return Convert.ToBase64String(Zip(json));
         }
 
-        public static string Vector3ToJson(Vector3 input)
-        {
-            return "{" +
-                $"\"x\": {Math.Round(input.x * JSON_PRECISION) / JSON_PRECISION}," +
-                $"\"y\": {Math.Round(input.y * JSON_PRECISION) / JSON_PRECISION}," +
-                $"\"z\": {Math.Round(input.z * JSON_PRECISION) / JSON_PRECISION}" +
-                "}";
-        }
 
         public static string BoolToJson(bool input)
         {

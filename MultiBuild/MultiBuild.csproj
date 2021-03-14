@@ -53,34 +53,37 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp.refstub">
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\refstub\Assembly-CSharp.refstub.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx.Harmony">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\BepInEx.Harmony.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\BepInEx.Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="FullSerializer">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\plugins\FullSerializer.dll</HintPath>
     </Reference>
     <Reference Include="Mono.Cecil">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\Mono.Cecil.dll</HintPath>
     </Reference>
     <Reference Include="Mono.Cecil.Mdb">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.Mdb.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\Mono.Cecil.Mdb.dll</HintPath>
     </Reference>
     <Reference Include="Mono.Cecil.Pdb">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.Pdb.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\Mono.Cecil.Pdb.dll</HintPath>
     </Reference>
     <Reference Include="Mono.Cecil.Rocks">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.Rocks.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\Mono.Cecil.Rocks.dll</HintPath>
     </Reference>
     <Reference Include="MonoMod.RuntimeDetour">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\MonoMod.RuntimeDetour.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\MonoMod.RuntimeDetour.dll</HintPath>
     </Reference>
     <Reference Include="MonoMod.Utils">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\MonoMod.Utils.dll</HintPath>
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\core\MonoMod.Utils.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -124,11 +127,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
     <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
       <Visible>False</Visible>
       <ProductName>.NET Framework 3.5 SP1</ProductName>

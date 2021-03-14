@@ -16,17 +16,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
     public class BlueprintManager : BaseUnityPlugin
     {
-        public static BlueprintData previousData;
+        public static BlueprintData previousData = new BlueprintData();
         public static BlueprintData data = new BlueprintData();
         public static bool hasData = false;
 
         public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
-        /*
-                private static Dictionary<int, BuildPreview> previews = new Dictionary<int, BuildPreview>();
-                private static Dictionary<int, Vector3> positions = new Dictionary<int, Vector3>();
-                private static Dictionary<int, Pose> poses = new Dictionary<int, Pose>();
-                private static Dictionary<int, int> objIds = new Dictionary<int, int>();
-        */
+
         private static int[] _nearObjectIds = new int[4096];
         private static Vector3[] _snaps = new Vector3[1000];
 
@@ -47,24 +42,21 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             hasData = false;
             previousData = data;
-            data = new BlueprintData();
+            data =  new BlueprintData();
             pastedEntities.Clear();
             GC.Collect();
         }
 
-        public static void Restore()
+        public static void Restore(BlueprintData newData = null)
         {
-            if(previousData != null)
-            {
-                hasData = true;
-                var temp = data;
-                data = previousData;
-                previousData = temp;
-                pastedEntities.Clear();
-                GC.Collect();
+            hasData = true;
+            var temp = data;
+            data = newData == null ? previousData : newData;
+            previousData = temp;
+            pastedEntities.Clear();
+            GC.Collect();
 
-                EnterBuildModeAfterBp();
-            }
+            EnterBuildModeAfterBp();
         }
 
         public static void EnterBuildModeAfterBp()
