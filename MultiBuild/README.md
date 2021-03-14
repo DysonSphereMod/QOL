@@ -77,7 +77,7 @@ When `shift+click` an exisisting building it will be copied with all the connect
   This mod is still in development and so has one or more know issue:
   - positionin of entities around the poles is a bit finicky
   - in some conditions, when pasting a blueprint, it's possible to place building nearer than what is possible in vanilla
-  - splitter / logistic stations / boxes settings are not copied
+  - splitter / boxes settings are not copied
 
 
 
@@ -88,6 +88,12 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
   
 ## Changelog
+
+### v2.0.2-Beta
+- Logistic station settings and slot filters are now correctly copied and pasted (not when `shift + clicking` to avoid mistakes) 
+- Fix an issue where some buildings 'recipe' was not being copied (ejectors for example)
+- Fix splitters not using the correct 'model' when copied or blueprinted
+- Fix issue where connected inserters not being copied when `shift + clicking` while not in build mode
 
 ### v2.0.1-Beta
 - Fix error where splitter cannot be pasted (`Too Close` error)

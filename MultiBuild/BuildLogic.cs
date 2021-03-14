@@ -12,12 +12,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static int path = 0;
         public static Vector3 lastPosition = Vector3.zero;
         public static bool forceRecalculation = false;
-
-        [HarmonyPrefix, HarmonyPatch(typeof(PlayerAction_Build), "NotifyBuilt")]
-        public static void PlayerAction_Build_NotifyBuilts_Prefix()
-        {
-            forceRecalculation = true;
-        }
+        public static Dictionary<int, BuildingCopy> toPostProcess = new Dictionary<int, BuildingCopy>();
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool PlayerAction_Build_CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
@@ -55,6 +50,53 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             return runOriginal;
         }
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "AfterPrebuild")]
+        public static void PlayerAction_Build_AfterPrebuilds_Prefix(ref PlayerAction_Build __instance)
+        {
+            foreach (var item in BlueprintManager.pastedEntities)
+            {
+                var buildPreview = item.Value.buildPreview;
+                var sourceBuilding = item.Value.sourceBuilding;
+                if (buildPreview.objId >= 0 || item.Value.sourceBuilding == null)
+                {
+                    continue;
+                }
+
+                if (sourceBuilding.itemProto.prefabDesc.isStation && sourceBuilding.slotFilters.Count + sourceBuilding.stationSettings.Count > 0)
+
+                {
+                    toPostProcess.Add(buildPreview.objId, item.Value.sourceBuilding);
+                }
+            }
+        }
+
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "NotifyBuilt")]
+        public static void PlayerAction_Build_AfterPrebuilds_Prefix(ref PlayerAction_Build __instance, int preObjId, int postObjId)
+        {
+            forceRecalculation = true;
+            if (toPostProcess.TryGetValue(preObjId, out BuildingCopy sourceBuilding))
+            {
+                var entity = __instance.factory.entityPool[postObjId];
+
+                if (sourceBuilding.itemProto.prefabDesc.isStation)
+                {
+                    var stationComponent = __instance.factory.transport.GetStationComponent(entity.stationId);
+                    foreach (var settings in sourceBuilding.stationSettings)
+                    {
+                        __instance.factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer.package);
+                    }
+                    foreach (var slotFilter in sourceBuilding.slotFilters)
+                    {
+                        stationComponent.slots[slotFilter.slotIndex].storageIdx = slotFilter.storageIdx;
+                    }
+                }
+
+
+                toPostProcess.Remove(preObjId);
+            }
+        }
+
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
         public static bool PlayerAction_Build_BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
@@ -125,7 +167,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     return true;
                 }
-                if(!MultiBuild.IsMultiBuildRunning() && !BlueprintManager.hasData)
+                if (!MultiBuild.IsMultiBuildRunning() && !BlueprintManager.hasData)
                 {
                     return true;
                 }
@@ -167,19 +209,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
                 List<BuildPreview> previews = new List<BuildPreview>();
-                var absolutePositions = new List<Vector3>(10);
 
                 if (MultiBuild.IsMultiBuildRunning())
                 {
-                    if(!BlueprintManager.hasData)
+                    if (!BlueprintManager.hasData)
                     {
                         BlueprintManager.data.copiedBuildings.Add(0, new BuildingCopy()
                         {
                             itemProto = __instance.handItem,
-                            recipeId = __instance.copyRecipeId
+                            recipeId = __instance.copyRecipeId,
+                            modelIndex = __instance.handPrefabDesc.modelIndex
                         });
                     }
-                    var building =  BlueprintManager.data.copiedBuildings.First().Value;
+                    var building = BlueprintManager.data.copiedBuildings.First().Value;
 
 
                     int snapPath = path;
@@ -187,7 +229,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
 
-                    var desc = building.itemProto.prefabDesc;
+                    var desc = BlueprintManager.GetPrefabDesc(building);
                     Collider[] colliders = new Collider[desc.buildColliders.Length];
                     Vector3 previousPos = Vector3.zero;
 
@@ -318,7 +360,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
         public static bool PlayerAction_Build_UpdatePreviews_Prefix(ref PlayerAction_Build __instance)
         {
-            if(__instance.upgrading || __instance.destructing)
+            if (__instance.upgrading || __instance.destructing)
             {
                 return true;
             }
@@ -345,7 +387,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             Material original = buildPreview.condition != EBuildCondition.Ok ? Configs.builtin.previewErrorMat_Inserter : (isNotConnected ? Configs.builtin.previewGizmoMat_Inserter : Configs.builtin.previewOkMat_Inserter);
                             Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
 
-                            if(existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
+                            if (existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
                             {
                                 UnityEngine.Object.Destroy(existingMaterial);
                                 existingMaterial = null;
@@ -354,7 +396,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             if (existingMaterial == null)
                             {
                                 material = UnityEngine.Object.Instantiate<Material>(original);
-                            } else
+                            }
+                            else
                             {
                                 material = existingMaterial;
                             }
@@ -379,7 +422,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         else
                         {
                             __instance.previewRenderers[previewIndex].enabled = true;
-                            Material original =  ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat : Configs.builtin.previewOkMat);;
+                            Material original = ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat : Configs.builtin.previewOkMat); ;
 
                             Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
 
@@ -429,7 +472,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 __instance.showConnGraph = true;
             }
-        
+
             return false;
         }
 
@@ -440,9 +483,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (objectId < 0)
                 return;
 
-            if (BlueprintManager.copyBuilding(objectId) != null)
+            var itemProto = LDB.items.Select(__instance.factory.entityPool[objectId].protoId);
+
+            if (itemProto.prefabDesc.insertPoses.Length > 0)
             {
-                __instance.yaw = BlueprintManager.data.referenceYaw;
+                var copiedBuilding = BlueprintManager.copyBuilding(objectId);
+                if (copiedBuilding != null)
+                {
+                    copiedBuilding.recipeId = __instance.copyRecipeId;
+                    __instance.yaw = BlueprintManager.data.referenceYaw;
+                }
             }
         }
 
@@ -461,7 +511,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     {
                         buildPreview.condition = EBuildCondition.Ok;
                     }
-                    bool isConnected =  buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
+                    bool isConnected = buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
                     if (buildPreview.desc.isInserter && (
                         buildPreview.condition == EBuildCondition.TooFar ||
                         buildPreview.condition == EBuildCondition.TooClose ||
@@ -471,7 +521,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         buildPreview.condition = EBuildCondition.Ok;
                     }
 
-                    if (buildPreview.desc.isBelt && 
+                    if (buildPreview.desc.isBelt &&
                         buildPreview.condition == EBuildCondition.TooClose &&
                         (buildPreview.input != null || buildPreview.output != null)
                         )
@@ -482,7 +532,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     if (buildPreview.condition != EBuildCondition.Ok)
                     {
                         allGood = false;
-                        if(!__instance.cursorWarning)
+                        if (!__instance.cursorWarning)
                         {
                             __instance.cursorWarning = true;
                             __instance.cursorText = buildPreview.conditionText;
