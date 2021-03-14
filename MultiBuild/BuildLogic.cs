@@ -50,7 +50,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         __instance.RemoveBuildPreview(bp);
                         --i;
                     }
-                    
                 }
             }
 
@@ -242,10 +241,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
 
                         previousPos = pos;
-                        absolutePositions.Add(pos);
 
-                        //pose.position - this.previewPose.position =  this.previewPose.rotation * buildPreview.lpos;
-                        //pose.rotation = this.previewPose.rotation * buildPreview.lrot;
                         if (desc.hasBuildCollider)
                         {
                             for (var j = 0; j < desc.buildColliders.Length; j++)
@@ -264,7 +260,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             }
                         }
 
-                        previews = previews.Concat(BlueprintManager.paste(pos, __instance.yaw, out _)).ToList();
+                        previews = previews.Concat(BlueprintManager.paste(pos, __instance.yaw)).ToList();
                     }
 
 
@@ -279,10 +275,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
                 else
                 {
-                    previews = BlueprintManager.paste(__instance.groundSnappedPos, __instance.yaw, out absolutePositions);
+                    previews = BlueprintManager.paste(__instance.groundSnappedPos, __instance.yaw);
                 }
-
-                ActivateColliders(ref __instance.nearcdLogic, absolutePositions);
 
                 // synch previews
                 for (var i = 0; i < previews.Count; i++)
@@ -348,7 +342,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         if (isInserter)
                         {
                             bool isNotConnected = (buildPreview.input == null && buildPreview.inputObjId == 0) || (buildPreview.output == null && buildPreview.outputObjId == 0);
-                            Material original = isNotConnected ? Configs.builtin.previewGizmoMat_Inserter : ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat_Inserter : Configs.builtin.previewOkMat_Inserter);
+                            Material original = buildPreview.condition != EBuildCondition.Ok ? Configs.builtin.previewErrorMat_Inserter : (isNotConnected ? Configs.builtin.previewGizmoMat_Inserter : Configs.builtin.previewOkMat_Inserter);
                             Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
 
                             if(existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
@@ -358,7 +352,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             }
 
                             if (existingMaterial == null)
-                            {                               
+                            {
                                 material = UnityEngine.Object.Instantiate<Material>(original);
                             } else
                             {

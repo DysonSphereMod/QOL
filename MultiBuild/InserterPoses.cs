@@ -265,8 +265,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (!pastedEntities.ContainsKey(otherId))
             {
-
-                Debug.Log($"Calculating collisions {copiedInserter.otherIsBelt}");
                 Vector3 forward = absoluteInserterPos2 - absoluteInserterPos;
 
                 Pose pose;
@@ -306,7 +304,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 for (int j = 0; j < collisionsFound; j++)
                 {
                     physics2.GetColliderData(_tmp_cols[j], out ColliderData colliderData2);
-                    Debug.Log($"{otherId} - {colliderData2.objId}");
                     if (colliderData2.objId != 0 && colliderData2.objId != otherId && colliderData2.usage == EColliderUsage.Build)
                     {
                         position.condition = EBuildCondition.Collide;
@@ -316,8 +313,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         break;
                     }
                 }
-
-                Debug.Log(position.condition);
             }
 
             position.inputObjId = copiedInserter.incoming ? otherObjId : referenceObjId;

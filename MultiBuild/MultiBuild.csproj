@@ -121,6 +121,7 @@
     <Compile Include="BlueprintCreator.cs" />
     <Compile Include="BlueprintData.cs" />
     <Compile Include="BlueprintManager.cs" />
+    <Compile Include="IncompatibilityNotice.cs" />
     <Compile Include="InserterPoses.cs" />
     <Compile Include="BuildLogic.cs" />
     <Compile Include="MultiBuild.cs" />

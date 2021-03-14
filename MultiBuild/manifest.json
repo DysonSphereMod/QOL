@@ -1,7 +1,7 @@
 {
-    "name": "MultiBuild",
-    "description": "This mods gives you the ability to build multiple copies of a building, with optional space between the copies. AdvancedBuildDestruct alternative.",
-    "version_number": "1.1.2",
+    "name": "MultiBuildBeta",
+    "description": "This mods gives you the ability to blueprint and build multiple copies of a building, with optional space between the copies, including the inserters",
+    "version_number": "2.0.0",
     "dependencies": [],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }

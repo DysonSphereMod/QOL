@@ -14,17 +14,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuildUI
 
         public static AssetBundle bundle;
 
+        public static bool isValidInstallation = true;
+
         internal void Awake()
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuildUI");
+            string pluginfolder = Path.GetDirectoryName(Assembly.GetAssembly(typeof(MultiBuildUI)).Location);
+            bundle = AssetBundle.LoadFromFile($"{pluginfolder}/blueprintsbundle");
 
             try
             {
                 harmony.PatchAll(typeof(UIFunctionPanelPatch));
                 harmony.PatchAll(typeof(UIBuildMenuPatch));
-
-                string pluginfolder = Path.GetDirectoryName(Assembly.GetAssembly(typeof(MultiBuildUI)).Location);
-                bundle = AssetBundle.LoadFromFile($"{pluginfolder}/blueprintsbundle");
             }
             catch (Exception e)
             {
