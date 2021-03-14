@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.0.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.0.2")]
     [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct", BepInDependency.DependencyFlags.SoftDependency)]
@@ -45,7 +45,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         internal void Awake()
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL);
-            
+
             itemSpecificSpacing = Config.Bind<bool>("General", "itemSpecificSpacing", true, "If this option is set to true, the mod will remember the last spacing used for a specific building. Otherwise the spacing will be the same for all entities.");
             spacingStore[0] = 0;
             try
@@ -225,11 +225,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     BlueprintCreator.EndBpMode();
                 }
 
-                if(__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 1)
+                Debug.Log($"{__instance.cmd.type}  / {__instance.cmd.mode}");
+                if(__instance.cmd.type != ECommand.Build || (__instance.cmd.mode != 1 && __instance.cmd.mode != 0))
                 {
                     BlueprintManager.Reset();
                 }
-                
+
 
                 lastCmdMode = __instance.cmd.mode;
                 lastCmdType = __instance.cmd.type;

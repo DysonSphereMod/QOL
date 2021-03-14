@@ -9,6 +9,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     public class PastedEntity
     {
+        public BuildingCopy sourceBuilding;
         public BuildPreview buildPreview;
         public Pose pose;
         public int objId;
@@ -77,6 +78,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             actionBuild.player.SetHandItems(firstItemProtoID, 0, 0);
             actionBuild.controller.cmd.type = ECommand.Build;
             actionBuild.controller.cmd.mode = 1;
+        }
+
+        public static PrefabDesc GetPrefabDesc (BuildingCopy copiedBuilding)
+        {
+            ModelProto modelProto = LDB.models.Select(copiedBuilding.modelIndex);
+            if (modelProto != null)
+            {
+                return modelProto.prefabDesc;
+            }
+            else
+            {
+                return copiedBuilding.itemProto.prefabDesc;
+            }
         }
 
         public static Vector3[] GetMovesBetweenPoints(Vector3 from, Vector3 to, Quaternion inverseFromRotation)
@@ -220,13 +234,55 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 itemProto = sourceEntityProto,
                 originalPos = sourcePos,
                 originalRot = sourceRot,
-                //modelIndex = sourceEntity.modelIndex
+                modelIndex = sourceEntity.modelIndex
             };
 
 
             if (sourceEntityProto.prefabDesc.isAssembler)
             {
                 copiedBuilding.recipeId = factory.factorySystem.assemblerPool[sourceEntity.assemblerId].recipeId;
+            }
+
+
+            if (sourceEntityProto.prefabDesc.isStation)
+            {
+                var stationComponent = factory.transport.stationPool[sourceEntity.stationId];
+
+                for (var i = 0; i < stationComponent.slots.Length; i++)
+                {
+                    Debug.Log(stationComponent.slots[i].storageIdx);
+                    if(stationComponent.slots[i].storageIdx != 0)
+                    {
+                        copiedBuilding.slotFilters.Add(new BuildingCopy.SlotFilter()
+                        {
+                            slotIndex = i,
+                            storageIdx = stationComponent.slots[i].storageIdx
+                        });
+                    }
+                }
+
+                for (var i = 0; i < stationComponent.storage.Length; i++)
+                {
+                    Debug.Log(stationComponent.storage[i].itemId);
+                    if (stationComponent.storage[i].itemId != 0)
+                    {
+                        copiedBuilding.stationSettings.Add(new BuildingCopy.StationSetting()
+                        {
+                            index = i,
+                            itemId = stationComponent.storage[i].itemId,
+                            max = stationComponent.storage[i].max,
+                            localLogic = stationComponent.storage[i].localLogic,
+                            remoteLogic = stationComponent.storage[i].remoteLogic
+                        });
+                    }
+                }
+            }
+
+            if(sourceEntityProto.prefabDesc.isSplitter)
+            {
+                var splitterComponennt = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
+
+                // TODO: find a way to restore splitter settings 
             }
 
             if (data.referencePos == Vector3.zero)
@@ -382,10 +438,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 Vector3 absoluteBuildingPos = GetPointFromMoves(targetPos, building.movesFromReference, absoluteTargetRot);
                 Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
-
-                BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, building.itemProto.prefabDesc, true);
+                var desc = GetPrefabDesc(building);
+                BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc , true);
                 bp.ResetInfos();
-                bp.desc = building.itemProto.prefabDesc;
+                bp.desc = desc;
                 bp.item = building.itemProto;
                 bp.recipeId = building.recipeId;
                 bp.lpos = absoluteBuildingPos;
@@ -397,6 +453,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 pastedEntities.Add(building.originalId, new PastedEntity()
                 {
+                    sourceBuilding = building,
                     pose = pose,
                     objId = objId,
                     buildPreview = bp

@@ -34,9 +34,29 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public bool connectedBuildingIsOutput;
     }
 
+
+
     [Serializable]
     public class BuildingCopy
     {
+        [Serializable]
+        public class StationSetting
+        {
+            //transport.SetStationStorage(this.station.id, this.index, this.station.storage[this.index].itemId, this.station.storage[this.index].max, suggestLogistic2, this.station.storage[this.index].remoteLogic, GameMain.mainPlayer.package);
+            public int index;
+            public int itemId;
+            public int max;
+            public ELogisticStorage localLogic;
+            public ELogisticStorage remoteLogic;
+        }
+
+        [Serializable]
+        public class SlotFilter
+        {
+            public int slotIndex;
+            public int storageIdx;
+        }
+
         [NonSerialized]
         public ItemProto itemProto;
 
@@ -48,8 +68,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Vector3 cursorRelativePos = Vector3.zero;
         public Vector3[] movesFromReference = new Vector3[0];
         public float cursorRelativeYaw = 0f;
+        public int modelIndex = 0;
 
         public int recipeId;
+
+        public List<StationSetting> stationSettings = new List<StationSetting>();
+        public List<SlotFilter> slotFilters = new List<SlotFilter>();
     }
 
     [Serializable]
