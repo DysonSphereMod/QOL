@@ -99,9 +99,8 @@ static class UIFunctionPanelPatch
 
     public static UIBlueprintGroup blueprintGroup;
 
-    [HarmonyPatch(typeof(UIFunctionPanel), "_OnClose")]
-    [HarmonyPostfix]
-    public static void Close(UIFunctionPanel __instance)
+    [HarmonyPostfix, HarmonyPatch(typeof(UIFunctionPanel), "_OnClose")]
+    public static void _OnClose(UIFunctionPanel __instance)
     {
         if (blueprintGroup != null)
         {
@@ -109,9 +108,8 @@ static class UIFunctionPanelPatch
         }
     }
 
-    [HarmonyPatch(typeof(UIFunctionPanel), "_OnUpdate")]
-    [HarmonyTranspiler]
-    static IEnumerable<CodeInstruction> UpdateConditions(IEnumerable<CodeInstruction> instructions)
+    [HarmonyTranspiler, HarmonyPatch(typeof(UIFunctionPanel), "_OnUpdate")]
+    static IEnumerable<CodeInstruction> _OnUpdate(IEnumerable<CodeInstruction> instructions)
     {
         CodeMatcher matcher = new CodeMatcher(instructions)
             .MatchForward(false,
@@ -133,9 +131,8 @@ static class UIFunctionPanelPatch
         return matcher.InstructionEnumeration();
     }
 
-    [HarmonyPatch(typeof(UIFunctionPanel), "_OnOpen")]
-    [HarmonyPostfix]
-    public static void Open(UIFunctionPanel __instance)
+    [HarmonyPostfix, HarmonyPatch(typeof(UIFunctionPanel), "_OnOpen")]
+    public static void _OnOpen(UIFunctionPanel __instance)
     {
         if (!blueprintPanelInit)
         {
@@ -177,8 +174,7 @@ static class UIFunctionPanelPatch
 [HarmonyPatch]
 static class UIBuildMenuPatch
 {
-    [HarmonyPatch(typeof(UIBuildMenu), "SetCurrentCategory")]
-    [HarmonyPostfix]
+    [HarmonyPostfix, HarmonyPatch(typeof(UIBuildMenu), "SetCurrentCategory")]
     public static void Close(UIBuildMenu __instance, int category)
     {
         if (category == 0 || category != 12)

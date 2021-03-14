@@ -20,7 +20,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuildUI
 
             try
             {
-                harmony.PatchAll(typeof(MultiBuildUI));
                 harmony.PatchAll(typeof(UIFunctionPanelPatch));
                 harmony.PatchAll(typeof(UIBuildMenuPatch));
 

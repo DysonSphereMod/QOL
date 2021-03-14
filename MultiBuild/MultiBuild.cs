@@ -38,16 +38,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 harmony.PatchAll(typeof(MultiBuild));
                 harmony.PatchAll(typeof(BlueprintManager));
-                harmony.PatchAll(typeof(PlayerAction_Build_Patch));
-                harmony.PatchAll(typeof(PlanetFactory_Patch));
+                harmony.PatchAll(typeof(BuildLogic));
+                harmony.PatchAll(typeof(BlueprintCreator));
                 harmony.PatchAll(typeof(InserterPoses));
 
 
-                UIBlueprintGroup.onCreate = () => PlayerAction_Build_Patch.ToggleBpMode();
+                UIBlueprintGroup.onCreate = () => BlueprintCreator.StartBpMode();
                 UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
                 UIBlueprintGroup.onImport = () =>
                 {
-                    var data = BlueprintData.import(GUIUtility.systemCopyBuffer);
+                    if (BlueprintCreator.bpMode)
+                    {
+                        BlueprintCreator.EndBpMode(true);
+                    }
+                    var data = BlueprintData.Import(GUIUtility.systemCopyBuffer);
                     if (data != null)
                     {
                         BlueprintManager.Restore(data);
@@ -60,9 +64,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 };
                 UIBlueprintGroup.onExport = () =>
                 {
+                    if(BlueprintCreator.bpMode)
+                    {
+                        BlueprintCreator.EndBpMode();
+                    }
                     if (BlueprintManager.hasData)
                     {
-                        GUIUtility.systemCopyBuffer = BlueprintManager.data.export();
+                        GUIUtility.systemCopyBuffer = BlueprintManager.data.Export();
                         UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 0);
                     }
                     else
@@ -81,7 +89,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         internal void OnDestroy()
         {
             // For ScriptEngine hot-reloading
-            PlayerAction_Build_Patch.EndBpMode(false);
+            BlueprintCreator.EndBpMode(true);
             BlueprintManager.Reset();
             foreach (var tooltip in tooltips.Values)
             {
@@ -103,12 +111,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && PlayerAction_Build_Patch.bpMode && selectionRadius < 14)
+            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && BlueprintCreator.bpMode && selectionRadius < 14)
             {
                 ++selectionRadius;
             }
 
-            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && PlayerAction_Build_Patch.bpMode && selectionRadius > 1)
+            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && BlueprintCreator.bpMode && selectionRadius > 1)
             {
                 --selectionRadius;
             }
@@ -116,24 +124,24 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
             {
                 spacingStore[spacingIndex]++;
-                PlayerAction_Build_Patch.ignoredTicks = MAX_IGNORED_TICKS;
+                BuildLogic.forceRecalculation = true;
             }
 
             if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isEnabled && spacingStore[spacingIndex] > 0)
             {
                 spacingStore[spacingIndex]--;
-                PlayerAction_Build_Patch.ignoredTicks = MAX_IGNORED_TICKS;
+                BuildLogic.forceRecalculation = true;
             }
 
             if ((Input.GetKeyUp(KeyCode.Alpha0) || Input.GetKeyUp(KeyCode.Keypad0)) && isEnabled)
             {
                 spacingStore[spacingIndex] = 0;
-                PlayerAction_Build_Patch.ignoredTicks = MAX_IGNORED_TICKS;
+                BuildLogic.forceRecalculation = true;
             }
             if (Input.GetKeyUp(KeyCode.Z) && IsMultiBuildRunning())
             {
-                PlayerAction_Build_Patch.path = 1 - PlayerAction_Build_Patch.path;
-                PlayerAction_Build_Patch.ignoredTicks = MAX_IGNORED_TICKS;
+                BuildLogic.path = 1 - BuildLogic.path;
+                BuildLogic.forceRecalculation = true;
             }
         }
 
@@ -155,8 +163,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static void ResetMultiBuild()
         {
             spacingIndex = 0;
-            PlayerAction_Build_Patch.path = 0;
-            PlayerAction_Build_Patch.ignoredTicks = 0;
+            BuildLogic.path = 0;
+            BuildLogic.forceRecalculation = true;
             multiBuildEnabled = false;
             startPos = Vector3.zero;
 
@@ -176,11 +184,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 multiBuildEnabled = false;
                 startPos = Vector3.zero;
 
-                if (__instance.cmd.mode != 1)
+                if (__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 0)
+                {
+                    BlueprintCreator.EndBpMode();
+                }
+
+                if(__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 1)
                 {
                     BlueprintManager.Reset();
-                    PlayerAction_Build_Patch.EndBpMode(false);
                 }
+                
 
                 lastCmdMode = __instance.cmd.mode;
                 lastCmdType = __instance.cmd.type;
@@ -203,7 +216,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             tooltips["toggle-build"].desired = IsMultiBuildAvailable();
             tooltips["rotate-path"].desired = tooltips["zero-spacing"].desired = tooltips["decrease-spacing"].desired = tooltips["increase-spacing"].desired = IsMultiBuildRunning();
-            tooltips["decrease-radius"].desired = tooltips["increase-radius"].desired = PlayerAction_Build_Patch.bpMode;
+            tooltips["decrease-radius"].desired = tooltips["increase-radius"].desired = BlueprintCreator.bpMode;
         }
 
         [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
@@ -219,7 +232,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            if (PlayerAction_Build_Patch.bpMode)
+            if (BlueprintCreator.bpMode)
             {
                 ___modeText.text = "Blueprint Mode";
             }
