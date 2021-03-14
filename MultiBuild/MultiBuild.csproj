@@ -118,11 +118,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ACPublic.cs" />
+    <Compile Include="BlueprintCreator.cs" />
     <Compile Include="BlueprintData.cs" />
     <Compile Include="BlueprintManager.cs" />
     <Compile Include="InserterPoses.cs" />
-    <Compile Include="PlanetFactory_Patch.cs" />
-    <Compile Include="PlayerAction_Build_Patch.cs" />
+    <Compile Include="BuildLogic.cs" />
     <Compile Include="MultiBuild.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

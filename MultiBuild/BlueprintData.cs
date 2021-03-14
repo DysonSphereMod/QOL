@@ -1,17 +1,14 @@
 using FullSerializer;
-using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
 using UnityEngine;
 
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-
     [Serializable]
     public class BeltCopy
     {
@@ -85,13 +82,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int refCount;
         public bool otherIsBelt;
     }
-    public class BlueprintDataDAO
-    {
-        public int varsion = 1;
-        public List<BuildingCopy> buildings;
-    }
 
-
+    // reduce vector3 position to 2 decimal digits to reduce blueprint size
     public class Vector3Converter : fsDirectConverter<Vector3>
     {
         public const float JSON_PRECISION = 100f;
@@ -132,7 +124,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Dictionary<int, InserterCopy> copiedInserters = new Dictionary<int, InserterCopy>();
         public Dictionary<int, BeltCopy> copiedBelts = new Dictionary<int, BeltCopy>();
 
-        public static BlueprintData import(string input)
+        public static BlueprintData Import(string input)
         {
             try
             {
@@ -141,7 +133,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 fsSerializer serializer = new fsSerializer();
                 fsData data = fsJsonParser.Parse(unzipped);
 
-                // step 2: deserialize the data
                 BlueprintData deserialized = null;
 
                 serializer.TryDeserialize<BlueprintData>(data, ref deserialized).AssertSuccessWithoutWarnings();
@@ -159,8 +150,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     inserter.itemProto = LDB.items.Select((int)inserter.protoId);
                 }
 
-                Debug.Log(deserialized.copiedBuildings.Count);
-
                 return deserialized;
             }
             catch
@@ -170,24 +159,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
 
-        public string export()
+        public string Export()
         {
             fsSerializer serializer = new fsSerializer();
-            fsData data;
 
             serializer.AddConverter(new Vector3Converter());
+            serializer.TrySerialize<BlueprintData>(this, out fsData data).AssertSuccessWithoutWarnings();
 
-            serializer.TrySerialize<BlueprintData>(this, out data).AssertSuccessWithoutWarnings();
-
-            // emit the data via JSON
             string json = fsJsonPrinter.CompressedJson(data);
             return Convert.ToBase64String(Zip(json));
-        }
-
-
-        public static string BoolToJson(bool input)
-        {
-            return input ? "true" : "false";
         }
 
         private static void CopyTo(Stream src, Stream dest)

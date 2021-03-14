@@ -6,40 +6,23 @@ using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    public static class ClipboardExtension
+    [HarmonyPatch]
+    public class BuildLogic
     {
-        /// <summary>
-        /// Puts the string into the Clipboard.
-        /// </summary>
-        public static void CopyToClipboard(this string str)
-        {
-            GUIUtility.systemCopyBuffer = str;
-        }
-    }
-
-    public class PlayerAction_Build_Patch
-    {
-        public static bool lastFlag;
-        public static string lastCursorText;
-        public static bool lastCursorWarning;
-        public static Vector3 lastPosition = Vector3.zero;
-        public static float lastYaw = 0f;
-        public static int lastPath = 0;
-
-        public static bool executeBuildUpdatePreviews = true;
-
-        public static int ignoredTicks = 0;
         public static int path = 0;
+        public static Vector3 lastPosition = Vector3.zero;
+        public static bool forceRecalculation = false;
 
-        private static Color BP_GRID_COLOR = new Color(1f, 1f, 1f, 0.2f);
-        private static Color ADD_SELECTION_GIZMO_COLOR = new Color(1f, 1f, 1f, 1f);
-        private static Color REMOVE_SELECTION_GIZMO_COLOR = new Color(0.9433962f, 0.1843137f, 0.1646493f, 1f);
-        private static CircleGizmo circleGizmo;
-        private static int[] _nearObjectIds = new int[4096];
+        [HarmonyPrefix, HarmonyPatch(typeof(PlayerAction_Build), "NotifyBuilt")]
+        public static void PlayerAction_Build_NotifyBuilts_Prefix()
+        {
+            forceRecalculation = true;
+        }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
-        public static bool CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
+        public static bool PlayerAction_Build_CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
+            var runOriginal = true;
             if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 0
                 && MultiBuild.IsMultiBuildEnabled() && !__instance.multiLevelCovering)
             {
@@ -47,20 +30,35 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     MultiBuild.startPos = __instance.groundSnappedPos;
                     lastPosition = Vector3.zero;
-                    return false;
+                    runOriginal = false;
                 }
                 else
                 {
                     MultiBuild.startPos = Vector3.zero;
-                    return true;
+                    runOriginal = true;
+                }
+
+
+            }
+            if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 1)
+            {
+                for (var i = 0; i < __instance.buildPreviews.Count; i++)
+                {
+                    var bp = __instance.buildPreviews[i];
+                    if (bp.desc.isInserter && ((bp.input == null && bp.inputObjId == 0) || (bp.output == null && bp.outputObjId == 0)))
+                    {
+                        __instance.RemoveBuildPreview(bp);
+                        --i;
+                    }
+                    
                 }
             }
 
-            return true;
+            return runOriginal;
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "BuildMainLogic")]
-        public static bool BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
+        public static bool PlayerAction_Build_BuildMainLogic_Prefix(ref PlayerAction_Build __instance)
         {
             if (__instance.handPrefabDesc == null ||
                 __instance.handPrefabDesc.minerType != EMinerType.None ||
@@ -84,50 +82,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            // As multibuild increase calculation exponentially (collision and rendering must be performed for every entity), we hijack the BuildMainLogic
-            // and execute the relevant submethods only when needed
-            executeBuildUpdatePreviews = true;
-            /* if (MultiBuild.IsMultiBuildRunning())
-             {
-                 if (lastPosition != __instance.groundSnappedPos)
-                 {
-                     lastPosition = __instance.groundSnappedPos;
-                     executeBuildUpdatePreviews = true;
-                 }
-                 else
-                 {
-                     executeBuildUpdatePreviews = false;
-                 }
-             }
-             else
-             {
-                 lastPosition = Vector3.zero;
-             }*/
-
-            // Run the preview methods if we have changed position, if we have received a relevant keyboard input or in any case every MAX_IGNORED_TICKS ticks.
-            executeBuildUpdatePreviews = true;
-
-            bool flag;
-            if (executeBuildUpdatePreviews)
-            {
-                __instance.DetermineBuildPreviews();
-                flag = __instance.CheckBuildConditions();
-                __instance.UpdatePreviews();
-                __instance.UpdateGizmos();
-
-                lastCursorText = __instance.cursorText;
-                lastCursorWarning = __instance.cursorWarning;
-                lastFlag = flag;
-
-                ignoredTicks = 0;
-            }
-            else
-            {
-                __instance.cursorText = lastCursorText;
-                __instance.cursorWarning = lastCursorWarning;
-                flag = lastFlag;
-                ignoredTicks++;
-            }
+            __instance.DetermineBuildPreviews();
+            var flag = __instance.CheckBuildConditions();
+            __instance.UpdatePreviews();
+            __instance.UpdateGizmos();
 
             if (flag)
             {
@@ -136,7 +94,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (__instance.waitConfirm && VFInput._buildConfirm.onDown)
                 {
                     __instance.ClearBuildPreviews();
-                    ignoredTicks = MultiBuild.MAX_IGNORED_TICKS;
+                    BuildLogic.forceRecalculation = true;
                 }
             }
 
@@ -144,7 +102,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
-        public static bool DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
+        public static bool PlayerAction_Build_DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
         {
             var runOriginal = true;
 
@@ -179,6 +137,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (VFInput._switchSplitter.onDown)
                 {
                     __instance.modelOffset++;
+                    forceRecalculation = true;
                 }
 
                 if (VFInput._rotate.onDown)
@@ -186,30 +145,27 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     __instance.yaw += 90f;
                     __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
                     __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
+                    forceRecalculation = true;
                 }
                 if (VFInput._counterRotate.onDown)
                 {
                     __instance.yaw -= 90f;
                     __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
                     __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
+                    forceRecalculation = true;
                 }
 
                 __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
                 __instance.previewPose.position = Vector3.zero;
                 __instance.previewPose.rotation = Quaternion.identity;
 
-                //__instance.previewPose.position = __instance.cursorTarget;
-                //__instance.previewPose.rotation = Maths.SphericalRotation(__instance.previewPose.position, __instance.yaw);
-
-                var inversePreviewRot = Quaternion.Inverse(__instance.previewPose.rotation);
-
-                if (lastPosition == __instance.groundSnappedPos && lastYaw == __instance.yaw && path == lastPath)
+                if (lastPosition == __instance.groundSnappedPos && !forceRecalculation)
                 {
                     return false;
                 }
                 lastPosition = __instance.groundSnappedPos;
-                lastYaw = __instance.yaw;
-                lastPath = path;
+                forceRecalculation = false;
+
 
                 List<BuildPreview> previews = new List<BuildPreview>();
                 var absolutePositions = new List<Vector3>(10);
@@ -366,7 +322,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
-        public static bool UpdatePreviews_Prefix(ref PlayerAction_Build __instance)
+        public static bool PlayerAction_Build_UpdatePreviews_Prefix(ref PlayerAction_Build __instance)
         {
             if(__instance.upgrading || __instance.destructing)
             {
@@ -391,7 +347,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         Material material;
                         if (isInserter)
                         {
-                            Material original = ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat_Inserter : Configs.builtin.previewOkMat_Inserter);
+                            bool isNotConnected = (buildPreview.input == null && buildPreview.inputObjId == 0) || (buildPreview.output == null && buildPreview.outputObjId == 0);
+                            Material original = isNotConnected ? Configs.builtin.previewGizmoMat_Inserter : ((buildPreview.condition != EBuildCondition.Ok) ? Configs.builtin.previewErrorMat_Inserter : Configs.builtin.previewOkMat_Inserter);
                             Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
 
                             if(existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
@@ -483,7 +440,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
-        public static void SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId)
+        public static void PlayerAction_Build_SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId)
         {
             BlueprintManager.Reset();
             if (objectId < 0)
@@ -496,7 +453,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
-        public static void CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
+        public static void PlayerAction_Build_CheckBuildConditions_Postfix(PlayerAction_Build __instance, ref bool __result)
         {
             if (BlueprintManager.pastedEntities.Count > 1 && !__result)
             {
@@ -510,7 +467,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     {
                         buildPreview.condition = EBuildCondition.Ok;
                     }
-                    bool isConnected = buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
+                    bool isConnected =  buildPreview.inputObjId != 0 || buildPreview.outputObjId != 0;
                     if (buildPreview.desc.isInserter && (
                         buildPreview.condition == EBuildCondition.TooFar ||
                         buildPreview.condition == EBuildCondition.TooClose ||
@@ -541,165 +498,21 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        private static bool acceptCommand = true;
-        public static bool bpMode = false;
-        private static Dictionary<int, BoxGizmo> bpSelection = new Dictionary<int, BoxGizmo>();
-        private static Collider[] _tmp_cols = new Collider[1024];
-
-        [HarmonyPostfix, HarmonyPatch(typeof(UIBuildingGrid), "Update")]
-        public static void UIBuildingGrid_Update_Postfix(ref UIBuildingGrid __instance)
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlanetFactory), "WriteObjectConn")]
+        public static void WriteObjectConn_Prefix(ref PlanetFactory __instance, int otherObjId, ref int otherSlot)
         {
-            if(bpMode)
+            if (otherSlot == -1 && otherObjId < 0)
             {
-                __instance.material.SetColor("_TintColor", BP_GRID_COLOR);
-            }
-        }
-
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Inspect), "SetInspectee")]
-        public static bool PlayerAction_Inspect_SetInspectee_Prefix(ref PlayerAction_Build __instance)
-        {
-            return !bpMode;
-        }
-
-
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
-        public static void GameTick_Postfix(ref PlayerAction_Build __instance)
-        {
-            if (BlueprintManager.hasData && Input.GetKeyUp(KeyCode.Backslash))
-            {
-                var data = BlueprintManager.data.export();
-                Debug.Log($"blueprint size: {data.Length}");
-                data.CopyToClipboard();
-            }
-
-            if (acceptCommand && VFInput.shift && VFInput.control)
-            {
-                ToggleBpMode();
-                acceptCommand = false;
-            }
-            if (!VFInput.shift && !VFInput.control)
-            {
-                acceptCommand = true;
-            }
-
-            if (bpMode)
-            {
-                var removeMode = acceptCommand && VFInput.control;
-
-                if (circleGizmo != null)
+                for (int i = 4; i < 12; i++)
                 {
-                    circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
-                    circleGizmo.position = __instance.groundTestPos;
-                    circleGizmo.radius = MultiBuild.selectionRadius;
-                }
-
-                if (VFInput._buildConfirm.pressing)
-                {
-                    circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
-
-                    // target only buildings
-                    int mask = 131072;
-                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 0.2f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
-
-                    PlanetPhysics planetPhysics = __instance.player.planetData.physics;
-                    for (int i = 0; i < found; i++)
+                    if (__instance.prebuildConnPool[-otherObjId * 16 + i] == 0)
                     {
-                        ColliderData colliderData;
-                        planetPhysics.GetColliderData(_tmp_cols[i], out colliderData);
-                        if(colliderData.objId > 0)
-                        {
-                            var entityId = colliderData.objId;
-                            if (removeMode)
-                            {
-                                if (bpSelection.ContainsKey(entityId))
-                                {
-                                    bpSelection[entityId].Close();
-                                    bpSelection.Remove(entityId);
-                                }
-                            }
-                            else if (!bpSelection.ContainsKey(entityId))
-                            {
-                                var entityData = __instance.factory.entityPool[entityId];
-                                ItemProto itemProto = LDB.items.Select((int)entityData.protoId);
-                                var gizmo = BoxGizmo.Create(entityData.pos, entityData.rot, itemProto.prefabDesc.selectCenter, itemProto.prefabDesc.selectSize);
-                                gizmo.multiplier = 1f;
-                                gizmo.alphaMultiplier = itemProto.prefabDesc.selectAlpha;
-                                gizmo.fadeInScale = gizmo.fadeOutScale = 1.3f;
-                                gizmo.fadeInTime = gizmo.fadeOutTime = 0.05f;
-                                gizmo.fadeInFalloff = gizmo.fadeOutFalloff = 0.5f;
-                                gizmo.color = Color.white;
-
-                                gizmo.Open();
-
-                                bpSelection.Add(entityId, gizmo);
-                            }
-                        }
+                        otherSlot = i;
+                        break;
                     }
-                   
                 }
             }
         }
-
-        public static void ToggleBpMode()
-        {
-            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-            actionBuild.controller.cmd.type = ECommand.Build;
-            acceptCommand = false;
-            lastPosition = Vector3.zero;
-            if (!bpMode)
-            {
-                bpMode = true;
-                actionBuild.altitude = 0;
-                actionBuild.player.SetHandItems(0, 0, 0);
-
-                BlueprintManager.Reset();
-                if (circleGizmo == null)
-                {
-                    circleGizmo = CircleGizmo.Create(6, Vector3.zero, 10);
-
-                    circleGizmo.fadeOutScale = circleGizmo.fadeInScale = 1.8f;
-                    circleGizmo.fadeOutTime = circleGizmo.fadeInTime = 0.15f;
-                    circleGizmo.autoRefresh = true;
-                    circleGizmo.Open();
-                }
-            }
-            else
-            {
-                EndBpMode(true);
-                BlueprintManager.EnterBuildModeAfterBp();
-            }
-
-        }
-
-        
-
-        public static void EndBpMode(bool createBp)
-        {
-
-            if(!bpMode || (!acceptCommand && !createBp))
-            {
-                return;
-            }
-
-            bpMode = false;
-            foreach (var entry in bpSelection)
-            {
-                if (createBp)
-                {
-                    BlueprintManager.copyBuilding(entry.Key);
-                    BlueprintManager.copyBelt(entry.Key);
-                }
-                entry.Value.Close();
-            }
-            bpSelection.Clear();
-
-            if (circleGizmo != null)
-            {
-                circleGizmo.Close();
-                circleGizmo = null;
-            }
-        }
-
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> positions)
         {
             for (int s = 0; s < positions.Count; s++)

@@ -14,7 +14,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int objId;
     }
 
-    public class BlueprintManager : BaseUnityPlugin
+    [HarmonyPatch]
+    public class BlueprintManager
     {
         public static BlueprintData previousData = new BlueprintData();
         public static BlueprintData data = new BlueprintData();
@@ -22,7 +23,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
 
-        private static int[] _nearObjectIds = new int[4096];
         private static Vector3[] _snaps = new Vector3[1000];
 
         /*public static Queue<InserterPosition> currentPositionCache;
@@ -51,7 +51,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             hasData = true;
             var temp = data;
-            data = newData == null ? previousData : newData;
+            data = newData ?? previousData;
             previousData = temp;
             pastedEntities.Clear();
             GC.Collect();
@@ -114,213 +114,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             return targetPos;
         }
-
-        private static InserterPosition GetPositions(InserterCopy copiedInserter, bool useCache = true)
-        {
-            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-            Vector3 absoluteBuildingPos;
-            Quaternion absoluteBuildingRot;
-
-            // When using AdvancedBuildDestruct mod, all buildPreviews are positioned 'absolutely' on the planet surface.
-            // In 'normal' mode the buildPreviews are relative to __instance.previewPose.
-            // This means that in 'normal' mode the (only) buildPreview is always positioned at {0,0,0}
-            var pastedReferenceEntity = pastedEntities[copiedInserter.referenceBuildingId];
-            var buildPreview = pastedReferenceEntity.buildPreview;
-
-            absoluteBuildingPos = pastedReferenceEntity.pose.position;
-            absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
-
-            InserterPosition position = null;
-            /*            if (useCache && currentPositionCache.Count > 0)
-                        {
-                            position = currentPositionCache.Dequeue();
-                        }
-
-                        bool isCacheValid = position != null &&
-                            position.copiedInserter == copiedInserter &&
-                            position.absoluteBuildingPos == absoluteBuildingPos &&
-                            position.absoluteBuildingRot == absoluteBuildingRot;
-
-                        if (isCacheValid)
-                        {
-                            nextPositionCache.Enqueue(position);
-                            return position;
-                        }
-            */
-
-            var posDelta = copiedInserter.posDelta;
-            var pos2Delta = copiedInserter.pos2Delta;
-
-            Vector3 absoluteInserterPos = absoluteBuildingPos + absoluteBuildingRot * copiedInserter.posDelta;
-            Vector3 absoluteInserterPos2 = absoluteBuildingPos + absoluteBuildingRot * copiedInserter.pos2Delta;
-
-            Quaternion absoluteInserterRot = absoluteBuildingRot * copiedInserter.rot;
-            Quaternion absoluteInserterRot2 = absoluteBuildingRot * copiedInserter.rot2;
-
-            int startSlot = copiedInserter.startSlot;
-            int endSlot = copiedInserter.endSlot;
-
-            short pickOffset = copiedInserter.pickOffset;
-            short insertOffset = copiedInserter.insertOffset;
-
-            var referenceId = copiedInserter.referenceBuildingId;
-            var referenceObjId = pastedReferenceEntity.objId;
-
-            var otherId = 0;
-            var otherObjId = 0;
-            if (pastedEntities.ContainsKey(copiedInserter.pickTarget) && pastedEntities.ContainsKey(copiedInserter.insertTarget))
-            {
-                // cool we copied both source and target of the inserters
-                otherId = copiedInserter.pickTarget == copiedInserter.referenceBuildingId ? copiedInserter.insertTarget : copiedInserter.pickTarget;
-                otherObjId = pastedEntities[otherId].objId;
-            }
-            else
-            {
-                // Find the other entity at the target location
-                var nearcdLogic = actionBuild.nearcdLogic;
-                var factory = actionBuild.factory;
-                // Find the desired belt/building position
-                // As delta doesn't work over distance, re-trace the Grid Snapped steps from the original
-                // to find the target belt/building for this inserters other connection
-                Vector3 testPos = GetPointFromMoves(absoluteBuildingPos, copiedInserter.movesFromReference, absoluteBuildingRot);
-
-                // find building nearby
-                int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
-
-                // find nearest building
-                float maxDistance = 1f;
-
-                for (int x = 0; x < found; x++)
-                {
-                    var id = _nearObjectIds[x];
-                    float distance;
-                    ItemProto proto;
-                    if (id == 0 || id == buildPreview.objId)
-                    {
-                        continue;
-                    }
-                    else if (id > 0)
-                    {
-                        EntityData entityData = factory.entityPool[id];
-                        proto = LDB.items.Select((int)entityData.protoId);
-                        distance = Vector3.Distance(entityData.pos, testPos);
-                    }
-                    else
-                    {
-                        PrebuildData prebuildData = factory.prebuildPool[-id];
-                        proto = LDB.items.Select((int)prebuildData.protoId);
-                        if (proto.prefabDesc.isBelt)
-                        {
-                            // ignore unbuilt belts
-                            continue;
-                        }
-                        distance = Vector3.Distance(prebuildData.pos, testPos);
-                    }
-
-                    // ignore entitites that ore not (built) belts or don't have inserterPoses
-                    if ((proto.prefabDesc.isBelt == copiedInserter.otherIsBelt || proto.prefabDesc.insertPoses.Length > 0) && distance < maxDistance)
-                    {
-                        otherId = otherObjId = id;
-                        maxDistance = distance;
-                    }
-                }
-            }
-            if (otherObjId != 0)
-            {
-                if (copiedInserter.incoming)
-                {
-                    InserterPoses.CalculatePose(actionBuild, otherObjId, referenceObjId);
-                }
-                else
-                {
-                    InserterPoses.CalculatePose(actionBuild, referenceObjId, otherObjId);
-                }
-
-                bool hasNearbyPose = false;
-
-                if (actionBuild.posePairs.Count > 0)
-                {
-                    float minDistance = 1000f;
-                    PlayerAction_Build.PosePair bestFit = new PlayerAction_Build.PosePair();
-
-                    for (int j = 0; j < actionBuild.posePairs.Count; ++j)
-                    {
-                        var posePair = actionBuild.posePairs[j];
-                        if (
-                            (copiedInserter.incoming && copiedInserter.endSlot != posePair.endSlot && copiedInserter.endSlot != -1) ||
-                            (!copiedInserter.incoming && copiedInserter.startSlot != posePair.startSlot && copiedInserter.startSlot != -1)
-                            )
-                        {
-                            continue;
-                        }
-                        float startDistance = Vector3.Distance(posePair.startPose.position, absoluteInserterPos);
-                        float endDistance = Vector3.Distance(posePair.endPose.position, absoluteInserterPos2);
-                        float poseDistance = startDistance + endDistance;
-
-                        if (poseDistance < minDistance)
-                        {
-                            minDistance = poseDistance;
-                            bestFit = posePair;
-                            hasNearbyPose = true;
-                        }
-                    }
-                    if (hasNearbyPose)
-                    {
-                        // if we were able to calculate a close enough sensible pose
-                        // use that instead of the (visually) imprecise default
-
-                        absoluteInserterPos = bestFit.startPose.position;
-                        absoluteInserterPos2 = bestFit.endPose.position;
-
-                        absoluteInserterRot = bestFit.startPose.rotation;
-                        absoluteInserterRot2 = bestFit.endPose.rotation * Quaternion.Euler(0.0f, 180f, 0.0f);
-
-                        pickOffset = (short)bestFit.startOffset;
-                        insertOffset = (short)bestFit.endOffset;
-
-                        startSlot = bestFit.startSlot;
-                        endSlot = bestFit.endSlot;
-
-                        posDelta = Quaternion.Inverse(absoluteBuildingRot) * (absoluteInserterPos - absoluteBuildingPos);
-                        pos2Delta = Quaternion.Inverse(absoluteBuildingRot) * (absoluteInserterPos2 - absoluteBuildingPos);
-                    }
-                }
-            }
-
-            position = new InserterPosition()
-            {
-                copiedInserter = copiedInserter,
-                absoluteBuildingPos = absoluteBuildingPos,
-                absoluteBuildingRot = absoluteBuildingRot,
-
-                posDelta = posDelta,
-                pos2Delta = pos2Delta,
-                absoluteInserterPos = absoluteInserterPos,
-                absoluteInserterPos2 = absoluteInserterPos2,
-
-                absoluteInserterRot = absoluteInserterRot,
-                absoluteInserterRot2 = absoluteInserterRot2,
-
-                pickOffset = pickOffset,
-                insertOffset = insertOffset,
-
-                startSlot = startSlot,
-                endSlot = endSlot,
-            };
-
-            position.inputObjId = copiedInserter.incoming ? otherObjId : referenceObjId;
-            position.inputOriginalId = copiedInserter.incoming ? otherId : referenceId;
-
-            position.outputObjId = copiedInserter.incoming ? referenceObjId : otherObjId;
-            position.outputOriginalId = copiedInserter.incoming ? referenceId : otherId;
-
-            /*if (useCache)
-            {
-                nextPositionCache.Enqueue(position);
-            }*/
-            return position;
-        }
-
+        
         public static BeltCopy copyBelt(int sourceEntityId)
         {
             if (data.copiedBelts.ContainsKey(sourceEntityId))
@@ -577,7 +371,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return copiedBuilding;
         }
 
-        public static List<BuildPreview> paste(Vector3 targetPos, float yaw, out List<Vector3> absolutePositions, int idMultiplier = 1)
+        public static List<BuildPreview> paste(Vector3 targetPos, float yaw, out List<Vector3> absolutePositions)
         {
             pastedEntities.Clear();
             InserterPoses.resetOverrides();
@@ -612,7 +406,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 absolutePositions.Add(absoluteBuildingPos);
                 previews.Add(bp);
             }
-            var tempBeltsPreviews = new Dictionary<int, BuildPreview>(data.copiedBelts.Count);
+
             foreach (var belt in data.copiedBelts.Values)
             {
                 var absoluteBeltPos = GetPointFromMoves(targetPos, belt.movesFromReference, absoluteTargetRot);
@@ -647,6 +441,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 absolutePositions.Add(absoluteBeltPos);
                 previews.Add(bp);
             }
+
+            // after creating the belt previews this restore the correct connection to other belts and buildings
             foreach (var belt in data.copiedBelts.Values)
             {
                 var preview = pastedEntities[belt.originalId].buildPreview;
@@ -685,7 +481,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             foreach (var copiedInserter in data.copiedInserters.Values)
             {
-                var positionData = GetPositions(copiedInserter);
+                var positionData = InserterPoses.GetPositions(copiedInserter);
 
                 var bp = BuildPreview.CreateSingle(LDB.items.Select(copiedInserter.itemProto.ID), copiedInserter.itemProto.prefabDesc, true);
                 bp.ResetInfos();
@@ -705,6 +501,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 bp.outputOffset = positionData.insertOffset;
                 bp.outputToSlot = positionData.endSlot;
                 bp.inputFromSlot = positionData.startSlot;
+                bp.condition = positionData.condition;
 
                 bp.filterId = copiedInserter.filterId;
 
