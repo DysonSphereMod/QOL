@@ -14,7 +14,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     {
         public const int MAX_IGNORED_TICKS = 60;
 
-        private Harmony harmony;   
+        private Harmony harmony;
 
         public static int lastCmdMode = 0;
         public static ECommand lastCmdType;
@@ -45,13 +45,30 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 UIBlueprintGroup.onCreate = () => PlayerAction_Build_Patch.ToggleBpMode();
                 UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
-                UIBlueprintGroup.onImport = () => {
-                    BlueprintData.import();
-                    Debug.Log("test import");
-                    };
-                UIBlueprintGroup.onExport = () => {
-                    BlueprintManager.data.export().CopyToClipboard();
-                    UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 2);
+                UIBlueprintGroup.onImport = () =>
+                {
+                    var data = BlueprintData.import(GUIUtility.systemCopyBuffer);
+                    if (data != null)
+                    {
+                        BlueprintManager.Restore(data);
+                        UIMessageBox.Show("Blueprint imported", "Blueprint successfully imported from your clipboard", "OK", 1);
+                    }
+                    else
+                    {
+                        UIMessageBox.Show("Blueprint import error", "Blueprint successfully imported from your clipboard", "OK", 1);
+                    }
+                };
+                UIBlueprintGroup.onExport = () =>
+                {
+                    if (BlueprintManager.hasData)
+                    {
+                        GUIUtility.systemCopyBuffer = BlueprintManager.data.export();
+                        UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 0);
+                    }
+                    else
+                    {
+                        UIMessageBox.Show("Blueprint export error", "No blueprint data to export", "OK", 0);
+                    }
 
                 };
             }
@@ -152,7 +169,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerController), "UpdateCommandState")]
         public static void UpdateCommandState_Prefix(PlayerController __instance)
         {
-            if (__instance.cmd.type != ECommand.None &&__instance.cmd.type != ECommand.Follow &&
+            if (__instance.cmd.type != ECommand.None && __instance.cmd.type != ECommand.Follow &&
                 (__instance.cmd.mode != lastCmdMode || __instance.cmd.type != lastCmdType))
             {
 
@@ -202,7 +219,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            if(PlayerAction_Build_Patch.bpMode)
+            if (PlayerAction_Build_Patch.bpMode)
             {
                 ___modeText.text = "Blueprint Mode";
             }
