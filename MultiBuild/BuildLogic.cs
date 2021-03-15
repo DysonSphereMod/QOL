@@ -64,7 +64,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
 
                 if (sourceBuilding.itemProto.prefabDesc.isStation && sourceBuilding.slotFilters.Count + sourceBuilding.stationSettings.Count > 0)
-
                 {
                     toPostProcess.Add(buildPreview.objId, item.Value.sourceBuilding);
                 }
@@ -72,7 +71,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "NotifyBuilt")]
-        public static void PlayerAction_Build_AfterPrebuilds_Prefix(ref PlayerAction_Build __instance, int preObjId, int postObjId)
+        public static void PlayerAction_Build_NotifyBuilt_Prefix(ref PlayerAction_Build __instance, int preObjId, int postObjId)
         {
             forceRecalculation = true;
             if (toPostProcess.TryGetValue(preObjId, out BuildingCopy sourceBuilding))
@@ -94,6 +93,37 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
                 toPostProcess.Remove(preObjId);
+            }
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(PlanetFactory), "CreateEntityLogicComponents")]
+        public static void PlanetFactory_CreateEntityLogicComponents_Postfix(PlanetFactory __instance, int entityId, PrefabDesc desc, int prebuildId)
+        {
+            // this ensure that buildings built AFTER a connected belt are correctly configured
+            // the game by default already does something like this but only for belts to belts / splitter / logistic stations
+            // See PlanetFactory.CreateEntityLogicComponents
+            var entity = __instance.entityPool[entityId];
+            for (var i = 0; i < 4; i++)
+            {
+                __instance.ReadObjectConn(entityId, i, out bool isOutput, out int otherId, out int otherSlot);
+
+                // ignore unbuilt or connections that are not belts
+                if (otherId <= 0 || __instance.entityPool[otherId].beltId <= 0) continue;
+
+                var beltId = __instance.entityPool[otherId].beltId;
+
+                if (desc.isTank)
+                {
+                    __instance.factoryStorage.SetTankBelt(entity.tankId, beltId, i, isOutput);
+                }
+                if (desc.isFractionate)
+                {
+                    __instance.factorySystem.SetFractionateBelt(entity.fractionateId, beltId, i, isOutput);
+                }
+                if (desc.isPowerExchanger)
+                {
+                    __instance.powerSystem.SetExchangerBelt(entity.powerExcId, beltId, i, isOutput);
+                }
             }
         }
 

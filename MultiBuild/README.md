@@ -89,6 +89,16 @@ When `shift+click` an exisisting building it will be copied with all the connect
   
 ## Changelog
 
+### v2.0.4-Beta
+- Fix an issue in blueprint mode where some buildings (tanks / fractionators / powerExchangers) were not correctly connecting to belts if the connected belt was built before the building itself
+- Blueprint panel shows correct info about last stored blueprint
+- Add ability to prepend blueprint strings with custom text to allow to quick identification of a stored blueprint. A `:` must terminate the custom string Example `Blueprint name:<actual blueprint string>`. The custom text, if present, will be shown in the panel info if an imported blueprint is stored.
+- Change visual notification when importing/exporting from blocking popup to less intrusive realtime popup notification
+
+### v2.0.3-Beta
+- Fix an edge case issue where buildings where not copied with the correct yaw (happen if you copy an area containing belts that was created by a rotated blueprint, and the first element you select is a belt :S)
+- Fix blueprint data not correctly resetting when leaviing build mode 
+
 ### v2.0.2-Beta
 - Logistic station settings and slot filters are now correctly copied and pasted (not when `shift + clicking` to avoid mistakes) 
 - Fix an issue where some buildings 'recipe' was not being copied (ejectors for example)
