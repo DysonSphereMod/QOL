@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 
@@ -139,6 +140,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
     public class BlueprintData
     {
+        [NonSerialized]
+        public string name = "";
         public int version = 1;
         public Vector3 referencePos = Vector3.zero;
         public Quaternion inverseReferenceRot = Quaternion.identity;
@@ -152,7 +155,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             try
             {
-                var unzipped = Unzip(Convert.FromBase64String(input));
+                List<string> segments = input.Split(':').ToList();
+                var base64Data = segments.Last();
+                var name = "";
+
+                if(segments.Count > 1)
+                {
+                    segments.RemoveAt(segments.Count - 1);
+                    name = String.Join(":", segments.ToArray());
+                }
+                var unzipped = Unzip(Convert.FromBase64String(base64Data));
 
                 fsSerializer serializer = new fsSerializer();
                 fsData data = fsJsonParser.Parse(unzipped);
@@ -174,6 +186,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     inserter.itemProto = LDB.items.Select((int)inserter.protoId);
                 }
 
+                deserialized.name = name;
                 return deserialized;
             }
             catch

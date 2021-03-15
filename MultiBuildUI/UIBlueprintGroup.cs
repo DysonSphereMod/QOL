@@ -93,7 +93,7 @@ public class UIBlueprintGroup : MonoBehaviour
 }
 
 [HarmonyPatch]
-static class UIFunctionPanelPatch
+public static class UIFunctionPanelPatch
 {
     private static bool blueprintPanelInit;
 
@@ -153,6 +153,15 @@ static class UIFunctionPanelPatch
             blueprintGroup.Init(menu, button.GetComponent<UIButton>());
             blueprintGroup._Close();
 
+            blueprintGroup.InfoText.GetComponent<RectTransform>().offsetMin = new Vector2(3f, -66f);
+
+            blueprintGroup.InfoText.resizeTextForBestFit = true;
+            blueprintGroup.InfoText.resizeTextMinSize = 10;
+            blueprintGroup.InfoText.resizeTextMaxSize = 14;
+
+            blueprintGroup.infoTitle.text = "Stored blueprint";
+            blueprintGroup.InfoText.text = "None";
+
             blueprintButton.onClick.AddListener(() =>
             {
                 if (blueprintGroup.isOpen)
@@ -172,7 +181,7 @@ static class UIFunctionPanelPatch
 }
 
 [HarmonyPatch]
-static class UIBuildMenuPatch
+public static class UIBuildMenuPatch
 {
     [HarmonyPostfix, HarmonyPatch(typeof(UIBuildMenu), "SetCurrentCategory")]
     public static void Close(UIBuildMenu __instance, int category)

@@ -1,9 +1,9 @@
 using BepInEx;
+using UnityEngine;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
@@ -46,18 +46,72 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             data =  new BlueprintData();
             pastedEntities.Clear();
             GC.Collect();
+
+            UpdateUIText();
         }
 
         public static void Restore(BlueprintData newData = null)
         {
-            hasData = true;
-            var temp = data;
-            data = newData ?? previousData;
-            previousData = temp;
+            if(hasData)
+            {
+                var temp = data;
+                data = newData ?? previousData;
+                previousData = temp;
+            } else
+            {
+                hasData = true;
+                data = newData ?? previousData;
+            }
+
+            
             pastedEntities.Clear();
             GC.Collect();
-
+            UpdateUIText();
             EnterBuildModeAfterBp();
+        }
+
+        public static void UpdateUIText()
+        {
+            UIFunctionPanelPatch.blueprintGroup.infoTitle.text = "Stored:";
+            if (previousData.name != "")
+            {
+                var name = previousData.name;
+                if(name.Length > 25)
+                {
+                    name = name.Substring(0, 22) + "...";
+                }
+                UIFunctionPanelPatch.blueprintGroup.infoTitle.text += $" {name}";
+            }
+            var counter = new Dictionary<string, int>();
+
+            foreach (var bulding in previousData.copiedBuildings.Values)
+            {
+                var name = bulding.itemProto.name;
+                if (!counter.ContainsKey(name)) counter.Add(name, 0);
+                counter[name]++;
+            }
+            foreach (var belt in previousData.copiedBelts.Values)
+            {
+                var name = "Belts";
+                if (!counter.ContainsKey(name)) counter.Add(name, 0);
+                counter[name]++;
+            }
+            foreach (var inserter in previousData.copiedInserters.Values)
+            {
+                var name = "Inserters";
+                if (!counter.ContainsKey(name)) counter.Add(name, 0);
+                counter[name]++;
+            }
+
+            
+
+            if (counter.Count > 0)
+            {
+                UIFunctionPanelPatch.blueprintGroup.InfoText.text = counter.Select(x => $"{x.Value} x {x.Key}").Join(null, ", ");
+            } else
+            {
+                UIFunctionPanelPatch.blueprintGroup.InfoText.text = "None";
+            }
         }
 
         public static void EnterBuildModeAfterBp()
@@ -76,8 +130,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             actionBuild.yaw = data.referenceYaw;
             actionBuild.player.SetHandItems(firstItemProtoID, 0, 0);
-            actionBuild.controller.cmd.type = ECommand.Build;
             actionBuild.controller.cmd.mode = 1;
+            actionBuild.controller.cmd.type = ECommand.Build;
+            
         }
 
         public static PrefabDesc GetPrefabDesc (BuildingCopy copiedBuilding)
@@ -250,7 +305,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 for (var i = 0; i < stationComponent.slots.Length; i++)
                 {
-                    Debug.Log(stationComponent.slots[i].storageIdx);
                     if(stationComponent.slots[i].storageIdx != 0)
                     {
                         copiedBuilding.slotFilters.Add(new BuildingCopy.SlotFilter()
@@ -263,7 +317,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 for (var i = 0; i < stationComponent.storage.Length; i++)
                 {
-                    Debug.Log(stationComponent.storage[i].itemId);
                     if (stationComponent.storage[i].itemId != 0)
                     {
                         copiedBuilding.stationSettings.Add(new BuildingCopy.StationSetting()
@@ -427,6 +480,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static List<BuildPreview> paste(Vector3 targetPos, float yaw)
         {
+
             pastedEntities.Clear();
             InserterPoses.resetOverrides();
 
@@ -465,7 +519,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             foreach (var belt in data.copiedBelts.Values)
             {
                 var absoluteBeltPos = GetPointFromMoves(targetPos, belt.movesFromReference, absoluteTargetRot);
-                var absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, yaw);
+
+                // belts have always 0 yaw
+                var absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
 
                 BuildPreview bp = BuildPreview.CreateSingle(belt.itemProto, belt.itemProto.prefabDesc, true);
                 bp.ResetInfos();

@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.0.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.0.4")]
     [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct", BepInDependency.DependencyFlags.SoftDependency)]
@@ -52,7 +52,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 foreach (var pluginInfo in BepInEx.Bootstrap.Chainloader.PluginInfos)
                 {
-                    Debug.Log($"Found plugin '{pluginInfo.Key}'  / '{pluginInfo.Value.Metadata.GUID}'");
                     if(BLACKLISTED_MODS.Contains(pluginInfo.Value.Metadata.GUID))
                     {
                         incompatiblePlugins.Add(" - " + pluginInfo.Value.Metadata.Name);
@@ -73,6 +72,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     harmony.PatchAll(typeof(BlueprintCreator));
                     harmony.PatchAll(typeof(InserterPoses));
 
+                    UIFunctionPanelPatch.blueprintGroup.infoTitle.text = "Stored:";
+                    UIFunctionPanelPatch.blueprintGroup.InfoText.text = "None";
                     UIBlueprintGroup.onCreate = () => BlueprintCreator.StartBpMode();
                     UIBlueprintGroup.onRestore = () => BlueprintManager.Restore();
                     UIBlueprintGroup.onImport = () =>
@@ -85,11 +86,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         if (data != null)
                         {
                             BlueprintManager.Restore(data);
-                            UIMessageBox.Show("Blueprint imported", "Blueprint successfully imported from your clipboard", "OK", 1);
+                            UIRealtimeTip.Popup("Blueprint successfully imported from your clipboard", false);
                         }
                         else
                         {
-                            UIMessageBox.Show("Blueprint import error", "Blueprint successfully imported from your clipboard", "OK", 1);
+                            UIRealtimeTip.Popup("Error while importing data from your clipboard", true);
                         }
                     };
                     UIBlueprintGroup.onExport = () =>
@@ -101,11 +102,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         if (BlueprintManager.hasData)
                         {
                             GUIUtility.systemCopyBuffer = BlueprintManager.data.Export();
-                            UIMessageBox.Show("Blueprint exported", "Blueprint successfully exported to your clipboard", "OK", 0);
+                            UIRealtimeTip.Popup("Blueprint successfully exported to your clipboard", false);
                         }
                         else
                         {
-                            UIMessageBox.Show("Blueprint export error", "No blueprint data to export", "OK", 0);
+                            UIRealtimeTip.Popup("No blueprint data to export", true);
                         }
 
                     };
@@ -213,6 +214,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerController), "UpdateCommandState")]
         public static void UpdateCommandState_Prefix(PlayerController __instance)
         {
+
+
             if (__instance.cmd.type != ECommand.None && __instance.cmd.type != ECommand.Follow &&
                 (__instance.cmd.mode != lastCmdMode || __instance.cmd.type != lastCmdType))
             {
@@ -225,15 +228,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     BlueprintCreator.EndBpMode();
                 }
 
-                Debug.Log($"{__instance.cmd.type}  / {__instance.cmd.mode}");
-                if(__instance.cmd.type != ECommand.Build || (__instance.cmd.mode != 1 && __instance.cmd.mode != 0))
+                // the preivous command might force us to stau in BuildMode (Even though we were leaving)
+                if (__instance.cmd.type == ECommand.Build && lastCmdMode == 1 && __instance.cmd.mode != 1)
                 {
                     BlueprintManager.Reset();
                 }
 
+                if (__instance.cmd.type != ECommand.Build)
+                {
+                    BlueprintManager.Reset();
+                }
 
                 lastCmdMode = __instance.cmd.mode;
                 lastCmdType = __instance.cmd.type;
+
             }
         }
 
