@@ -1,6 +1,8 @@
 using HarmonyLib;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
@@ -42,8 +44,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (circleGizmo != null)
                 {
                     circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
-                    circleGizmo.position = __instance.groundTestPos;
                     circleGizmo.radius = MultiBuild.selectionRadius;
+
+                    if(__instance.groundTestPos != Vector3.zero)
+                    {
+                        circleGizmo.position = __instance.groundTestPos;
+                    }
                 }
 
                 if (VFInput._buildConfirm.pressing)
@@ -57,8 +63,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     PlanetPhysics planetPhysics = __instance.player.planetData.physics;
                     for (int i = 0; i < found; i++)
                     {
-                        ColliderData colliderData;
-                        planetPhysics.GetColliderData(_tmp_cols[i], out colliderData);
+                        planetPhysics.GetColliderData(_tmp_cols[i], out ColliderData colliderData);
                         if (colliderData.objId > 0)
                         {
                             var entityId = colliderData.objId;
@@ -96,7 +101,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static void StartBpMode()
         {
             if (bpMode) return;
-
+            BlueprintManager.Reset();
             bpMode = true;
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
             actionBuild.altitude = 0;
@@ -105,7 +110,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             actionBuild.controller.cmd.mode = 0;
 
             BuildLogic.lastPosition = Vector3.zero;
-            BlueprintManager.Reset();
             if (circleGizmo == null)
             {
                 circleGizmo = CircleGizmo.Create(6, Vector3.zero, 10);
@@ -123,14 +127,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (!bpMode) return;
             bpMode = false;
 
-            foreach (var entry in bpSelection)
-            {
-                BlueprintManager.copyBuilding(entry.Key);
-                BlueprintManager.copyBelt(entry.Key);
-                entry.Value.Close();
-            }
-            bpSelection.Clear();
 
+            BlueprintManager.CopyEntities(bpSelection.Keys.ToList());
+            foreach (var selectionGizmo in bpSelection.Values)
+            {
+                selectionGizmo.Close();
+            }
+
+            
+            bpSelection.Clear();
             if (circleGizmo != null)
             {
                 circleGizmo.Close();
@@ -141,6 +146,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 BlueprintManager.EnterBuildModeAfterBp();
             }
+
+            GC.Collect();
         }
 
     }

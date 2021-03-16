@@ -52,12 +52,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static List<BuildPreviewOverride> overrides = new List<BuildPreviewOverride>();
 
-        public static void resetOverrides()
+        public static void ResetOverrides()
         {
             overrides.Clear();
         }
 
-        public static int addOverride(Pose pose, ItemProto itemProto)
+        public static int AddOverride(Pose pose, ItemProto itemProto)
         {
             overrides.Add(new BuildPreviewOverride()
             {
@@ -68,7 +68,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return INITIAL_OBJ_ID + overrides.Count - 1;
         }
 
-        public static InserterPosition GetPositions(InserterCopy copiedInserter, bool useCache = true)
+        public static InserterPosition GetPositions(InserterCopy copiedInserter)
         {
             var pastedEntities = BlueprintManager.pastedEntities;
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
@@ -78,25 +78,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
             Vector3 absoluteBuildingPos = pastedReferenceEntity.pose.position;
-            Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
-
-            InserterPosition position = null;
-            /*            if (useCache && currentPositionCache.Count > 0)
-                        {
-                            position = currentPositionCache.Dequeue();
-                        }
-
-                        bool isCacheValid = position != null &&
-                            position.copiedInserter == copiedInserter &&
-                            position.absoluteBuildingPos == absoluteBuildingPos &&
-                            position.absoluteBuildingRot == absoluteBuildingRot;
-
-                        if (isCacheValid)
-                        {
-                            nextPositionCache.Enqueue(position);
-                            return position;
-                        }
-            */
+            Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;     
 
             var posDelta = copiedInserter.posDelta;
             var pos2Delta = copiedInserter.pos2Delta;
@@ -237,7 +219,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            position = new InserterPosition()
+            InserterPosition position = new InserterPosition()
             {
                 copiedInserter = copiedInserter,
                 absoluteBuildingPos = absoluteBuildingPos,
@@ -328,9 +310,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return position;
         }
 
-
+        #pragma warning disable IDE0060 // Remove unused parameter
         [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static void CalculatePose(PlayerAction_Build __instance, int startObjId, int castObjId)
+        #pragma warning restore IDE0060 // Remove unused parameter
         {
             IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
