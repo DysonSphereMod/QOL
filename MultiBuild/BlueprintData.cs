@@ -18,11 +18,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public int protoId;
         public int originalId = 0;
-        public Vector3 originalPos;
-        public Quaternion originalRot;
-        public int beltId;
 
-        public Vector3 cursorRelativePos = Vector3.zero;
+        public int referenceId = 0;
         public Vector3[] movesFromReference = new Vector3[0];
 
         public int backInputId;
@@ -35,15 +32,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public bool connectedBuildingIsOutput;
     }
 
-
-
     [Serializable]
     public class BuildingCopy
     {
         [Serializable]
         public class StationSetting
         {
-            //transport.SetStationStorage(this.station.id, this.index, this.station.storage[this.index].itemId, this.station.storage[this.index].max, suggestLogistic2, this.station.storage[this.index].remoteLogic, GameMain.mainPlayer.package);
             public int index;
             public int itemId;
             public int max;
@@ -63,11 +57,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public int protoId;
         public int originalId = 0;
-        public Vector3 originalPos;
-        public Quaternion originalRot;
 
-        public Vector3 cursorRelativePos = Vector3.zero;
+        public int referenceId = 0;
         public Vector3[] movesFromReference = new Vector3[0];
+
         public float cursorRelativeYaw = 0f;
         public int modelIndex = 0;
 
@@ -90,6 +83,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int insertTarget;
 
         public int referenceBuildingId = 0;
+        public Vector3[] movesFromReference = new Vector3[0];
 
         public bool incoming;
         public int startSlot;
@@ -98,7 +92,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Vector3 pos2Delta;
         public Quaternion rot;
         public Quaternion rot2;
-        public Vector3[] movesFromReference = new Vector3[0];
+
         public short pickOffset;
         public short insertOffset;
         public short t1;
@@ -109,7 +103,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     }
 
     // reduce vector3 position to 2 decimal digits to reduce blueprint size
-    public class Vector3Converter : fsDirectConverter<Vector3>
+    public class Vector3Converter : fsDirectConverter
     {
         public const float JSON_PRECISION = 100f;
         public override Type ModelType { get { return typeof(Vector3); } }
@@ -119,80 +113,149 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return new Vector3();
         }
 
-        protected override fsResult DoSerialize(Vector3 instance, Dictionary<string, fsData> serialized)
+        public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
         {
-            serialized["x"] = new fsData((float)Math.Round(((Vector3)instance).x * JSON_PRECISION) / JSON_PRECISION);
-            serialized["y"] = new fsData((float)Math.Round(((Vector3)instance).y * JSON_PRECISION) / JSON_PRECISION);
-            serialized["z"] = new fsData((float)Math.Round(((Vector3)instance).z * JSON_PRECISION) / JSON_PRECISION);
+            var data = new List<fsData>
+            {
+                new fsData((int)Math.Round(((Vector3)instance).x * JSON_PRECISION)),
+                new fsData((int)Math.Round(((Vector3)instance).y * JSON_PRECISION)),
+                new fsData((int)Math.Round(((Vector3)instance).z * JSON_PRECISION))
+            };
 
+
+            serialized = new fsData(data);
             return fsResult.Success;
         }
 
-        protected override fsResult DoDeserialize(Dictionary<string, fsData> serialized, ref Vector3 model)
+        public override fsResult TryDeserialize(fsData serialized, ref object instance, Type storageType)
         {
-            model.x = (float)serialized["x"].AsDouble;
-            model.y = (float)serialized["y"].AsDouble;
-            model.z = (float)serialized["z"].AsDouble;
+            if (!serialized.IsList) return fsResult.Fail("Expected to be and array of floats " + serialized);
+            var data = serialized.AsList;
+
+            instance = new Vector3()
+            {
+                x = ((float)data[0].AsInt64) / JSON_PRECISION,
+                y = ((float)data[1].AsInt64) / JSON_PRECISION,
+                z = ((float)data[2].AsInt64) / JSON_PRECISION
+            };
+
+
 
             return fsResult.Success;
         }
     }
 
-    public class BlueprintData
+    public class BlueprintDataV1
     {
-        [NonSerialized]
         public string name = "";
         public int version = 1;
         public Vector3 referencePos = Vector3.zero;
         public Quaternion inverseReferenceRot = Quaternion.identity;
         public float referenceYaw = 0f;
 
-        public Dictionary<int, BuildingCopy> copiedBuildings = new Dictionary<int, BuildingCopy>();
-        public Dictionary<int, InserterCopy> copiedInserters = new Dictionary<int, InserterCopy>();
-        public Dictionary<int, BeltCopy> copiedBelts = new Dictionary<int, BeltCopy>();
+        public Dictionary<int, BuildingCopy> copiedBuildings;
+        public Dictionary<int, InserterCopy> copiedInserters;
+        public Dictionary<int, BeltCopy> copiedBelts;
+    }
+
+    public class BlueprintData
+    {
+        [NonSerialized]
+        public string name = "";
+        public int version = 2;
+        public Vector3 referencePos = Vector3.zero;
+        public Quaternion inverseReferenceRot = Quaternion.identity;
+        public float referenceYaw = 0f;
+
+        public List<BuildingCopy> copiedBuildings = new List<BuildingCopy>();
+        public List<InserterCopy> copiedInserters = new List<InserterCopy>();
+        public List<BeltCopy> copiedBelts = new List<BeltCopy>();
 
         public static BlueprintData Import(string input)
         {
+            string unzipped;
+            var name = "";
+
             try
             {
                 List<string> segments = input.Split(':').ToList();
                 var base64Data = segments.Last();
-                var name = "";
 
-                if(segments.Count > 1)
+                if (segments.Count > 1)
                 {
                     segments.RemoveAt(segments.Count - 1);
                     name = String.Join(":", segments.ToArray());
                 }
-                var unzipped = Unzip(Convert.FromBase64String(base64Data));
-
-                fsSerializer serializer = new fsSerializer();
-                fsData data = fsJsonParser.Parse(unzipped);
-
-                BlueprintData deserialized = null;
-
-                serializer.TryDeserialize<BlueprintData>(data, ref deserialized).AssertSuccessWithoutWarnings();
-
-                foreach (var building in deserialized.copiedBuildings.Values)
-                {
-                    building.itemProto = LDB.items.Select((int)building.protoId);
-                }
-                foreach (var belt in deserialized.copiedBelts.Values)
-                {
-                    belt.itemProto = LDB.items.Select((int)belt.protoId);
-                }
-                foreach (var inserter in deserialized.copiedInserters.Values)
-                {
-                    inserter.itemProto = LDB.items.Select((int)inserter.protoId);
-                }
-
-                deserialized.name = name;
-                return deserialized;
+                unzipped = Unzip(Convert.FromBase64String(base64Data));
             }
-            catch
+            catch (Exception e)
             {
+                Console.WriteLine("Error while unzipping string: " + e.ToString());
                 return null;
             }
+
+
+            BlueprintData deserialized = null;
+            try
+            {
+                fsSerializer serializer = new fsSerializer();
+                serializer.AddConverter(new Vector3Converter());
+
+                fsData data = fsJsonParser.Parse(unzipped);
+
+                serializer.TryDeserialize<BlueprintData>(data, ref deserialized).AssertSuccessWithoutWarnings();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error while trying to deserialise v2: " + e.ToString());
+            }
+
+            
+            if(deserialized == null || deserialized.version == 1)
+            {
+                Debug.Log("restoring from v1");
+                try
+                {
+                    fsSerializer serializer = new fsSerializer();
+
+                    fsData data = fsJsonParser.Parse(unzipped);
+                    BlueprintDataV1 deserializedV1 = null;
+                    serializer.TryDeserialize<BlueprintDataV1>(data, ref deserializedV1).AssertSuccessWithoutWarnings();
+
+                    deserialized = new BlueprintData()
+                    {
+                        referencePos = deserializedV1.referencePos,
+                        inverseReferenceRot = deserializedV1.inverseReferenceRot,
+                        referenceYaw = deserializedV1.referenceYaw,
+                    };
+
+                    deserialized.copiedBuildings = deserializedV1.copiedBuildings.Values.ToList();
+                    deserialized.copiedBelts = deserializedV1.copiedBelts.Values.ToList();
+                    deserialized.copiedInserters = deserializedV1.copiedInserters.Values.ToList();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Error while trying to deserialise v1: " + e.ToString());
+                    return null;
+                }
+            }
+
+            foreach (var building in deserialized.copiedBuildings)
+            {
+                building.itemProto = LDB.items.Select((int)building.protoId);
+            }
+            foreach (var belt in deserialized.copiedBelts)
+            {
+                belt.itemProto = LDB.items.Select((int)belt.protoId);
+            }
+            foreach (var inserter in deserialized.copiedInserters)
+            {
+                inserter.itemProto = LDB.items.Select((int)inserter.protoId);
+            }
+
+
+            deserialized.name = name;
+            return deserialized;
         }
 
 

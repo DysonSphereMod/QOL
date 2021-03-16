@@ -23,7 +23,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>2.0.4</ApplicationVersion>
+    <ApplicationVersion>2.0.5</ApplicationVersion>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -124,6 +124,7 @@
     <Compile Include="IncompatibilityNotice.cs" />
     <Compile Include="InserterPoses.cs" />
     <Compile Include="BuildLogic.cs" />
+    <Compile Include="MinimunSpanningTree.cs" />
     <Compile Include="MultiBuild.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

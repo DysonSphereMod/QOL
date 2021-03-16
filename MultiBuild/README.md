@@ -28,20 +28,17 @@ If it stops working following a game update, you can just disable it and your ga
 ## Usage
 
 
-
-
 ### MultiBuild Mode
 Select a building from the building bar or copy an exisiting building, then press `LEFT ALT` keyboard button to enter multibuild mode.
 
 This mode is disabled while holding a blueprint (for now).
 
-`Left Mouse Click` once to start building and `Left Mouse Click` one more time when you are happy with the placement of the copies.
-
-Press `+` and `-` on your keyboard to increase / decrease the spacing between buildings
-
-Press `0` to reset spacing to 0
-
-Press `Z` to 'rotate' the building path (if you are not buildin on a straight line)
+- `Left Mouse Click` once to start building and `Left Mouse Click` one more time when you are happy with the placement of the copies.
+- Press `TAB` to toggle the pastig of the copied inserters
+- Press `+` and `-` on your keyboard to increase / decrease the spacing between buildings
+- Press `CTRL +` and `CTRL -` on your keyboard to increase / decrease the spacing period (number of copied before adding a space)
+- Press `0` to reset spacing to 0 and spacing period to 1
+- Press `Z` to 'rotate' the building path (if you are not buildin on a straight line)
 
 
 ### Blueprint Mode
@@ -52,7 +49,6 @@ Click the blueprint button in the build dock
   - `left click (and hold)` to add entities to the blueprint
   - `hold control` and `left click (and hold)` to remove entities from the blueprint
   - `right click` to exit blueprint creation mode
-
 - The second button restore the last used blueprint 
 - The 3rd button exports the current blueprint to your clipboard 
 - The 4th button import the data from your clipboard into your blueprint
@@ -79,15 +75,24 @@ When `shift+click` an exisisting building it will be copied with all the connect
   - in some conditions, when pasting a blueprint, it's possible to place building nearer than what is possible in vanilla
   - splitter / boxes settings are not copied
 
-
-
 ## TODO
 
 - Add ability to build a full 'loop' of a certain type of building. useful to build a lot of solar panels.
-- Allow to build outside build range (acting as a sort of)
-
   
 ## Changelog
+
+### v2.0.7-Beta
+- General code cleanup
+- Blueprint data format v2: 80% blueprint size reduction. (the mod will still load blueprints created in previous version).  
+- Performance improvemnts across the board (reduced if you import a blueprint V1)
+
+### v2.0.6-Beta
+- Fix some buildings (power exchanger / ejectors / lab / rayreceivers) 'recipe' not being correctly copied in blueprint mode 
+- Add ability to configure spacing period in multibuild using `CTRL +` and `CTRL -`
+- Add ability to toggle pasting of inserters in single and multibuild mode (not in blueprint mode) using `TAB`
+
+### v2.0.5-Beta
+- Fix unresponsive blueprint UI
 
 ### v2.0.4-Beta
 - Fix an issue in blueprint mode where some buildings (tanks / fractionators / powerExchangers) were not correctly connecting to belts if the connected belt was built before the building itself

@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
@@ -190,7 +190,7 @@ namespace MultiDestruct
                     UICursor.SetCursor(ECursor.Delete);
                 }
                 __instance.ClearBuildPreviews();
-                int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, area, _nearObjectIds);
+                int found = __instance.nearcdLogic.GetBuildingsInAreaNonAlloc(__instance.groundTestPos, area, _nearObjectIds, false);
 
                 var ids = new HashSet<int>();
                 for (int x = 0; x < found; x++)
