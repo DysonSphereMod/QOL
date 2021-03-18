@@ -19,8 +19,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int protoId;
         public int originalId = 0;
 
-        public int referenceId = 0;
-        public Vector3[] movesFromReference = new Vector3[0];
+        public Vector2 cursorRelativePos = Vector3.zero;
+        public int originalSegmentCount;
 
         public int backInputId;
         public int leftInputId;
@@ -58,9 +58,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int protoId;
         public int originalId = 0;
 
-        public int referenceId = 0;
-        public Vector3[] movesFromReference = new Vector3[0];
-
+        public int originalSegmentCount;
+        public Vector2 cursorRelativePos = Vector2.zero;
+        
         public float cursorRelativeYaw = 0f;
         public int modelIndex = 0;
 
@@ -83,30 +83,31 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int insertTarget;
 
         public int referenceBuildingId = 0;
-        public Vector3[] movesFromReference = new Vector3[0];
+        public Vector2 otherPosDelta;
+        public int otherPosDeltaCount;
 
         public bool incoming;
         public int startSlot;
         public int endSlot;
-        public Vector3 posDelta;
-        public Vector3 pos2Delta;
+        public Vector2 posDelta;
+        public Vector2 pos2Delta;
+
+        public int posDeltaCount;
+        public int pos2DeltaCount;
+
         public Quaternion rot;
         public Quaternion rot2;
-
         public short pickOffset;
         public short insertOffset;
-        public short t1;
-        public short t2;
         public int filterId;
-        public int refCount;
         public bool otherIsBelt;
     }
 
-    // reduce vector3 position to 2 decimal digits to reduce blueprint size
+    // reduce Vector3 to an array of 3 digits integers to reduce blueprint size
     public class Vector3Converter : fsDirectConverter
     {
         public const float JSON_PRECISION = 100f;
-        public override Type ModelType { get { return typeof(Vector3); } }
+        public override Type ModelType => typeof(Vector3);
 
         public override object CreateInstance(fsData data, Type storageType)
         {
@@ -145,17 +146,86 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
     }
 
-    public class BlueprintDataV1
+    // reduce Vector2 to an array of 3 digits integers to reduce blueprint size
+    public class Vector2Converter : fsDirectConverter
     {
-        public string name = "";
-        public int version = 1;
-        public Vector3 referencePos = Vector3.zero;
-        public Quaternion inverseReferenceRot = Quaternion.identity;
-        public float referenceYaw = 0f;
+        public const float JSON_PRECISION = 100f;
+        public override Type ModelType => typeof(Vector2);
 
-        public Dictionary<int, BuildingCopy> copiedBuildings;
-        public Dictionary<int, InserterCopy> copiedInserters;
-        public Dictionary<int, BeltCopy> copiedBelts;
+        public override object CreateInstance(fsData data, Type storageType)
+        {
+            return new Vector2();
+        }
+        
+        public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
+        {
+            Vector2 converted = ((Vector2) instance).ToDegrees();
+            var data = new List<fsData>
+            {
+                new fsData((int)Math.Round(converted.x * JSON_PRECISION)),
+                new fsData((int)Math.Round(converted.y * JSON_PRECISION))
+            };
+
+            serialized = new fsData(data);
+            return fsResult.Success;
+        }
+
+        public override fsResult TryDeserialize(fsData serialized, ref object instance, Type storageType)
+        {
+            if (!serialized.IsList) return fsResult.Fail("Expected to be and array of floats " + serialized);
+            var data = serialized.AsList;
+
+            instance = new Vector2()
+            {
+                x = data[0].AsInt64 / JSON_PRECISION,
+                y = data[1].AsInt64 / JSON_PRECISION
+            }.ToRadians();
+            
+            return fsResult.Success;
+        }
+    }
+
+    // reduce Quaternion to an array of 5 digits integers to reduce blueprint size
+    public class QuaternionConverter : fsDirectConverter
+    {
+        public const float JSON_PRECISION = 10000f;
+        public override Type ModelType => typeof(Quaternion);
+
+        public override object CreateInstance(fsData data, Type storageType)
+        {
+            return new Quaternion();
+        }
+        
+        public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
+        {
+            Quaternion inst = (Quaternion) instance;
+            var data = new List<fsData>
+            {
+                new fsData((int)Math.Round(inst.x * JSON_PRECISION)),
+                new fsData((int)Math.Round(inst.y * JSON_PRECISION)),
+                new fsData((int)Math.Round(inst.z * JSON_PRECISION)),
+                new fsData((int)Math.Round(inst.w * JSON_PRECISION))
+            };
+
+            serialized = new fsData(data);
+            return fsResult.Success;
+        }
+
+        public override fsResult TryDeserialize(fsData serialized, ref object instance, Type storageType)
+        {
+            if (!serialized.IsList) return fsResult.Fail("Expected to be and array of floats " + serialized);
+            var data = serialized.AsList;
+
+            instance = new Quaternion()
+            {
+                x = data[0].AsInt64 / JSON_PRECISION,
+                y = data[1].AsInt64 / JSON_PRECISION,
+                z = data[2].AsInt64 / JSON_PRECISION,
+                w = data[3].AsInt64 / JSON_PRECISION
+            };
+            
+            return fsResult.Success;
+        }
     }
 
     public class BlueprintData
@@ -163,9 +233,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [NonSerialized]
         public string name = "";
         public int version = 2;
-        public Vector3 referencePos = Vector3.zero;
-        public Quaternion inverseReferenceRot = Quaternion.identity;
-        public float referenceYaw = 0f;
+        public Vector2 referencePos = Vector3.zero;
 
         public List<BuildingCopy> copiedBuildings = new List<BuildingCopy>();
         public List<InserterCopy> copiedInserters = new List<InserterCopy>();
@@ -200,6 +268,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 fsSerializer serializer = new fsSerializer();
                 serializer.AddConverter(new Vector3Converter());
+                serializer.AddConverter(new Vector2Converter());
+                serializer.AddConverter(new QuaternionConverter());
 
                 fsData data = fsJsonParser.Parse(unzipped);
 
@@ -208,36 +278,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             catch (Exception e)
             {
                 Console.WriteLine("Error while trying to deserialise v2: " + e.ToString());
-            }
-
-            
-            if(deserialized == null || deserialized.version == 1)
-            {
-                Debug.Log("restoring from v1");
-                try
-                {
-                    fsSerializer serializer = new fsSerializer();
-
-                    fsData data = fsJsonParser.Parse(unzipped);
-                    BlueprintDataV1 deserializedV1 = null;
-                    serializer.TryDeserialize<BlueprintDataV1>(data, ref deserializedV1).AssertSuccessWithoutWarnings();
-
-                    deserialized = new BlueprintData()
-                    {
-                        referencePos = deserializedV1.referencePos,
-                        inverseReferenceRot = deserializedV1.inverseReferenceRot,
-                        referenceYaw = deserializedV1.referenceYaw,
-                    };
-
-                    deserialized.copiedBuildings = deserializedV1.copiedBuildings.Values.ToList();
-                    deserialized.copiedBelts = deserializedV1.copiedBelts.Values.ToList();
-                    deserialized.copiedInserters = deserializedV1.copiedInserters.Values.ToList();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Error while trying to deserialise v1: " + e.ToString());
-                    return null;
-                }
+                return null;
             }
 
             foreach (var building in deserialized.copiedBuildings)
@@ -264,6 +305,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             fsSerializer serializer = new fsSerializer();
 
             serializer.AddConverter(new Vector3Converter());
+            serializer.AddConverter(new Vector2Converter());
+            serializer.AddConverter(new QuaternionConverter());
             serializer.TrySerialize<BlueprintData>(this, out fsData data).AssertSuccessWithoutWarnings();
 
             string json = fsJsonPrinter.CompressedJson(data);

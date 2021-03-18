@@ -3,6 +3,8 @@
 This mods gives you the ability to build multiple copies of a building, with optional space between the copies.
 It also allow you to create / restore/ export/ import blueprints, allowing you to copy and paste whole parts of your base
 
+Visit the amazing website created by `Diacred` [https://www.dysonsphereblueprints.com](https://www.dysonsphereblueprints.com) to view and share blueprints!
+
 This mod is **NOT COMPATIBLE** with AdvancedBuildDestruct and Copyinserters, but that shouldn't be a problem as this mod provides the same functionalities (multibuild, copy of inserters, etc).
 
 The mod will not initialise if any of the incompatible mods are loaded. please remove them from your modman profile or from your plugins (if you are installing mods manually)
@@ -34,7 +36,7 @@ Select a building from the building bar or copy an exisiting building, then pres
 This mode is disabled while holding a blueprint (for now).
 
 - `Left Mouse Click` once to start building and `Left Mouse Click` one more time when you are happy with the placement of the copies.
-- Press `TAB` to toggle the pastig of the copied inserters
+- Press `TAB` to toggle the pasting of the copied inserters
 - Press `+` and `-` on your keyboard to increase / decrease the spacing between buildings
 - Press `CTRL +` and `CTRL -` on your keyboard to increase / decrease the spacing period (number of copied before adding a space)
 - Press `0` to reset spacing to 0 and spacing period to 1
@@ -46,8 +48,8 @@ This mode is disabled while holding a blueprint (for now).
 Click the blueprint button in the build dock
 
 - The first button initiate the creation of a new blueprint
-  - `left click (and hold)` to add entities to the blueprint
-  - `hold control` and `left click (and hold)` to remove entities from the blueprint
+  - `left click` (and hold if you want) to add entities to the blueprint
+  - hold `CTRL` and `left click` (and hold if you want) to remove entities from the blueprint
   - `right click` to exit blueprint creation mode
 - The second button restore the last used blueprint 
 - The 3rd button exports the current blueprint to your clipboard 
@@ -81,11 +83,12 @@ When `shift+click` an exisisting building it will be copied with all the connect
   
 ## Changelog
 
-### v2.0.7-Beta
-- General code cleanup
-- Blueprint data format v2: 80% blueprint size reduction. (the mod will still load blueprints created in previous version).  
-- Performance improvements across the board (reduced if you import a blueprint V1)
+### v2.1.0-Beta
+- BREAKING CHANGE : Blueprint data format v2: 80% blueprint size reduction. 
+- new polar coordinates positioning system. AMAZING work by `Kremnev8`
+- General code cleanup and big performance improvements across the board
 - fix bug where building of a blueprints could be placed on water if positioned outside the mecha building range 
+- fix blueprint menu not closing in sail mode
 
 ### v2.0.6-Beta
 - Fix some buildings (power exchanger / ejectors / lab / rayreceivers) 'recipe' not being correctly copied in blueprint mode 

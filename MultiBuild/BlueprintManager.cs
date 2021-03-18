@@ -13,6 +13,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         belt,
         inserter
     }
+
     public class PastedEntity
     {
         public EPastedType type;
@@ -26,24 +27,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     [HarmonyPatch]
     public class BlueprintManager
     {
-
-        const bool OPTIMISE_MOVES = true;
         public static BlueprintData previousData = new BlueprintData();
         public static BlueprintData data = new BlueprintData();
         public static bool hasData = false;
 
         public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
 
-        private static Vector3[] _snaps = new Vector3[1000];
 
-        /*public static Queue<InserterPosition> currentPositionCache;
-        public static Queue<InserterPosition> nextPositionCache;
-
-        private static void SwapPositionCache()
-        {
-            currentPositionCache = nextPositionCache;
-            nextPositionCache = new Queue<InserterPosition>();
-        }*/
+        private static bool useExperimentalWidthFix = false;
+        private static float lastMaxWidth = 0;
 
         public static void Reset()
         {
@@ -51,6 +43,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 return;
             }
+
+            lastMaxWidth = 0;
+
             hasData = false;
             previousData = data;
             data = new BlueprintData();
@@ -64,7 +59,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (hasData)
             {
-                var temp = data;
+                BlueprintData temp = data;
                 data = newData ?? previousData;
                 previousData = temp;
             }
@@ -73,7 +68,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 hasData = true;
                 data = newData ?? previousData;
             }
-
 
             pastedEntities.Clear();
             GC.Collect();
@@ -86,33 +80,38 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             UIFunctionPanelPatch.blueprintGroup.infoTitle.text = "Stored:";
             if (previousData.name != "")
             {
-                var name = previousData.name;
+                string name = previousData.name;
                 if (name.Length > 25)
                 {
                     name = name.Substring(0, 22) + "...";
                 }
+
                 UIFunctionPanelPatch.blueprintGroup.infoTitle.text += $" {name}";
             }
-            var counter = new Dictionary<string, int>();
 
-            foreach (var bulding in previousData.copiedBuildings)
+            Dictionary<string, int> counter = new Dictionary<string, int>();
+
+            foreach (BuildingCopy bulding in previousData.copiedBuildings)
             {
-                var name = bulding.itemProto.name;
+                string name = bulding.itemProto.name;
                 if (!counter.ContainsKey(name)) counter.Add(name, 0);
                 counter[name]++;
             }
-            foreach (var belt in previousData.copiedBelts)
+
+            foreach (BeltCopy belt in previousData.copiedBelts)
             {
-                var name = "Belts";
+                string name = "Belts";
                 if (!counter.ContainsKey(name)) counter.Add(name, 0);
                 counter[name]++;
             }
-            foreach (var inserter in previousData.copiedInserters)
+
+            foreach (InserterCopy inserter in previousData.copiedInserters)
             {
-                var name = "Inserters";
+                string name = "Inserters";
                 if (!counter.ContainsKey(name)) counter.Add(name, 0);
                 counter[name]++;
             }
+
 
             if (counter.Count > 0)
             {
@@ -131,18 +130,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 return;
             }
 
-            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
             // if no building use storage id as fake buildingId as we need something with buildmode == 1
-            var firstItemProtoID = data.copiedBuildings.Count > 0 ?
-                        data.copiedBuildings.First().itemProto.ID :
-                        2101;
+            int firstItemProtoID = data.copiedBuildings.Count > 0 ? data.copiedBuildings.First().itemProto.ID : 2101;
 
-            actionBuild.yaw = data.referenceYaw;
+            actionBuild.yaw = 0f;
             actionBuild.player.SetHandItems(firstItemProtoID, 0, 0);
             actionBuild.controller.cmd.mode = 1;
             actionBuild.controller.cmd.type = ECommand.Build;
-
         }
 
         public static PrefabDesc GetPrefabDesc(BuildingCopy copiedBuilding)
@@ -158,71 +154,28 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        public static Vector3[] GetMovesBetweenPoints(Vector3 from, Vector3 to, Quaternion inverseFromRotation)
-        {
-            if (from == to)
-            {
-                return new Vector3[0];
-            }
-
-            int path = 0;
-
-            var snappedPointCount = GameMain.data.mainPlayer.planetData.aux.SnapLineNonAlloc(from, to, ref path, _snaps);
-            Vector3 lastSnap = from;
-            var  snapMoves = new List<Vector3>();
-            for (int s = 0; s < snappedPointCount; s++)
-            {
-                // note: reverse rotation of the delta so that rotation works
-                Vector3 snapMove = inverseFromRotation * (_snaps[s] - lastSnap);
-
-                snapMove.x = (float)Math.Round(snapMove.x * Vector3Converter.JSON_PRECISION) / Vector3Converter.JSON_PRECISION;
-                snapMove.y = (float)Math.Round(snapMove.y * Vector3Converter.JSON_PRECISION) / Vector3Converter.JSON_PRECISION;
-                snapMove.z = (float)Math.Round(snapMove.z * Vector3Converter.JSON_PRECISION) / Vector3Converter.JSON_PRECISION;
-
-                if (snapMove != Vector3.zero)
-                {
-                    snapMoves.Add(snapMove);
-                }
-                lastSnap = _snaps[s];
-            }
-            return snapMoves.ToArray();
-        }
-
-        public static Vector3 GetPointFromMoves(Vector3 from, Vector3[] moves, Quaternion fromRotation)
-        {
-            var targetPos = from;
-            var planetAux = GameMain.data.mainPlayer.planetData.aux;
-            // Note: rotates each move relative to the rotation of the from
-            for (int i = 0; i < moves.Length; i++)
-                targetPos = planetAux.Snap(targetPos + fromRotation * moves[i], true, false);
-
-            return targetPos;
-        }
-
         public static int GetBeltInputEntityId(EntityData belt)
         {
-            var factory = GameMain.data.localPlanet.factory;
+            PlanetFactory factory = GameMain.data.localPlanet.factory;
             return factory.cargoTraffic.beltPool[factory.cargoTraffic.beltPool[belt.beltId].backInputId].entityId;
         }
 
         public static int GetBeltOutputEntityId(EntityData belt)
         {
-            var factory = GameMain.data.localPlanet.factory;
+            PlanetFactory factory = GameMain.data.localPlanet.factory;
             return factory.cargoTraffic.beltPool[factory.cargoTraffic.beltPool[belt.beltId].outputId].entityId;
         }
 
         public static void CopyEntities(List<int> entityIds)
         {
-           
-
-            var factory = GameMain.data.localPlanet.factory;
+            PlanetFactory factory = GameMain.data.localPlanet.factory;
 
             var buildings = new List<EntityData>();
             var belts = new Dictionary<int, EntityData>();
-            foreach (var id in entityIds)
+            foreach (int id in entityIds)
             {
-                var entity = factory.entityPool[id];
-                var entityProto = LDB.items.Select(entity.protoId);
+                EntityData entity = factory.entityPool[id];
+                ItemProto entityProto = LDB.items.Select(entity.protoId);
 
                 if (entityProto.prefabDesc.isInserter || entityProto.prefabDesc.minerType != EMinerType.None) continue;
 
@@ -241,173 +194,40 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 return;
             }
 
-            if (OPTIMISE_MOVES)
-            {
-
-                if (buildings.Count > 0)
-                {
-                    int[,] distances = new int[buildings.Count, buildings.Count];
-                    for (var i = 0; i < buildings.Count; i++)
-                    {
-                        for (var j = 0; j <= i; j++)
-                        {
-                            var distance = i == j ? 0 : (int)Math.Round(1000 * Vector3.Distance(buildings[i].pos, buildings[j].pos));
-                            distances[i, j] = distance;
-                            distances[j, i] = distance;
-                        }
-                    }
-
-                    var parents = MinimunSpanningTree.Prim(distances, buildings.Count);
-
-                    var stack = new Stack<int>();
-
-                    CopyEntity(buildings[0], buildings[0]);
-                    for (var i = 0; i < parents.Length; i++)
-                    {
-                        var id = i;
-                        while (parents[id] != -1)
-                        {
-                            stack.Push(id);
-                            id = parents[id];
-                        }
-                        while (stack.Count > 0)
-                        {
-                            var index = stack.Pop();
-
-                            CopyEntity(buildings[index], buildings[parents[index]]);
-
-                            parents[index] = -1;
-                        }
-
-                    }
-                }
-
-                if (belts.Count > 0)
-                {
-                    var found = new HashSet<int>();
-                    var beltSegments = new List<LinkedList<EntityData>>();
-
-                    foreach (var item in belts)
-                    {
-                        if (!found.Contains(item.Key))
-                        {
-                            var segment = new LinkedList<EntityData>();
-                            found.Add(item.Value.id);
-                            segment.AddFirst(item.Value);
-
-                            bool next;
-
-                            var currentBeltEntity = item.Value;
-                            int inputEntityId;
-                            do
-                            {
-                                inputEntityId = GetBeltInputEntityId(currentBeltEntity);
-                                currentBeltEntity = factory.entityPool[inputEntityId];
-                                if (belts.ContainsKey(inputEntityId) && !found.Contains(inputEntityId))
-                                {
-                                    found.Add(currentBeltEntity.id);
-                                    segment.AddFirst(currentBeltEntity);
-
-                                    next = true;
-                                }
-                                else
-                                {
-                                    next = false;
-                                }
-                            } while (next);
-
-                            currentBeltEntity = item.Value;
-
-                            int outputEntityId;
-                            do
-                            {
-                                outputEntityId = GetBeltOutputEntityId(currentBeltEntity);
-                                currentBeltEntity = factory.entityPool[outputEntityId];
-                                if (belts.ContainsKey(outputEntityId) && !found.Contains(outputEntityId))
-                                {
-                                    found.Add(currentBeltEntity.id);
-                                    segment.AddLast(currentBeltEntity);
-                                    next = true;
-                                }
-                                else
-                                {
-                                    next = false;
-                                }
-                            } while (next);
-
-                            beltSegments.Add(segment);
-
-                            var mainReference = buildings.Count > 0 ? buildings[0] : beltSegments[0].First();
-
-                            if (Vector3.Distance(mainReference.pos, segment.First().pos) < Vector3.Distance(mainReference.pos, segment.Last().pos))
-                            {
-                                var previousEntity = mainReference;
-                                var currentItem = segment.First;
-                                while (currentItem != null)
-                                {
-                                    CopyEntity(currentItem.Value, previousEntity);
-                                    previousEntity = currentItem.Value;
-                                    currentItem = currentItem.Next;
-                                }
-                                // from input to output
-                            }
-                            else
-                            {
-                                // from output to input
-                                var previousEntity = mainReference;
-                                var currentItem = segment.Last;
-                                while (currentItem != null)
-                                {
-                                    CopyEntity(currentItem.Value, previousEntity);
-                                    previousEntity = currentItem.Value;
-                                    currentItem = currentItem.Previous;
-
-                                }
-                            }
-                        }
-                    }
-                }
-
-            } else
-            {
-                var globalReference = buildings.Count > 0 ? buildings.First() : belts.Values.First();
-                foreach (var building in buildings) CopyBuilding(building, globalReference);
-                foreach (var belt in belts.Values) CopyBelt(belt, globalReference);
-            }
+            EntityData globalReference = buildings.Count > 0 ? buildings.First() : belts.Values.First();
+            foreach (EntityData building in buildings) CopyBuilding(building, globalReference);
+            foreach (EntityData belt in belts.Values) CopyBelt(belt, globalReference);
         }
-
 
         public static void CopyEntity(EntityData sourceEntity, EntityData referenceEntity)
         {
-            var sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
+            ItemProto sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
 
             if (sourceEntityProto.prefabDesc.isBelt)
             {
-                //Debug.Log($"{referenceEntity.id} -> {sourceEntity.id} [BELT]");
                 CopyBelt(sourceEntity, referenceEntity);
-            } else {
-                //Debug.Log($"{referenceEntity.id} -> {sourceEntity.id} [BUILDING]");
+            }
+            else
+            {
                 CopyBuilding(sourceEntity, referenceEntity);
             }
-
         }
+
         public static BeltCopy CopyBelt(EntityData sourceEntity, EntityData referenceEntity)
         {
+            PlanetFactory factory = GameMain.data.localPlanet.factory;
 
-            var factory = GameMain.data.localPlanet.factory;
-
-            var sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
+            ItemProto sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
 
             if (!sourceEntityProto.prefabDesc.isBelt)
             {
                 return null;
             }
 
-            var belt = factory.cargoTraffic.beltPool[sourceEntity.beltId];
+            BeltComponent belt = factory.cargoTraffic.beltPool[sourceEntity.beltId];
+            Vector2 sourceSprPos = sourceEntity.pos.ToSpherical();
 
-            var sourceRot = sourceEntity.rot;
-
-            var copiedBelt = new BeltCopy()
+            BeltCopy copiedBelt = new BeltCopy()
             {
                 originalId = sourceEntity.id,
                 protoId = sourceEntityProto.ID,
@@ -419,15 +239,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 outputId = factory.cargoTraffic.beltPool[belt.outputId].entityId,
             };
 
-
             factory.ReadObjectConn(sourceEntity.id, 0, out bool isOutput, out int otherId, out int otherSlot);
             if (otherId > 0 && factory.entityPool[otherId].beltId == 0)
             {
                 copiedBelt.connectedBuildingId = otherId;
                 copiedBelt.connectedBuildingIsOutput = isOutput;
                 copiedBelt.connectedBuildingSlot = otherSlot;
-
             }
+
             factory.ReadObjectConn(sourceEntity.id, 1, out isOutput, out otherId, out otherSlot);
             if (otherId > 0 && factory.entityPool[otherId].beltId == 0)
             {
@@ -438,37 +257,51 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (sourceEntity.id == referenceEntity.id)
             {
-                copiedBelt.referenceId = 0;
-                copiedBelt.movesFromReference = new Vector3[0];
-
-                data.inverseReferenceRot = Quaternion.Inverse(sourceRot);
+                data.referencePos = sourceSprPos;
             }
             else
             {
-                copiedBelt.referenceId = referenceEntity.id;
-                copiedBelt.movesFromReference = GetMovesBetweenPoints(referenceEntity.pos , sourceEntity.pos, data.inverseReferenceRot);
+                copiedBelt.originalSegmentCount = sourceSprPos.GetSegmentsCount();
+                copiedBelt.cursorRelativePos = (sourceSprPos - data.referencePos).Clamp();
             }
 
             data.copiedBelts.Add(copiedBelt);
-            hasData = true;
 
+            
+            factory.ReadObjectConn(sourceEntity.id, 4, out _, out otherId, out _);
+
+            if (otherId != 0)
+            {
+                // only copy belt to belt inserter if both belts are part fo the blueprint
+                factory.ReadObjectConn(otherId, 0, out _, out int endId, out _);
+                factory.ReadObjectConn(otherId, 1, out _, out int startId, out _);
+
+                int idToFind = sourceEntity.id == endId ? startId : endId;
+
+                if(data.copiedBelts.FindIndex(x => x.originalId == idToFind) != -1) {
+
+                    EntityData inserterEntity = factory.entityPool[otherId];
+                    CopyInserter(inserterEntity, sourceEntity);
+                }
+            }
+
+            hasData = true;
             return copiedBelt;
         }
 
         public static BuildingCopy CopyBuilding(EntityData sourceEntity, EntityData referenceEntity)
         {
-            var factory = GameMain.data.localPlanet.factory;
-            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+            PlanetFactory factory = GameMain.data.localPlanet.factory;
 
-            var sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
+            ItemProto sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
 
-            var sourcePos = sourceEntity.pos;
-            var sourceRot = sourceEntity.rot;
+            Vector3 sourcePos = sourceEntity.pos;
+            Quaternion sourceRot = sourceEntity.rot;
 
             Quaternion zeroRot = Maths.SphericalRotation(sourcePos, 0f);
             float yaw = Vector3.SignedAngle(zeroRot.Forward(), sourceRot.Forward(), zeroRot.Up());
 
-            var copiedBuilding = new BuildingCopy()
+            BuildingCopy copiedBuilding = new BuildingCopy()
             {
                 originalId = sourceEntity.id,
                 protoId = sourceEntityProto.ID,
@@ -504,9 +337,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             else if (sourceEntity.stationId > 0)
             {
-                var stationComponent = factory.transport.stationPool[sourceEntity.stationId];
+                StationComponent stationComponent = factory.transport.stationPool[sourceEntity.stationId];
 
-                for (var i = 0; i < stationComponent.slots.Length; i++)
+                for (int i = 0; i < stationComponent.slots.Length; i++)
                 {
                     if (stationComponent.slots[i].storageIdx != 0)
                     {
@@ -518,7 +351,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
                 }
 
-                for (var i = 0; i < stationComponent.storage.Length; i++)
+                for (int i = 0; i < stationComponent.storage.Length; i++)
                 {
                     if (stationComponent.storage[i].itemId != 0)
                     {
@@ -535,171 +368,223 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             else if (sourceEntity.splitterId > 0)
             {
-                var splitterComponent = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
 
-                // TODO: find a way to restore splitter settings 
+                // TODO: find a way to restore splitter settings
+                // SplitterComponent splitterComponent = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
+
             }
+
+            Vector2 sourceSprPos = sourcePos.ToSpherical();
 
             if (sourceEntity.id == referenceEntity.id)
             {
-                copiedBuilding.referenceId = 0;
-                copiedBuilding.movesFromReference = new Vector3[0];
-                copiedBuilding.cursorRelativeYaw = 0;
-
-                data.inverseReferenceRot = Quaternion.Inverse(sourceRot);
-                data.referenceYaw = yaw;
+                data.referencePos = sourceSprPos;
+                copiedBuilding.cursorRelativeYaw = yaw;
             }
             else
             {
-                copiedBuilding.referenceId = referenceEntity.id;
-                copiedBuilding.movesFromReference = GetMovesBetweenPoints(referenceEntity.pos, sourceEntity.pos, data.inverseReferenceRot);
-                copiedBuilding.cursorRelativeYaw = yaw - data.referenceYaw;
+                copiedBuilding.originalSegmentCount = sourceSprPos.GetSegmentsCount();
+                copiedBuilding.cursorRelativePos = (sourceSprPos - data.referencePos).Clamp();
+                copiedBuilding.cursorRelativeYaw = yaw;
             }
 
             data.copiedBuildings.Add(copiedBuilding);
 
             // Ignore building without inserter slots
-            if (sourceEntityProto.prefabDesc.insertPoses.Length > 0)
+
+            for (int i = 0; i < sourceEntityProto.prefabDesc.insertPoses.Length; i++)
             {
-                // Find connected inserters
-                var inserterPool = factory.factorySystem.inserterPool;
-                var entityPool = factory.entityPool;
-                var prebuildPool = factory.prebuildPool;
+                factory.ReadObjectConn(sourceEntity.id, i, out bool _, out int otherObjId, out int _);
 
-                for (int i = 1; i < factory.factorySystem.inserterCursor; i++)
+                if (otherObjId != 0)
                 {
-                    if (inserterPool[i].id != i) continue;
-
-                    var inserter = inserterPool[i];
-                    var inserterEntity = entityPool[inserter.entityId];
-
-                    if (data.copiedInserters.FindIndex(x => x.originalId == inserter.entityId) != -1) continue;
-
-                    var pickTarget = inserter.pickTarget;
-                    var insertTarget = inserter.insertTarget;
-
-                    if (pickTarget == sourceEntity.id || insertTarget == sourceEntity.id)
-                    {
-                        ItemProto itemProto = LDB.items.Select(inserterEntity.protoId);
-
-                        bool incoming = insertTarget == sourceEntity.id;
-                        var otherId = incoming ? pickTarget : insertTarget; // The belt or other building this inserter is attached to
-                        Vector3 otherPos = Vector3.zero;
-                        ItemProto otherProto = null;
-
-                        if (otherId > 0)
-                        {
-                            otherPos = entityPool[otherId].pos;
-                            otherProto = LDB.items.Select((int)entityPool[otherId].protoId);
-                        }
-                        else if (otherId < 0)
-                        {
-                            otherPos = prebuildPool[-otherId].pos;
-                            otherProto = LDB.items.Select((int)entityPool[-otherId].protoId);
-                        }
-                        else
-                        {
-                            otherPos = inserter.pos2;
-                            otherProto = null;
-                        }
-
-                        // Store the Grid-Snapped moves from assembler to belt/other
-                        Vector3[] movesFromReference = GetMovesBetweenPoints(sourcePos, otherPos, Quaternion.Inverse(sourceRot));
-
-                        bool otherIsBelt = otherProto == null || otherProto.prefabDesc.isBelt;
-
-                        // Cache info for this inserter
-                        InserterCopy copiedInserter = new InserterCopy
-                        {
-                            itemProto = itemProto,
-                            protoId = itemProto.ID,
-                            originalId = inserter.entityId,
-
-                            pickTarget = pickTarget,
-                            insertTarget = insertTarget,
-
-                            referenceBuildingId = copiedBuilding.originalId,
-
-                            incoming = incoming,
-
-                            // rotations + deltas relative to the source building's rotation
-                            rot = Quaternion.Inverse(sourceRot) * inserterEntity.rot,
-                            rot2 = Quaternion.Inverse(sourceRot) * inserter.rot2,
-                            posDelta = Quaternion.Inverse(sourceRot) * (inserterEntity.pos - sourcePos), // Delta from copied building to inserter pos
-                            pos2Delta = Quaternion.Inverse(sourceRot) * (inserter.pos2 - sourcePos), // Delta from copied building to inserter pos2
-
-                            // store to restore inserter speed
-                            refCount = Mathf.RoundToInt((float)(inserter.stt - 0.499f) / itemProto.prefabDesc.inserterSTT),
-
-                            // not important?
-                            pickOffset = inserter.pickOffset,
-                            insertOffset = inserter.insertOffset,
-
-                            // needed for pose?
-                            t1 = inserter.t1,
-                            t2 = inserter.t2,
-
-                            filterId = inserter.filter,
-
-                            movesFromReference = movesFromReference,
-
-                            startSlot = -1,
-                            endSlot = -1,
-
-                            otherIsBelt = otherIsBelt
-                        };
-
-                        // compute the start and end slot that the cached inserter uses
-                        InserterPoses.CalculatePose(actionBuild, pickTarget, insertTarget);
-
-                        if (actionBuild.posePairs.Count > 0)
-                        {
-                            float minDistance = 1000f;
-                            for (int j = 0; j < actionBuild.posePairs.Count; ++j)
-                            {
-                                var posePair = actionBuild.posePairs[j];
-                                float startDistance = Vector3.Distance(posePair.startPose.position, inserterEntity.pos);
-                                float endDistance = Vector3.Distance(posePair.endPose.position, inserter.pos2);
-                                float poseDistance = startDistance + endDistance;
-
-                                if (poseDistance < minDistance)
-                                {
-                                    minDistance = poseDistance;
-                                    copiedInserter.startSlot = posePair.startSlot;
-                                    copiedInserter.endSlot = posePair.endSlot;
-
-                                    copiedInserter.pickOffset = (short)posePair.startOffset;
-                                    copiedInserter.insertOffset = (short)posePair.endOffset;
-                                }
-                            }
-                        }
-
-                        data.copiedInserters.Add(copiedInserter);
-                    }
+                    EntityData inserterEntity = factory.entityPool[otherObjId];
+                    CopyInserter(inserterEntity, sourceEntity);
                 }
             }
+
 
             hasData = true;
             return copiedBuilding;
         }
 
+        public static InserterCopy CopyInserter(EntityData sourceEntity, EntityData referenceEntity)
+        {
+            PlanetFactory factory = GameMain.data.localPlanet.factory;
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
+            if (sourceEntity.inserterId == 0)
+            {
+                return null;
+            }
+
+            InserterComponent inserter = factory.factorySystem.inserterPool[sourceEntity.inserterId];
+
+            if (data.copiedInserters.FindIndex(x => x.originalId == inserter.entityId) != -1)
+            {
+                return null;
+            }
+
+            int pickTarget = inserter.pickTarget;
+            int insertTarget = inserter.insertTarget;
+
+            ItemProto itemProto = LDB.items.Select(sourceEntity.protoId);
+
+            bool incoming = insertTarget == referenceEntity.id;
+            int otherId = incoming ? pickTarget : insertTarget;
+
+
+            Vector2 referenceSprPos = referenceEntity.pos.ToSpherical();
+            Vector2 sourceSprPos = sourceEntity.pos.ToSpherical();
+            Vector2 sourceSprPos2 = inserter.pos2.ToSpherical();
+
+            // The belt or other building this inserter is attached to
+            Vector2 otherSprPos;
+            ItemProto otherProto;
+
+            if (otherId > 0)
+            {
+                otherProto = LDB.items.Select(factory.entityPool[otherId].protoId);
+                otherSprPos = factory.entityPool[otherId].pos.ToSpherical();
+            }
+            else if (otherId < 0)
+            {
+                otherProto = LDB.items.Select(factory.prebuildPool[-otherId].protoId);
+                otherSprPos = factory.prebuildPool[-otherId].pos.ToSpherical();
+            }
+            else
+            {
+                otherSprPos = sourceSprPos2;
+                otherProto = null;
+            }
+
+            bool otherIsBelt = otherProto == null || otherProto.prefabDesc.isBelt;
+
+
+            // Cache info for this inserter
+            InserterCopy copiedInserter = new InserterCopy
+            {
+                itemProto = itemProto,
+                protoId = itemProto.ID,
+                originalId = inserter.entityId,
+
+                pickTarget = pickTarget,
+                insertTarget = insertTarget,
+
+                referenceBuildingId = referenceEntity.id,
+
+                incoming = incoming,
+
+                // rotations + deltas relative to the source building's rotation
+                rot = Quaternion.Inverse(referenceEntity.rot) * sourceEntity.rot,
+                rot2 = Quaternion.Inverse(referenceEntity.rot) * inserter.rot2,
+                posDelta = sourceSprPos - referenceSprPos, // Delta from copied building to inserter pos
+                pos2Delta = sourceSprPos2 - referenceSprPos, // Delta from copied building to inserter pos2
+
+                posDeltaCount = sourceSprPos.GetSegmentsCount(),
+                pos2DeltaCount = sourceSprPos2.GetSegmentsCount(),
+
+                otherPosDelta = otherSprPos - referenceSprPos,
+                otherPosDeltaCount = otherSprPos.GetSegmentsCount(),
+
+                // not important?
+                pickOffset = inserter.pickOffset,
+                insertOffset = inserter.insertOffset,
+
+                filterId = inserter.filter,
+
+
+                startSlot = -1,
+                endSlot = -1,
+
+                otherIsBelt = otherIsBelt
+            };
+
+            InserterPoses.CalculatePose(actionBuild, pickTarget, insertTarget);
+
+            if (actionBuild.posePairs.Count > 0)
+            {
+                float minDistance = 1000f;
+                for (int j = 0; j < actionBuild.posePairs.Count; ++j)
+                {
+                    var posePair = actionBuild.posePairs[j];
+                    float startDistance = Vector3.Distance(posePair.startPose.position, sourceEntity.pos);
+                    float endDistance = Vector3.Distance(posePair.endPose.position, inserter.pos2);
+                    float poseDistance = startDistance + endDistance;
+
+                    if (poseDistance < minDistance)
+                    {
+                        minDistance = poseDistance;
+                        copiedInserter.startSlot = posePair.startSlot;
+                        copiedInserter.endSlot = posePair.endSlot;
+
+                        copiedInserter.pickOffset = (short)posePair.startOffset;
+                        copiedInserter.insertOffset = (short)posePair.endOffset;
+                    }
+                }
+            }
+
+
+/*        factory.ReadObjectConn(sourceEntity.id, 1, out bool isOutput, out int connectedId, out int connectedSlot);
+
+            if (connectedId != 0)
+            {
+                copiedInserter.startSlot = connectedSlot;
+            }
+
+            
+            factory.ReadObjectConn(sourceEntity.id, 0, out _, out connectedId, out connectedSlot);
+            if (connectedId != 0)
+            {
+                copiedInserter.endSlot = connectedSlot;
+            }
+*/
+
+            data.copiedInserters.Add(copiedInserter);
+
+            return copiedInserter;
+        }
+
         public static List<BuildPreview> Paste(Vector3 targetPos, float yaw, bool pasteInserters = true)
         {
-
             pastedEntities.Clear();
             InserterPoses.ResetOverrides();
-            var totalEntities = data.copiedBuildings.Count + data.copiedBelts.Count + data.copiedInserters.Count;
-            var absoluteTargetRot = Maths.SphericalRotation(targetPos, yaw);
-            var previews = new List<BuildPreview>(totalEntities);
-            var absolutePositions = new List<Vector3>(totalEntities);
 
-            for (var i = 0; i < data.copiedBuildings.Count; i++)
+            //Quaternion absoluteTargetRot = Maths.SphericalRotation(targetPos, yaw);
+            List<BuildPreview> previews = new List<BuildPreview>();
+            List<Vector3> absolutePositions = new List<Vector3>();
+
+            Vector2 targetSpr = targetPos.ToSpherical();
+            float yawRad = yaw * Mathf.Deg2Rad;
+
+            float currentMaxWidth = 0;
+
+            for (int i = 0; i < data.copiedBuildings.Count; i++)
             {
-                var building = data.copiedBuildings[i];
-                var referencePos = building.referenceId == 0 ? targetPos : pastedEntities[building.referenceId].pose.position;
-                Vector3 absoluteBuildingPos = GetPointFromMoves(referencePos, building.movesFromReference, absoluteTargetRot);
+                BuildingCopy building = data.copiedBuildings[i];
+                Vector2 newRelative = building.cursorRelativePos.Rotate(yawRad, building.originalSegmentCount);
+                Vector2 sprPos = newRelative + targetSpr;
+
+                float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
+                int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
+                int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+
+                float sizeDeviation = building.originalSegmentCount / (float)newSegmentCount;
+                if (sizeDeviation > currentMaxWidth)
+                    currentMaxWidth = sizeDeviation;
+                
+
+                if (useExperimentalWidthFix && sizeDeviation < lastMaxWidth)
+                    sizeDeviation = lastMaxWidth;
+
+                sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
+
+                Vector3 absoluteBuildingPos = sprPos.ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
+
+                absoluteBuildingPos = GameMain.data.mainPlayer.planetData.aux.Snap(absoluteBuildingPos, true, false);
+
                 Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
-                var desc = GetPrefabDesc(building);
+                PrefabDesc desc = GetPrefabDesc(building);
                 BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc, true);
                 bp.ResetInfos();
                 bp.desc = desc;
@@ -708,9 +593,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 bp.lpos = absoluteBuildingPos;
                 bp.lrot = absoluteBuildingRot;
 
-                var pose = new Pose(absoluteBuildingPos, absoluteBuildingRot);
+                Pose pose = new Pose(absoluteBuildingPos, absoluteBuildingRot);
 
-                var objId = InserterPoses.AddOverride(pose, building.itemProto);
+                int objId = InserterPoses.AddOverride(pose, building.itemProto);
 
                 pastedEntities.Add(building.originalId, new PastedEntity()
                 {
@@ -726,14 +611,32 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
 
-            for (var i = 0; i < data.copiedBelts.Count; i++)
+            for (int i = 0; i < data.copiedBelts.Count; i++)
             {
-                var belt = data.copiedBelts[i];
-                var referencePos = belt.referenceId == 0 ? targetPos : pastedEntities[belt.referenceId].pose.position;
-                var absoluteBeltPos = GetPointFromMoves(referencePos, belt.movesFromReference, absoluteTargetRot);
+                BeltCopy belt = data.copiedBelts[i];
+                Vector2 newRelative = belt.cursorRelativePos.Rotate(yawRad, belt.originalSegmentCount);
+                Vector2 sprPos = newRelative + targetSpr;
+
+                float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
+                int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
+                int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+
+                float sizeDeviation = belt.originalSegmentCount / (float)newSegmentCount;
+                if (sizeDeviation > currentMaxWidth)
+                    currentMaxWidth = sizeDeviation;
+
+                if (useExperimentalWidthFix && sizeDeviation < lastMaxWidth)
+                    sizeDeviation = lastMaxWidth;
+
+                sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
+
+                Vector3 absoluteBeltPos = sprPos.ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
+
+                absoluteBeltPos = GameMain.data.mainPlayer.planetData.aux.Snap(absoluteBeltPos, true, false);
+
 
                 // belts have always 0 yaw
-                var absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
+                Quaternion absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
 
                 BuildPreview bp = BuildPreview.CreateSingle(belt.itemProto, belt.itemProto.prefabDesc, true);
                 bp.ResetInfos();
@@ -751,9 +654,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 bp.outputOffset = 0;
                 bp.inputOffset = 0;
 
-                var pose = new Pose(absoluteBeltPos, absoluteBeltRot);
+                Pose pose = new Pose(absoluteBeltPos, absoluteBeltRot);
 
-                var objId = InserterPoses.AddOverride(pose, belt.itemProto);
+                int objId = InserterPoses.AddOverride(pose, belt.itemProto);
 
                 pastedEntities.Add(belt.originalId, new PastedEntity()
                 {
@@ -761,18 +664,21 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     index = i,
                     pose = pose,
                     objId = objId,
-                    buildPreview = bp
+                    buildPreview = bp,
                 });
-                //absolutePositions.Add(absoluteBeltPos);
+
                 previews.Add(bp);
             }
 
-            // after creating the belt previews this restore the correct connection to other belts and buildings
-            foreach (var belt in data.copiedBelts)
-            {
-                var preview = pastedEntities[belt.originalId].buildPreview;
 
-                if (belt.outputId != 0 && pastedEntities.TryGetValue(belt.outputId, out PastedEntity otherEntity))
+            // after creating the belt previews this restore the correct connection to other belts and buildings
+            foreach (BeltCopy belt in data.copiedBelts)
+            {
+                BuildPreview preview = pastedEntities[belt.originalId].buildPreview;
+
+                if (belt.outputId != 0 &&
+                    pastedEntities.TryGetValue(belt.outputId, out PastedEntity otherEntity) &&
+                    Vector3.Distance(preview.lpos, otherEntity.buildPreview.lpos) < 20) // if the belts are too far apart ignore connection
                 {
                     
                     preview.output = otherEntity.buildPreview;
@@ -807,64 +713,68 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
             BuildLogic.ActivateColliders(ref actionBuild.nearcdLogic, absolutePositions);
 
-            if (pasteInserters)
+            if (!pasteInserters)
             {
-                foreach (var copiedInserter in data.copiedInserters)
-                {
-                    var positionData = InserterPoses.GetPositions(copiedInserter);
-
-                    var bp = BuildPreview.CreateSingle(LDB.items.Select(copiedInserter.itemProto.ID), copiedInserter.itemProto.prefabDesc, true);
-                    bp.ResetInfos();
-
-                    var buildPreview = pastedEntities[copiedInserter.referenceBuildingId].buildPreview;
-
-                    bp.lrot = buildPreview.lrot * copiedInserter.rot;
-                    bp.lrot2 = buildPreview.lrot * copiedInserter.rot2;
-
-                    bp.lpos = buildPreview.lpos + buildPreview.lrot * positionData.posDelta;
-                    bp.lpos2 = buildPreview.lpos + buildPreview.lrot * positionData.pos2Delta;
-
-                    bp.inputToSlot = 1;
-                    bp.outputFromSlot = 0;
-
-                    bp.inputOffset = positionData.pickOffset;
-                    bp.outputOffset = positionData.insertOffset;
-                    bp.outputToSlot = positionData.endSlot;
-                    bp.inputFromSlot = positionData.startSlot;
-                    bp.condition = positionData.condition;
-
-                    bp.filterId = copiedInserter.filterId;
-
-                    if (pastedEntities.ContainsKey(positionData.inputOriginalId))
-                    {
-                        bp.input = pastedEntities[positionData.inputOriginalId].buildPreview;
-                    }
-                    else
-                    {
-                        bp.inputObjId = positionData.inputObjId;
-                    }
-
-                    if (pastedEntities.ContainsKey(positionData.outputOriginalId))
-                    {
-                        bp.output = pastedEntities[positionData.outputOriginalId].buildPreview;
-                    }
-                    else
-                    {
-                        bp.outputObjId = positionData.outputObjId;
-                    }
-
-                    pastedEntities.Add(copiedInserter.originalId, new PastedEntity()
-                    {
-                        buildPreview = bp
-                    });
-
-                    previews.Add(bp);
-                }
+                lastMaxWidth = currentMaxWidth;
+                return previews;
             }
+
+            foreach (InserterCopy copiedInserter in data.copiedInserters)
+            {
+                InserterPosition positionData = InserterPoses.GetPositions(copiedInserter, yawRad);
+
+                BuildPreview bp = BuildPreview.CreateSingle(LDB.items.Select(copiedInserter.itemProto.ID), copiedInserter.itemProto.prefabDesc, true);
+                bp.ResetInfos();
+
+                bp.lpos = positionData.absoluteInserterPos;
+                bp.lpos2 = positionData.absoluteInserterPos2;
+
+                bp.lrot = positionData.absoluteInserterRot;
+                bp.lrot2 = positionData.absoluteInserterRot2;
+
+                bp.inputToSlot = 1;
+                bp.outputFromSlot = 0;
+
+                bp.inputOffset = positionData.pickOffset;
+                bp.outputOffset = positionData.insertOffset;
+                bp.outputToSlot = positionData.endSlot;
+                bp.inputFromSlot = positionData.startSlot;
+                bp.condition = positionData.condition;
+
+                bp.filterId = copiedInserter.filterId;
+
+                if (pastedEntities.TryGetValue(positionData.inputOriginalId, out PastedEntity inputEntity))
+                {
+                    bp.input = inputEntity.buildPreview;
+                }
+                else
+                {
+                    bp.inputObjId = positionData.inputObjId;
+                }
+
+                if (pastedEntities.TryGetValue(positionData.outputOriginalId, out PastedEntity outputEntity))
+                {
+                    bp.output = outputEntity.buildPreview;
+                }
+                else
+                {
+                    bp.outputObjId = positionData.outputObjId;
+                }
+
+                pastedEntities.Add(copiedInserter.originalId, new PastedEntity()
+                {
+                    buildPreview = bp
+                });
+
+                previews.Add(bp);
+            }
+
+            lastMaxWidth = currentMaxWidth;
+
             return previews;
         }
 
@@ -873,8 +783,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (BlueprintManager.pastedEntities.Count > 1)
             {
-                var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-                foreach (var preview in actionBuild.buildPreviews)
+                PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+                foreach (BuildPreview preview in actionBuild.buildPreviews)
                 {
                     if (preview.desc.beltSpeed <= 0)
                     {
@@ -903,7 +813,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             item.size = vector2.magnitude;
                             __instance.objs_2.Add(item);
                         }
-
                     }
 
                     if (preview.input != null)
@@ -916,6 +825,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         {
                             item.color = 0u;
                         }
+
                         __instance.objs_1.Add(item);
 
                         Vector3 vector2 = preview.lpos - preview.input.lpos;
@@ -926,15 +836,17 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             __instance.objs_2.Add(item);
                         }
                     }
-
-
                 }
 
-                __instance.cbuffer_0.SetData<ConnGizmoObj>(__instance.objs_0);
-                __instance.cbuffer_1.SetData<ConnGizmoObj>(__instance.objs_1, 0, 0, (__instance.objs_1.Count >= __instance.cbuffer_1.count) ? __instance.cbuffer_1.count : __instance.objs_1.Count);
-                __instance.cbuffer_2.SetData<ConnGizmoObj>(__instance.objs_2, 0, 0, (__instance.objs_2.Count >= __instance.cbuffer_2.count) ? __instance.cbuffer_2.count : __instance.objs_2.Count);
-                __instance.cbuffer_3.SetData<ConnGizmoObj>(__instance.objs_3, 0, 0, (__instance.objs_3.Count >= __instance.cbuffer_3.count) ? __instance.cbuffer_3.count : __instance.objs_3.Count);
-                __instance.cbuffer_4.SetData<ConnGizmoObj>(__instance.objs_4, 0, 0, (__instance.objs_4.Count >= __instance.cbuffer_4.count) ? __instance.cbuffer_4.count : __instance.objs_4.Count);
+                __instance.cbuffer_0.SetData(__instance.objs_0);
+                __instance.cbuffer_1.SetData(__instance.objs_1, 0, 0,
+                    (__instance.objs_1.Count >= __instance.cbuffer_1.count) ? __instance.cbuffer_1.count : __instance.objs_1.Count);
+                __instance.cbuffer_2.SetData(__instance.objs_2, 0, 0,
+                    (__instance.objs_2.Count >= __instance.cbuffer_2.count) ? __instance.cbuffer_2.count : __instance.objs_2.Count);
+                __instance.cbuffer_3.SetData(__instance.objs_3, 0, 0,
+                    (__instance.objs_3.Count >= __instance.cbuffer_3.count) ? __instance.cbuffer_3.count : __instance.objs_3.Count);
+                __instance.cbuffer_4.SetData(__instance.objs_4, 0, 0,
+                    (__instance.objs_4.Count >= __instance.cbuffer_4.count) ? __instance.cbuffer_4.count : __instance.objs_4.Count);
             }
         }
     }

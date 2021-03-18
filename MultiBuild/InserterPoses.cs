@@ -19,8 +19,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Quaternion absoluteInserterRot;
         public Quaternion absoluteInserterRot2;
 
-        public Vector3 posDelta;
-        public Vector3 pos2Delta;
+        public Vector2 posDelta;
+        public Vector2 pos2Delta;
 
         public int startSlot;
         public int endSlot;
@@ -68,7 +68,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return INITIAL_OBJ_ID + overrides.Count - 1;
         }
 
-        public static InserterPosition GetPositions(InserterCopy copiedInserter)
+        public static InserterPosition GetPositions(InserterCopy copiedInserter, float yawRad)
         {
             var pastedEntities = BlueprintManager.pastedEntities;
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
@@ -78,16 +78,27 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
             Vector3 absoluteBuildingPos = pastedReferenceEntity.pose.position;
-            Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;     
+            Vector2 absoluteBuildingPosSpr = absoluteBuildingPos.ToSpherical();
+            
+            Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
 
-            var posDelta = copiedInserter.posDelta;
-            var pos2Delta = copiedInserter.pos2Delta;
+            var posDelta = copiedInserter.posDelta.Rotate(yawRad, copiedInserter.posDeltaCount);
+            Vector3 absoluteInserterPos = absoluteBuildingPosSpr
+                .ApplyDelta(posDelta, copiedInserter.posDeltaCount)
+                .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
 
-            Vector3 absoluteInserterPos = absoluteBuildingPos + absoluteBuildingRot * copiedInserter.posDelta;
-            Vector3 absoluteInserterPos2 = absoluteBuildingPos + absoluteBuildingRot * copiedInserter.pos2Delta;
+            var pos2Delta = copiedInserter.pos2Delta.Rotate(yawRad, copiedInserter.pos2DeltaCount);
+            Vector3 absoluteInserterPos2 = absoluteBuildingPosSpr
+                .ApplyDelta(pos2Delta, copiedInserter.pos2DeltaCount)
+                .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
 
-            Quaternion absoluteInserterRot = absoluteBuildingRot * copiedInserter.rot;
-            Quaternion absoluteInserterRot2 = absoluteBuildingRot * copiedInserter.rot2;
+            if (pastedReferenceEntity.sourceBuilding == null)
+            {
+               absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos,  yawRad * Mathf.Rad2Deg);
+            }
+
+            Quaternion absoluteInserterRot = absoluteBuildingRot * copiedInserter.rot ;
+            Quaternion absoluteInserterRot2 = absoluteBuildingRot * copiedInserter.rot2 ;
 
             int startSlot = copiedInserter.startSlot;
             int endSlot = copiedInserter.endSlot;
@@ -114,7 +125,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 // Find the desired belt/building position
                 // As delta doesn't work over distance, re-trace the Grid Snapped steps from the original
                 // to find the target belt/building for this inserters other connection
-                Vector3 testPos = BlueprintManager.GetPointFromMoves(absoluteBuildingPos, copiedInserter.movesFromReference, absoluteBuildingRot);
+
+                var otherPosDelta = copiedInserter.otherPosDelta.Rotate(yawRad, copiedInserter.otherPosDeltaCount);
+                Vector3 testPos = absoluteBuildingPosSpr
+                    .ApplyDelta(otherPosDelta, copiedInserter.otherPosDeltaCount)
+                    .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
 
                 // find building nearby
                 int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
@@ -213,8 +228,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         startSlot = bestFit.startSlot;
                         endSlot = bestFit.endSlot;
 
-                        posDelta = Quaternion.Inverse(absoluteBuildingRot) * (absoluteInserterPos - absoluteBuildingPos);
-                        pos2Delta = Quaternion.Inverse(absoluteBuildingRot) * (absoluteInserterPos2 - absoluteBuildingPos);
+                        posDelta = bestFit.startPose.position.ToSpherical() - absoluteBuildingPosSpr;
+                        pos2Delta = bestFit.endPose.position.ToSpherical() - absoluteBuildingPosSpr;
                     }
                 }
             }
@@ -241,9 +256,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 condition = EBuildCondition.Ok
             };
-
-
-
 
             if (!pastedEntities.ContainsKey(otherId))
             {
@@ -303,17 +315,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             position.outputObjId = copiedInserter.incoming ? referenceObjId : otherObjId;
             position.outputOriginalId = copiedInserter.incoming ? referenceId : otherId;
 
-            /*if (useCache)
-            {
-                nextPositionCache.Enqueue(position);
-            }*/
             return position;
         }
 
-        #pragma warning disable IDE0060 // Remove unused parameter
+#pragma warning disable IDE0060 // Remove unused parameter
         [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static void CalculatePose(PlayerAction_Build __instance, int startObjId, int castObjId)
-        #pragma warning restore IDE0060 // Remove unused parameter
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
