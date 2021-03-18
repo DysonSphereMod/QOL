@@ -634,7 +634,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
         }
-
+        
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> positions)
         {
             for (int s = 0; s < positions.Count; s++)

@@ -101,7 +101,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static void StartBpMode()
         {
             if (bpMode) return;
-            BlueprintManager.Reset();
+
             bpMode = true;
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
             actionBuild.altitude = 0;
@@ -110,6 +110,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             actionBuild.controller.cmd.mode = 0;
 
             BuildLogic.lastPosition = Vector3.zero;
+            BlueprintManager.Reset();
             if (circleGizmo == null)
             {
                 circleGizmo = CircleGizmo.Create(6, Vector3.zero, 10);
