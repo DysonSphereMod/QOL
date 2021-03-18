@@ -68,7 +68,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return INITIAL_OBJ_ID + overrides.Count - 1;
         }
 
-        public static InserterPosition GetPositions(InserterCopy copiedInserter, float yawRad, bool useCache = true)
+        public static InserterPosition GetPositions(InserterCopy copiedInserter, float yawRad)
         {
             var pastedEntities = BlueprintManager.pastedEntities;
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
@@ -82,52 +82,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             
             Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
 
-            InserterPosition position = null;
-            /*            if (useCache && currentPositionCache.Count > 0)
-                        {
-                            position = currentPositionCache.Dequeue();
-                        }
-
-                        bool isCacheValid = position != null &&
-                            position.copiedInserter == copiedInserter &&
-                            position.absoluteBuildingPos == absoluteBuildingPos &&
-                            position.absoluteBuildingRot == absoluteBuildingRot;
-
-                        if (isCacheValid)
-                        {
-                            nextPositionCache.Enqueue(position);
-                            return position;
-                        }
-            */
-
             var posDelta = copiedInserter.posDelta.Rotate(yawRad, copiedInserter.posDeltaCount);
+            Vector3 absoluteInserterPos = absoluteBuildingPosSpr
+                .ApplyDelta(posDelta, copiedInserter.posDeltaCount)
+                .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
+
             var pos2Delta = copiedInserter.pos2Delta.Rotate(yawRad, copiedInserter.pos2DeltaCount);
-            
-            Vector2 sprPos = absoluteBuildingPosSpr + posDelta;
-
-            float rawLatitudeIndex = (sprPos.x - Mathf.PI/2) / 6.2831855f * 200;
-            int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-            float sizeDeviation = copiedInserter.posDeltaCount / (float)newSegmentCount;
-            posDelta = new Vector2(posDelta.x, posDelta.y * sizeDeviation);
-            Vector3 absoluteInserterPos = (posDelta + absoluteBuildingPosSpr).ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
-            
-            
-            sprPos = absoluteBuildingPosSpr + pos2Delta;
-
-            rawLatitudeIndex = (sprPos.x - Mathf.PI/2) / 6.2831855f * 200;
-            latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-            sizeDeviation = copiedInserter.pos2DeltaCount / (float)newSegmentCount;
-            pos2Delta = new Vector2(pos2Delta.x, pos2Delta.y * sizeDeviation);
-
-            Vector3 absoluteInserterPos2 = (pos2Delta  + absoluteBuildingPosSpr).ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
-
-
-            //Vector3 absoluteInserterPos = absoluteBuildingPos + absoluteBuildingRot * copiedInserter.posDelta;
-            //Vector3 absoluteInserterPos2 = absoluteBuildingPos + absoluteBuildingRot * copiedInserter.pos2Delta;
+            Vector3 absoluteInserterPos2 = absoluteBuildingPosSpr
+                .ApplyDelta(pos2Delta, copiedInserter.pos2DeltaCount)
+                .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
 
             if (pastedReferenceEntity.sourceBuilding == null)
             {
@@ -162,16 +125,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 // Find the desired belt/building position
                 // As delta doesn't work over distance, re-trace the Grid Snapped steps from the original
                 // to find the target belt/building for this inserters other connection
-                Vector3 testPos = Vector3.zero;//BlueprintManager.GetPointFromMoves(absoluteBuildingPos, copiedInserter.movesFromReference, absoluteBuildingRot);
 
-                if (pastedEntities.ContainsKey(copiedInserter.insertTarget))
-                {
-                    testPos = absoluteInserterPos;
-                }else if (pastedEntities.ContainsKey(copiedInserter.pickTarget))
-                {
-                    testPos = absoluteInserterPos2;
-                }
-                
+                var otherPosDelta = copiedInserter.otherPosDelta.Rotate(yawRad, copiedInserter.otherPosDeltaCount);
+                Vector3 testPos = absoluteBuildingPosSpr
+                    .ApplyDelta(otherPosDelta, copiedInserter.otherPosDeltaCount)
+                    .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
+
                 // find building nearby
                 int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
 
@@ -275,7 +234,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            position = new InserterPosition()
+            InserterPosition position = new InserterPosition()
             {
                 copiedInserter = copiedInserter,
                 absoluteBuildingPos = absoluteBuildingPos,
@@ -297,9 +256,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 condition = EBuildCondition.Ok
             };
-
-
-
 
             if (!pastedEntities.ContainsKey(otherId))
             {
@@ -359,16 +315,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             position.outputObjId = copiedInserter.incoming ? referenceObjId : otherObjId;
             position.outputOriginalId = copiedInserter.incoming ? referenceId : otherId;
 
-            /*if (useCache)
-            {
-                nextPositionCache.Enqueue(position);
-            }*/
             return position;
         }
 
-
+#pragma warning disable IDE0060 // Remove unused parameter
         [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static void CalculatePose(PlayerAction_Build __instance, int startObjId, int castObjId)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {

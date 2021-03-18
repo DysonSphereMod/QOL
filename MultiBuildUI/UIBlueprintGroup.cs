@@ -59,7 +59,6 @@ public class UIBlueprintGroup : MonoBehaviour
         mainGroup.interactable = false;
         button.highlighted = false;
         mainGroup.blocksRaycasts = false;
-
     }
 
     private void Update()
@@ -120,7 +119,7 @@ public static class UIFunctionPanelPatch
             .Advance(1)
             .InsertAndAdvance(Transpilers.EmitDelegate<Action<UIFunctionPanel>>(panel =>
             {
-                if (blueprintGroup != null && blueprintGroup.isOpen)
+                if (blueprintGroup != null && blueprintGroup.isOpen && panel.buildMenu.active)
                 {
                     panel.posWanted = 0f;
                     panel.widthWanted = 730f;
