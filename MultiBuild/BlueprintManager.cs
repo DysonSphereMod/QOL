@@ -27,25 +27,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     [HarmonyPatch]
     public class BlueprintManager
     {
-        const bool OPTIMISE_MOVES = true;
         public static BlueprintData previousData = new BlueprintData();
         public static BlueprintData data = new BlueprintData();
         public static bool hasData = false;
 
         public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
 
-        private static Vector3[] _snaps = new Vector3[1000];
 
+        private static bool useExperimentalWidthFix = false;
         private static float lastMaxWidth = 0;
-
-        /*public static Queue<InserterPosition> currentPositionCache;
-        public static Queue<InserterPosition> nextPositionCache;
-
-        private static void SwapPositionCache()
-        {
-            currentPositionCache = nextPositionCache;
-            nextPositionCache = new Queue<InserterPosition>();
-        }*/
 
         public static void Reset()
         {
@@ -78,7 +68,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 hasData = true;
                 data = newData ?? previousData;
             }
-
 
             pastedEntities.Clear();
             GC.Collect();
@@ -146,7 +135,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             // if no building use storage id as fake buildingId as we need something with buildmode == 1
             int firstItemProtoID = data.copiedBuildings.Count > 0 ? data.copiedBuildings.First().itemProto.ID : 2101;
 
-            actionBuild.yaw = data.referenceYaw;
+            actionBuild.yaw = 0f;
             actionBuild.player.SetHandItems(firstItemProtoID, 0, 0);
             actionBuild.controller.cmd.mode = 1;
             actionBuild.controller.cmd.type = ECommand.Build;
@@ -163,49 +152,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 return copiedBuilding.itemProto.prefabDesc;
             }
-        }
-
-        public static Vector3[] GetMovesBetweenPoints(Vector3 from, Vector3 to, Quaternion inverseFromRotation)
-        {
-            if (from == to)
-            {
-                return new Vector3[0];
-            }
-
-            int path = 0;
-
-            int snappedPointCount = GameMain.data.mainPlayer.planetData.aux.SnapLineNonAlloc(from, to, ref path, _snaps);
-            Vector3 lastSnap = from;
-            var snapMoves = new List<Vector3>();
-            for (int s = 0; s < snappedPointCount; s++)
-            {
-                // note: reverse rotation of the delta so that rotation works
-                Vector3 snapMove = inverseFromRotation * (_snaps[s] - lastSnap);
-
-                snapMove.x = (float) Math.Round(snapMove.x * Vector3Converter.JSON_PRECISION) / Vector3Converter.JSON_PRECISION;
-                snapMove.y = (float) Math.Round(snapMove.y * Vector3Converter.JSON_PRECISION) / Vector3Converter.JSON_PRECISION;
-                snapMove.z = (float) Math.Round(snapMove.z * Vector3Converter.JSON_PRECISION) / Vector3Converter.JSON_PRECISION;
-
-                if (snapMove != Vector3.zero)
-                {
-                    snapMoves.Add(snapMove);
-                }
-
-                lastSnap = _snaps[s];
-            }
-
-            return snapMoves.ToArray();
-        }
-
-        public static Vector3 GetPointFromMoves(Vector3 from, Vector3[] moves, Quaternion fromRotation)
-        {
-            Vector3 targetPos = from;
-            PlanetAuxData planetAux = GameMain.data.mainPlayer.planetData.aux;
-            // Note: rotates each move relative to the rotation of the from
-            foreach (Vector3 move in moves)
-                targetPos = planetAux.Snap(targetPos + fromRotation * move, true, false);
-
-            return targetPos;
         }
 
         public static int GetBeltInputEntityId(EntityData belt)
@@ -259,12 +205,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (sourceEntityProto.prefabDesc.isBelt)
             {
-                //Debug.Log($"{referenceEntity.id} -> {sourceEntity.id} [BELT]");
                 CopyBelt(sourceEntity, referenceEntity);
             }
             else
             {
-                //Debug.Log($"{referenceEntity.id} -> {sourceEntity.id} [BUILDING]");
                 CopyBuilding(sourceEntity, referenceEntity);
             }
         }
@@ -272,8 +216,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static BeltCopy CopyBelt(EntityData sourceEntity, EntityData referenceEntity)
         {
             PlanetFactory factory = GameMain.data.localPlanet.factory;
-            //PlanetAuxData planetAux = GameMain.data.mainPlayer.planetData.aux;
-            //PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
             ItemProto sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
 
@@ -283,41 +225,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
             BeltComponent belt = factory.cargoTraffic.beltPool[sourceEntity.beltId];
-
-            Vector3 sourcePos = sourceEntity.pos;
-            Quaternion sourceRot = sourceEntity.rot;
+            Vector2 sourceSprPos = sourceEntity.pos.ToSpherical();
 
             BeltCopy copiedBelt = new BeltCopy()
             {
                 originalId = sourceEntity.id,
                 protoId = sourceEntityProto.ID,
                 itemProto = sourceEntityProto,
-                //originalPos = sourcePos,
-                //originalRot = sourceRot,
 
                 backInputId = factory.cargoTraffic.beltPool[belt.backInputId].entityId,
                 leftInputId = factory.cargoTraffic.beltPool[belt.leftInputId].entityId,
                 rightInputId = factory.cargoTraffic.beltPool[belt.rightInputId].entityId,
                 outputId = factory.cargoTraffic.beltPool[belt.outputId].entityId,
             };
-
-            //Evaluate belt rotation
-            /*Vector3 predictedDirection = Vector3.zero;
-
-            if (copiedBelt.outputId != 0)
-            {
-                EntityData other = factory.entityPool[copiedBelt.outputId];
-                predictedDirection = other.pos - sourcePos;
-            }else if (copiedBelt.backInputId != 0)
-            {
-                EntityData other = factory.entityPool[copiedBelt.backInputId];
-                predictedDirection = sourcePos - other.pos;
-            }
-
-            Quaternion originalRot = Quaternion.LookRotation(predictedDirection, sourcePos);
-            
-            Quaternion zeroRot = Maths.SphericalRotation(sourcePos, 0f);
-            float yaw = -Vector3.SignedAngle(zeroRot.Forward(), originalRot.Forward(), zeroRot.Up());*/
 
             factory.ReadObjectConn(sourceEntity.id, 0, out bool isOutput, out int otherId, out int otherSlot);
             if (otherId > 0 && factory.entityPool[otherId].beltId == 0)
@@ -337,50 +257,43 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (sourceEntity.id == referenceEntity.id)
             {
-                copiedBelt.referenceId = 0;
-                data.referencePos = sourcePos.ToSpherical();
-                //data.inverseReferenceRot = Quaternion.Inverse(sourceRot);
-                //copiedBelt.cursorRelativeYaw = yaw;
-                
-                Debug.Log($"Reference pos: {data.referencePos}, {data.referencePos.ToDegrees()}");
+                data.referencePos = sourceSprPos;
             }
             else
             {
-                Vector2 sprPos = sourcePos.ToSpherical();
-                float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
-                int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-                copiedBelt.originalSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-                copiedBelt.cursorRelativePos = sprPos - data.referencePos;
-                //copiedBelt.cursorRelativeYaw = yaw - data.referenceYaw;
+                copiedBelt.originalSegmentCount = sourceSprPos.GetSegmentsCount();
+                copiedBelt.cursorRelativePos = (sourceSprPos - data.referencePos).Clamp();
             }
 
             data.copiedBelts.Add(copiedBelt);
 
-            factory.ReadObjectConn(sourceEntity.id, 4, out isOutput, out otherId, out otherSlot);
+            
+            factory.ReadObjectConn(sourceEntity.id, 4, out _, out otherId, out _);
 
             if (otherId != 0)
             {
-                EntityData inserterEntity = factory.entityPool[otherId];
-                CopyInserter(inserterEntity, sourceEntity);
+                // only copy belt to belt inserter if both belts are part fo the blueprint
+                factory.ReadObjectConn(otherId, 0, out _, out int endId, out _);
+                factory.ReadObjectConn(otherId, 1, out _, out int startId, out _);
+
+                int idToFind = sourceEntity.id == endId ? startId : endId;
+
+                if(data.copiedBelts.FindIndex(x => x.originalId == idToFind) != -1) {
+
+                    EntityData inserterEntity = factory.entityPool[otherId];
+                    CopyInserter(inserterEntity, sourceEntity);
+                }
             }
 
-
             hasData = true;
-
             return copiedBelt;
         }
 
         public static BuildingCopy CopyBuilding(EntityData sourceEntity, EntityData referenceEntity)
         {
             PlanetFactory factory = GameMain.data.localPlanet.factory;
-            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
             ItemProto sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
-
-            if (sourceEntityProto.prefabDesc.isBelt || sourceEntityProto.prefabDesc.isInserter || sourceEntityProto.prefabDesc.minerType != EMinerType.None)
-            {
-                return null;
-            }
 
             Vector3 sourcePos = sourceEntity.pos;
             Quaternion sourceRot = sourceEntity.rot;
@@ -397,13 +310,32 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             };
 
 
-            if (sourceEntityProto.prefabDesc.isAssembler)
+            if (sourceEntity.assemblerId > 0)
             {
                 copiedBuilding.recipeId = factory.factorySystem.assemblerPool[sourceEntity.assemblerId].recipeId;
             }
-
-
-            if (sourceEntityProto.prefabDesc.isStation)
+            else if (sourceEntity.labId > 0)
+            {
+                LabComponent labComponent = factory.factorySystem.labPool[sourceEntity.labId];
+                copiedBuilding.recipeId = ((!labComponent.researchMode) ? labComponent.recipeId : -1);
+            }
+            else if (sourceEntity.powerGenId > 0)
+            {
+                PowerGeneratorComponent powerGeneratorComponent = factory.powerSystem.genPool[sourceEntity.powerGenId];
+                if (powerGeneratorComponent.gamma)
+                {
+                    copiedBuilding.recipeId = ((powerGeneratorComponent.productId <= 0) ? 0 : 1);
+                }
+            }
+            else if (sourceEntity.powerExcId > 0)
+            {
+                copiedBuilding.recipeId = Mathf.RoundToInt(factory.powerSystem.excPool[sourceEntity.powerExcId].targetState);
+            }
+            else if (sourceEntity.ejectorId > 0)
+            {
+                copiedBuilding.recipeId = factory.factorySystem.ejectorPool[sourceEntity.ejectorId].orbitId;
+            }
+            else if (sourceEntity.stationId > 0)
             {
                 StationComponent stationComponent = factory.transport.stationPool[sourceEntity.stationId];
 
@@ -436,45 +368,41 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             else if (sourceEntity.splitterId > 0)
             {
-                SplitterComponent splitterComponennt = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
 
-                // TODO: find a way to restore splitter settings 
+                // TODO: find a way to restore splitter settings
+                // SplitterComponent splitterComponent = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
+
             }
 
-            Vector2 sourceSpr = sourcePos.ToSpherical();
+            Vector2 sourceSprPos = sourcePos.ToSpherical();
 
             if (sourceEntity.id == referenceEntity.id)
             {
-                data.referencePos = sourceSpr;
-                //data.inverseReferenceRot = Quaternion.Inverse(sourceRot);
-                Debug.Log($"Reference pos: {data.referencePos}, {data.referencePos.ToDegrees()}");
+                data.referencePos = sourceSprPos;
+                copiedBuilding.cursorRelativeYaw = yaw;
             }
             else
             {
-                float rawLatitudeIndex = (sourceSpr.x - Mathf.PI / 2) / 6.2831855f * 200;
-                int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-                copiedBuilding.originalSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-                copiedBuilding.cursorRelativePos = sourceSpr - data.referencePos;
-                copiedBuilding.cursorRelativeYaw = yaw - data.referenceYaw;
+                copiedBuilding.originalSegmentCount = sourceSprPos.GetSegmentsCount();
+                copiedBuilding.cursorRelativePos = (sourceSprPos - data.referencePos).Clamp();
+                copiedBuilding.cursorRelativeYaw = yaw;
             }
 
             data.copiedBuildings.Add(copiedBuilding);
 
             // Ignore building without inserter slots
-            if (sourceEntityProto.prefabDesc.insertPoses.Length > 0)
-            {
-                for (int i = 0; i < sourceEntityProto.prefabDesc.insertPoses.Length; i++)
-                {
-                    factory.ReadObjectConn(sourceEntity.id, i, out bool _, out int otherObjId, out int _);
 
-                    if (otherObjId != 0)
-                    {
-                        EntityData inserterEntity = factory.entityPool[otherObjId];
-                        CopyInserter(inserterEntity, sourceEntity);
-                    }
+            for (int i = 0; i < sourceEntityProto.prefabDesc.insertPoses.Length; i++)
+            {
+                factory.ReadObjectConn(sourceEntity.id, i, out bool _, out int otherObjId, out int _);
+
+                if (otherObjId != 0)
+                {
+                    EntityData inserterEntity = factory.entityPool[otherObjId];
+                    CopyInserter(inserterEntity, sourceEntity);
                 }
             }
+
 
             hasData = true;
             return copiedBuilding;
@@ -505,29 +433,33 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             bool incoming = insertTarget == referenceEntity.id;
             int otherId = incoming ? pickTarget : insertTarget;
 
-            Vector2 sourceSpr = referenceEntity.pos.ToSpherical();
 
+            Vector2 referenceSprPos = referenceEntity.pos.ToSpherical();
+            Vector2 sourceSprPos = sourceEntity.pos.ToSpherical();
+            Vector2 sourceSprPos2 = inserter.pos2.ToSpherical();
 
             // The belt or other building this inserter is attached to
+            Vector2 otherSprPos;
             ItemProto otherProto;
 
             if (otherId > 0)
             {
                 otherProto = LDB.items.Select(factory.entityPool[otherId].protoId);
+                otherSprPos = factory.entityPool[otherId].pos.ToSpherical();
             }
             else if (otherId < 0)
             {
-                otherProto = LDB.items.Select(factory.entityPool[-otherId].protoId);
+                otherProto = LDB.items.Select(factory.prebuildPool[-otherId].protoId);
+                otherSprPos = factory.prebuildPool[-otherId].pos.ToSpherical();
             }
             else
             {
+                otherSprPos = sourceSprPos2;
                 otherProto = null;
             }
 
-            // Store the Grid-Snapped moves from assembler to belt/other
-            //Vector3[] movesFromReference = GetMovesBetweenPoints(sourcePos, otherPos, Quaternion.Inverse(sourceRot));
-
             bool otherIsBelt = otherProto == null || otherProto.prefabDesc.isBelt;
+
 
             // Cache info for this inserter
             InserterCopy copiedInserter = new InserterCopy
@@ -546,19 +478,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 // rotations + deltas relative to the source building's rotation
                 rot = Quaternion.Inverse(referenceEntity.rot) * sourceEntity.rot,
                 rot2 = Quaternion.Inverse(referenceEntity.rot) * inserter.rot2,
-                posDelta = sourceEntity.pos.ToSpherical() - sourceSpr, // Delta from copied building to inserter pos
-                pos2Delta = inserter.pos2.ToSpherical() - sourceSpr, // Delta from copied building to inserter pos2
+                posDelta = sourceSprPos - referenceSprPos, // Delta from copied building to inserter pos
+                pos2Delta = sourceSprPos2 - referenceSprPos, // Delta from copied building to inserter pos2
 
-                // store to restore inserter speed
-                //refCount = Mathf.RoundToInt((inserter.stt - 0.499f) / itemProto.prefabDesc.inserterSTT),
+                posDeltaCount = sourceSprPos.GetSegmentsCount(),
+                pos2DeltaCount = sourceSprPos2.GetSegmentsCount(),
+
+                otherPosDelta = otherSprPos - referenceSprPos,
+                otherPosDeltaCount = otherSprPos.GetSegmentsCount(),
 
                 // not important?
                 pickOffset = inserter.pickOffset,
                 insertOffset = inserter.insertOffset,
-
-                // needed for pose?
-                //t1 = inserter.t1,
-                //t2 = inserter.t2,
 
                 filterId = inserter.filter,
 
@@ -569,18 +500,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 otherIsBelt = otherIsBelt
             };
 
-            Vector2 sprPos = sourceEntity.pos.ToSpherical();
-            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
-            int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            copiedInserter.posDeltaCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-            sprPos = inserter.pos2.ToSpherical();
-            rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
-            latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            copiedInserter.pos2DeltaCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-
-            // compute the start and end slot that the cached inserter uses
             InserterPoses.CalculatePose(actionBuild, pickTarget, insertTarget);
 
             if (actionBuild.posePairs.Count > 0)
@@ -588,7 +507,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 float minDistance = 1000f;
                 for (int j = 0; j < actionBuild.posePairs.Count; ++j)
                 {
-                    PlayerAction_Build.PosePair posePair = actionBuild.posePairs[j];
+                    var posePair = actionBuild.posePairs[j];
                     float startDistance = Vector3.Distance(posePair.startPose.position, sourceEntity.pos);
                     float endDistance = Vector3.Distance(posePair.endPose.position, inserter.pos2);
                     float poseDistance = startDistance + endDistance;
@@ -599,11 +518,27 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         copiedInserter.startSlot = posePair.startSlot;
                         copiedInserter.endSlot = posePair.endSlot;
 
-                        copiedInserter.pickOffset = (short) posePair.startOffset;
-                        copiedInserter.insertOffset = (short) posePair.endOffset;
+                        copiedInserter.pickOffset = (short)posePair.startOffset;
+                        copiedInserter.insertOffset = (short)posePair.endOffset;
                     }
                 }
             }
+
+
+/*        factory.ReadObjectConn(sourceEntity.id, 1, out bool isOutput, out int connectedId, out int connectedSlot);
+
+            if (connectedId != 0)
+            {
+                copiedInserter.startSlot = connectedSlot;
+            }
+
+            
+            factory.ReadObjectConn(sourceEntity.id, 0, out _, out connectedId, out connectedSlot);
+            if (connectedId != 0)
+            {
+                copiedInserter.endSlot = connectedSlot;
+            }
+*/
 
             data.copiedInserters.Add(copiedInserter);
 
@@ -634,12 +569,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
                 int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
 
-                float sizeDeviation = building.originalSegmentCount / (float) newSegmentCount;
+                float sizeDeviation = building.originalSegmentCount / (float)newSegmentCount;
                 if (sizeDeviation > currentMaxWidth)
                     currentMaxWidth = sizeDeviation;
+                
 
-                /* if (sizeDeviation < lastMaxWidth)
-                    sizeDeviation = lastMaxWidth;*/
+                if (useExperimentalWidthFix && sizeDeviation < lastMaxWidth)
+                    sizeDeviation = lastMaxWidth;
 
                 sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
 
@@ -647,8 +583,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 absoluteBuildingPos = GameMain.data.mainPlayer.planetData.aux.Snap(absoluteBuildingPos, true, false);
 
-
-                //Vector3 absoluteBuildingPos = GetPointFromMoves(targetPos, building.movesFromReference, absoluteTargetRot);
                 Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
                 PrefabDesc desc = GetPrefabDesc(building);
                 BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc, true);
@@ -687,12 +621,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
                 int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
 
-                float sizeDeviation = belt.originalSegmentCount / (float) newSegmentCount;
+                float sizeDeviation = belt.originalSegmentCount / (float)newSegmentCount;
                 if (sizeDeviation > currentMaxWidth)
                     currentMaxWidth = sizeDeviation;
 
-                /*if (sizeDeviation < lastMaxWidth)
-                    sizeDeviation = lastMaxWidth;*/
+                if (useExperimentalWidthFix && sizeDeviation < lastMaxWidth)
+                    sizeDeviation = lastMaxWidth;
 
                 sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
 
@@ -732,7 +666,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     objId = objId,
                     buildPreview = bp,
                 });
-                //absolutePositions.Add(absoluteBeltPos);
+
                 previews.Add(bp);
             }
 
@@ -742,8 +676,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 BuildPreview preview = pastedEntities[belt.originalId].buildPreview;
 
-                if (belt.outputId != 0 && pastedEntities.TryGetValue(belt.outputId, out PastedEntity otherEntity))
+                if (belt.outputId != 0 &&
+                    pastedEntities.TryGetValue(belt.outputId, out PastedEntity otherEntity) &&
+                    Vector3.Distance(preview.lpos, otherEntity.buildPreview.lpos) < 20) // if the belts are too far apart ignore connection
                 {
+                    
                     preview.output = otherEntity.buildPreview;
                     var otherBelt = data.copiedBelts[otherEntity.index];
 
@@ -761,16 +698,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
                 }
 
-                if (belt.connectedBuildingId != 0 && pastedEntities.ContainsKey(belt.connectedBuildingId))
+                if (belt.connectedBuildingId != 0 && pastedEntities.TryGetValue(belt.connectedBuildingId, out PastedEntity otherBuilding))
                 {
                     if (belt.connectedBuildingIsOutput)
                     {
-                        preview.output = pastedEntities[belt.connectedBuildingId].buildPreview;
+                        preview.output = otherBuilding.buildPreview;
                         preview.outputToSlot = belt.connectedBuildingSlot;
                     }
                     else
                     {
-                        preview.input = pastedEntities[belt.connectedBuildingId].buildPreview;
+                        preview.input = otherBuilding.buildPreview;
                         preview.inputFromSlot = belt.connectedBuildingSlot;
                     }
                 }
@@ -793,15 +730,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 BuildPreview bp = BuildPreview.CreateSingle(LDB.items.Select(copiedInserter.itemProto.ID), copiedInserter.itemProto.prefabDesc, true);
                 bp.ResetInfos();
 
-                BuildPreview buildPreview = pastedEntities[copiedInserter.referenceBuildingId].buildPreview;
+                bp.lpos = positionData.absoluteInserterPos;
+                bp.lpos2 = positionData.absoluteInserterPos2;
 
-                bp.lpos = positionData
-                    .absoluteInserterPos; //(buildPreview.lpos.ToSpherical() + positionData.posDelta).ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
-                bp.lpos2 = positionData
-                    .absoluteInserterPos2; //(buildPreview.lpos.ToSpherical() + positionData.pos2Delta).ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
-
-                bp.lrot = positionData.absoluteInserterRot; //buildPreview.lrot * copiedInserter.rot;
-                bp.lrot2 = positionData.absoluteInserterRot2; //buildPreview.lrot * copiedInserter.rot2;
+                bp.lrot = positionData.absoluteInserterRot;
+                bp.lrot2 = positionData.absoluteInserterRot2;
 
                 bp.inputToSlot = 1;
                 bp.outputFromSlot = 0;
@@ -814,18 +747,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 bp.filterId = copiedInserter.filterId;
 
-                if (pastedEntities.ContainsKey(positionData.inputOriginalId))
+                if (pastedEntities.TryGetValue(positionData.inputOriginalId, out PastedEntity inputEntity))
                 {
-                    bp.input = pastedEntities[positionData.inputOriginalId].buildPreview;
+                    bp.input = inputEntity.buildPreview;
                 }
                 else
                 {
                     bp.inputObjId = positionData.inputObjId;
                 }
 
-                if (pastedEntities.ContainsKey(positionData.outputOriginalId))
+                if (pastedEntities.TryGetValue(positionData.outputOriginalId, out PastedEntity outputEntity))
                 {
-                    bp.output = pastedEntities[positionData.outputOriginalId].buildPreview;
+                    bp.output = outputEntity.buildPreview;
                 }
                 else
                 {

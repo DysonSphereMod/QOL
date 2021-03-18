@@ -18,7 +18,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public int protoId;
         public int originalId = 0;
-        public int referenceId = 0;
 
         public Vector2 cursorRelativePos = Vector3.zero;
         public int originalSegmentCount;
@@ -84,6 +83,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int insertTarget;
 
         public int referenceBuildingId = 0;
+        public Vector2 otherPosDelta;
+        public int otherPosDeltaCount;
 
         public bool incoming;
         public int startSlot;
@@ -98,16 +99,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Quaternion rot2;
         public short pickOffset;
         public short insertOffset;
-        //public short t1;
-        //public short t2;
         public int filterId;
-        //public int refCount;
         public bool otherIsBelt;
     }
-    
-    
 
-    // reduce vector3 position to 2 decimal digits to reduce blueprint size
+    // reduce Vector3 to an array of 3 digits integers to reduce blueprint size
     public class Vector3Converter : fsDirectConverter
     {
         public const float JSON_PRECISION = 100f;
@@ -149,7 +145,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return fsResult.Success;
         }
     }
-    
+
+    // reduce Vector2 to an array of 3 digits integers to reduce blueprint size
     public class Vector2Converter : fsDirectConverter
     {
         public const float JSON_PRECISION = 100f;
@@ -187,7 +184,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return fsResult.Success;
         }
     }
-    
+
+    // reduce Quaternion to an array of 5 digits integers to reduce blueprint size
     public class QuaternionConverter : fsDirectConverter
     {
         public const float JSON_PRECISION = 10000f;
@@ -230,26 +228,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
     }
 
-    public class BlueprintDataV1
-    {
-        public string name = "";
-        public int version = 1;
-        public Vector3 referencePos = Vector3.zero;
-        public Quaternion inverseReferenceRot = Quaternion.identity;
-        public float referenceYaw = 0f;
-
-        public Dictionary<int, BuildingCopy> copiedBuildings;
-        public Dictionary<int, InserterCopy> copiedInserters;
-        public Dictionary<int, BeltCopy> copiedBelts;
-    }
-
     public class BlueprintData
     {
         [NonSerialized]
         public string name = "";
-        public int version = 3;
+        public int version = 2;
         public Vector2 referencePos = Vector3.zero;
-        public float referenceYaw = 0f;
 
         public List<BuildingCopy> copiedBuildings = new List<BuildingCopy>();
         public List<InserterCopy> copiedInserters = new List<InserterCopy>();
@@ -294,35 +278,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             catch (Exception e)
             {
                 Console.WriteLine("Error while trying to deserialise v2: " + e.ToString());
-            }
-
-            
-            if(deserialized == null || deserialized.version == 1)
-            {
-                Debug.Log("restoring from v1");
-                try
-                {
-                    fsSerializer serializer = new fsSerializer();
-
-                    fsData data = fsJsonParser.Parse(unzipped);
-                    BlueprintDataV1 deserializedV1 = null;
-                    serializer.TryDeserialize<BlueprintDataV1>(data, ref deserializedV1).AssertSuccessWithoutWarnings();
-
-                    deserialized = new BlueprintData()
-                    {
-                        referencePos = deserializedV1.referencePos,
-                        referenceYaw = deserializedV1.referenceYaw,
-                    };
-
-                    deserialized.copiedBuildings = deserializedV1.copiedBuildings.Values.ToList();
-                    deserialized.copiedBelts = deserializedV1.copiedBelts.Values.ToList();
-                    deserialized.copiedInserters = deserializedV1.copiedInserters.Values.ToList();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Error while trying to deserialise v1: " + e.ToString());
-                    return null;
-                }
+                return null;
             }
 
             foreach (var building in deserialized.copiedBuildings)

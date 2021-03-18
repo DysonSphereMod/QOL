@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.0.6")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.1.0")]
     [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct", BepInDependency.DependencyFlags.SoftDependency)]
@@ -66,6 +66,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     isValidInstallation = false;
                     harmony.PatchAll(typeof(IncompatibilityNotice));
                 }
+
 
                 if (isValidInstallation)
                 {
@@ -291,8 +292,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 tooltips.Add("decrease-radius", __instance.RegisterTip("-", "Decrease selection area"));
                 tooltips.Add("bp-select", __instance.RegisterTip(0, "Add building to blueprint"));
                 tooltips.Add("bp-deselect", __instance.RegisterTip("CTRL", 0, "Remove building from blueprint"));
-                
-                
+
+
             }
             tooltips["toggle-build"].desired = tooltips["toggle-inserters"].desired = IsMultiBuildAvailable();
 

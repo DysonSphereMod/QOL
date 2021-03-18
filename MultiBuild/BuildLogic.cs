@@ -20,6 +20,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static Dictionary<int, BuildingCopy> toPostProcess = new Dictionary<int, BuildingCopy>();
 
+        public static bool IsInserterConnected (BuildPreview bp)
+        {
+            return (bp.input != null || bp.inputObjId != 0) && (bp.output != null || bp.outputObjId != 0);
+        }
+
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool PlayerAction_Build_CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
@@ -46,7 +51,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 for (var i = 0; i < __instance.buildPreviews.Count; i++)
                 {
                     var bp = __instance.buildPreviews[i];
-                    if (bp.desc.isInserter && ((bp.input == null && bp.inputObjId == 0) || (bp.output == null && bp.outputObjId == 0)))
+                    if (bp.desc.isInserter && !IsInserterConnected(bp))
                     {
                         __instance.RemoveBuildPreview(bp);
                         --i;
@@ -84,7 +89,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 var entity = __instance.factory.entityPool[postObjId];
 
-                if (sourceBuilding.itemProto.prefabDesc.isStation)
+                if (entity.stationId > 0)
                 {
                     var stationComponent = __instance.factory.transport.GetStationComponent(entity.stationId);
                     foreach (var settings in sourceBuilding.stationSettings)
@@ -441,8 +446,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         Material material;
                         if (isInserter)
                         {
-                            bool isNotConnected = (buildPreview.input == null && buildPreview.inputObjId == 0) || (buildPreview.output == null && buildPreview.outputObjId == 0);
-                            Material original = buildPreview.condition != EBuildCondition.Ok ? Configs.builtin.previewErrorMat_Inserter : (isNotConnected ? Configs.builtin.previewGizmoMat_Inserter : Configs.builtin.previewOkMat_Inserter);
+                            Material original = buildPreview.condition != EBuildCondition.Ok ? Configs.builtin.previewErrorMat_Inserter : (IsInserterConnected(buildPreview) ? Configs.builtin.previewOkMat_Inserter : Configs.builtin.previewGizmoMat_Inserter);
                             Material existingMaterial = __instance.previewRenderers[previewIndex].sharedMaterial;
 
                             if (existingMaterial != null && !existingMaterial.name.StartsWith(original.name))
@@ -533,28 +537,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return false;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
-        public static void PlayerAction_Build_SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId)
-        {
-            BlueprintManager.Reset();
-            if (objectId < 0)
-                return;
-
-            var itemProto = LDB.items.Select(__instance.factory.entityPool[objectId].protoId);
-
-            if (itemProto.prefabDesc.insertPoses.Length > 0)
-            {
-                var toAdd = new List<int>() { objectId };
-                BlueprintManager.CopyEntities(toAdd);
-                Debug.Log($"copy time {BlueprintManager.hasData} {BlueprintManager.data.copiedBuildings.Count} ");
-                if (BlueprintManager.hasData)
-                {
-                    BlueprintManager.data.copiedBuildings[0].recipeId = __instance.copyRecipeId;
-                    __instance.yaw = BlueprintManager.data.referenceYaw;
-                }
-            }
-        }
-
         [HarmonyTranspiler, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
         public static IEnumerable<CodeInstruction> PlayerAction_Build_CheckBuildConditions_Patch(IEnumerable<CodeInstruction> instructions)
         {
@@ -569,10 +551,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     // ignore checkbuildconditions for all inserters when copy pasting as we already took care of checking for collisions
                     if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isInserter)
                     {
+                        var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
                         // only check that we have enough items
                         if (buildPreview.coverObjId == 0 || buildPreview.willCover)
                         {
-                            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+                            
                             int id = buildPreview.item.ID;
                             int num = 1;
                             if (actionBuild.tmpInhandId == id && actionBuild.tmpInhandCount > 0)
@@ -589,6 +572,60 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                                 buildPreview.condition = EBuildCondition.NotEnoughItem;
                             }
                         }
+
+                        if(buildPreview.condition != EBuildCondition.Ok || !IsInserterConnected(buildPreview))
+                        {
+                            return true;
+                        }
+
+                        // must calculate correct refCount/refArr to ensure inserter moves has the right speed
+
+                        Vector3 posR = Vector3.zero;
+                        bool inputIsBelt;
+                        Vector3 inputPos;
+                        bool outputIsBelt;
+                        Vector3 outputPos;
+                        if(buildPreview.input == null)
+                        {
+                            inputPos = actionBuild.GetObjectPose(buildPreview.inputObjId).position;
+                            inputIsBelt = actionBuild.ObjectIsBelt(buildPreview.inputObjId);
+                        } else
+                        {
+                            inputPos = buildPreview.input.lpos;
+                            inputIsBelt = buildPreview.input.desc.isBelt;
+                        }
+                        if (buildPreview.output == null)
+                        {
+                            outputPos = actionBuild.GetObjectPose(buildPreview.outputObjId).position;
+                            outputIsBelt = actionBuild.ObjectIsBelt(buildPreview.outputObjId);
+                        }
+                        else
+                        {
+                            outputPos = buildPreview.output.lpos;
+                            outputIsBelt = buildPreview.output.desc.isBelt;
+                        }
+
+                        if (inputIsBelt && !outputIsBelt)
+                        {
+                            posR = outputPos;
+                        }
+                        else if (!inputIsBelt && outputIsBelt)
+                        {
+                            posR = inputPos;
+                        }
+                        else
+                        {
+                            posR = (inputPos + outputPos) * 0.5f;
+                        }
+                        float segmentsCount = actionBuild.planetAux.mainGrid.CalcSegmentsAcross(posR, buildPreview.lpos, buildPreview.lpos2);
+
+                        if (!inputIsBelt && !outputIsBelt)
+                        {
+                            segmentsCount -= 0.3f;
+                        }
+                        buildPreview.refCount = Mathf.RoundToInt(Mathf.Clamp(segmentsCount, 1f, 3f));
+                        buildPreview.refArr = new int[buildPreview.refCount];
+
                         return true;
                     }
                     return false;

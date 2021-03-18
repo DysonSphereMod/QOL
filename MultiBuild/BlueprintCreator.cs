@@ -33,6 +33,31 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return !bpMode;
         }
 
+        [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
+        public static void PlayerAction_Build_SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId)
+        {
+            if(bpMode)
+            {
+                EndBpMode(true);
+            }
+            BlueprintManager.Reset();
+            if (objectId < 0)
+                return;
+
+            var itemProto = LDB.items.Select(__instance.factory.entityPool[objectId].protoId);
+
+            if (itemProto.prefabDesc.insertPoses.Length > 0)
+            {
+                var toAdd = new List<int>() { objectId };
+                BlueprintManager.CopyEntities(toAdd);
+
+                if (BlueprintManager.hasData)
+                {
+                    BlueprintManager.data.copiedBuildings[0].recipeId = __instance.copyRecipeId;
+                    __instance.yaw = 0f;
+                }
+            }
+        }
 
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "GameTick")]
         public static void PlayerAction_Build_GameTick_Postfix(ref PlayerAction_Build __instance)
@@ -58,7 +83,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     // target only buildings
                     int mask = 131072;
-                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 0.2f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
+                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 0.1f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
 
                     PlanetPhysics planetPhysics = __instance.player.planetData.physics;
                     for (int i = 0; i < found; i++)
