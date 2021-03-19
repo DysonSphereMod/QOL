@@ -35,7 +35,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
         public static bool useExperimentalWidthFix = false;
-        public static int manualWidthDiff = 0;
         private static float lastMaxWidth = 0;
 
         private static int[] _nearObjectIds = new int[128];
@@ -586,7 +585,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
 
-                Vector3 absoluteBuildingPos = sprPos.SnapToGrid(GameMain.localPlanet.realRadius + 0.2f);
+                Vector3 absoluteBuildingPos = sprPos.SnapToGrid();
 
                 Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
                 PrefabDesc desc = GetPrefabDesc(building);
@@ -635,11 +634,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
 
-                Vector3 absoluteBeltPos = sprPos.SnapToGrid(GameMain.localPlanet.realRadius + 0.2f);
-
-                // unfortunately planetData.aux.Snap doesn't allow to snap to intermediate altitudes even if onTerrain is set as false.
-                // because of this we have to calculate the final position, including the altituted AFTER the snap.
-                absoluteBeltPos = absoluteBeltPos.normalized * (GameMain.localPlanet.realRadius + 0.2f + belt.altitude * 1.3333333f / 2);
+                Vector3 absoluteBeltPos = sprPos.SnapToGrid(belt.altitude * 1.3333333f / 2);
 
                 // belts have always 0 yaw
                 Quaternion absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
