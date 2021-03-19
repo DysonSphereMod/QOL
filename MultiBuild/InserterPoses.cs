@@ -150,17 +150,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     {
                         EntityData entityData = factory.entityPool[id];
                         proto = LDB.items.Select((int)entityData.protoId);
+                        // ignore buildings without inserter poses
+                        if (!proto.prefabDesc.isBelt && proto.prefabDesc.insertPoses.Length == 0) continue;
+      
                         distance = Vector3.Distance(entityData.pos, testPos);
                     }
                     else
                     {
                         PrebuildData prebuildData = factory.prebuildPool[-id];
                         proto = LDB.items.Select((int)prebuildData.protoId);
-                        if (proto.prefabDesc.isBelt)
-                        {
-                            // ignore unbuilt belts
-                            continue;
-                        }
+
+                        // ignore unbuilt belts and buildings without inserter poses
+                        if (proto.prefabDesc.isBelt || proto.prefabDesc.insertPoses.Length == 0) continue;
+
                         distance = Vector3.Distance(prebuildData.pos, testPos);
                     }
 

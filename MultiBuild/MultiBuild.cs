@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.1.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.1.3")]
     [BepInDependency("com.brokenmass.plugin.DSP.MultiBuildUI", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
