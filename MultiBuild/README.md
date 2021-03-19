@@ -82,6 +82,10 @@ When `shift+click` an exisisting building it will be copied with all the connect
   
 ## Changelog
 
+### v2.1.2-Beta
+- Allow to import blueprintV1 ! (thanks `Kremnev8`)
+- fix edge case bug that could led to belt not correctly conencting to tanks / splitter / logistic towers 
+
 ### v2.1.1-Beta
 - Allow to copy / paste elevated belts (multilevel buildings are still ignored even if they appear as selected)
 - Allow to connect blueprinted belts with existing ones (only at belt extremities and direction must, obviously, match)

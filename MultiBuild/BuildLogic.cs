@@ -561,7 +561,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
                 {
                     // remove checks for belts by stating that the current buildPreview is not a belt.
-                    if (BlueprintManager.pastedEntities.Count > 0)
+                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isBelt)
                     {
                         var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
                         // but we have to take care of collision checks

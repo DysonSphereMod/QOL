@@ -4,12 +4,30 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
+    [Serializable]
+    public class StationSetting
+    {
+        public int index;
+        public int itemId;
+        public int max;
+        public ELogisticStorage localLogic;
+        public ELogisticStorage remoteLogic;
+    }
+
+    [Serializable]
+    public class SlotFilter
+    {
+        public int slotIndex;
+        public int storageIdx;
+    }
+
     [Serializable]
     public class BeltCopy
     {
@@ -31,37 +49,40 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public int connectedBuildingId;
         public int connectedBuildingSlot;
         public bool connectedBuildingIsOutput;
+
+        public BeltCopy() { }
+
+        public BeltCopy(BeltCopy_V1 model, Vector2 referencePos)
+        {
+            FieldInfo[] fields = GetType().GetFields();
+            foreach (FieldInfo field in fields)
+            {
+                FieldInfo fieldOrg = model.GetType().GetField(field.Name);
+                if (fieldOrg != null && field.FieldType == fieldOrg.FieldType)
+                {
+                    field.SetValue(this, fieldOrg.GetValue(model));
+                }
+            }
+
+            Vector2 sourceSprPos = model.originalPos.ToSpherical();
+
+            originalSegmentCount = sourceSprPos.GetSegmentsCount();
+            cursorRelativePos = (sourceSprPos - referencePos).Clamp();
+        }
     }
 
     [Serializable]
     public class BuildingCopy
     {
-        [Serializable]
-        public class StationSetting
-        {
-            public int index;
-            public int itemId;
-            public int max;
-            public ELogisticStorage localLogic;
-            public ELogisticStorage remoteLogic;
-        }
 
-        [Serializable]
-        public class SlotFilter
-        {
-            public int slotIndex;
-            public int storageIdx;
-        }
-
-        [NonSerialized]
-        public ItemProto itemProto;
+        [NonSerialized] public ItemProto itemProto;
 
         public int protoId;
         public int originalId = 0;
 
         public int originalSegmentCount;
         public Vector2 cursorRelativePos = Vector2.zero;
-        
+
         public float cursorRelativeYaw = 0f;
         public int modelIndex = 0;
 
@@ -69,6 +90,27 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public List<StationSetting> stationSettings = new List<StationSetting>();
         public List<SlotFilter> slotFilters = new List<SlotFilter>();
+
+        public BuildingCopy() { }
+
+        public BuildingCopy(BuildingCopy_V1 model, Vector2 referencePos, float referenceYaw)
+        {
+            FieldInfo[] fields = GetType().GetFields();
+            foreach (FieldInfo field in fields)
+            {
+                FieldInfo fieldOrg = model.GetType().GetField(field.Name);
+                if (fieldOrg != null && field.FieldType == fieldOrg.FieldType)
+                {
+                    field.SetValue(this, fieldOrg.GetValue(model));
+                }
+            }
+
+            Vector2 sourceSprPos = model.originalPos.ToSpherical();
+
+            originalSegmentCount = sourceSprPos.GetSegmentsCount();
+            cursorRelativePos = (sourceSprPos - referencePos).Clamp();
+            cursorRelativeYaw = model.cursorRelativeYaw + referenceYaw;
+        }
     }
 
     [Serializable]
@@ -102,6 +144,38 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public short insertOffset;
         public int filterId;
         public bool otherIsBelt;
+
+        public InserterCopy() { }
+
+        public InserterCopy(InserterCopy_V1 model, BlueprintData_V1 data)
+        {
+            FieldInfo[] fields = GetType().GetFields();
+            foreach (FieldInfo field in fields)
+            {
+                FieldInfo fieldOrg = model.GetType().GetField(field.Name);
+                if (fieldOrg != null && field.FieldType == fieldOrg.FieldType)
+                {
+                    field.SetValue(this, fieldOrg.GetValue(model));
+                }
+            }
+
+            BuildingCopy_V1 building = data.copiedBuildings[referenceBuildingId];
+            Vector2 buildingSprPos = building.originalPos.ToSpherical();
+
+            Vector2 oldPosDelta = (building.originalPos + building.originalRot * model.posDelta).ToSpherical();
+            Vector2 oldPos2Delta = (building.originalPos + building.originalRot * model.pos2Delta).ToSpherical();
+
+            posDelta = (oldPosDelta - buildingSprPos).Clamp();
+            pos2Delta = (oldPos2Delta - buildingSprPos).Clamp();
+
+            posDeltaCount = oldPosDelta.GetSegmentsCount();
+            pos2DeltaCount = oldPos2Delta.GetSegmentsCount();
+
+            Vector2 oldOtherSprPos = BlueprintData_V1.GetPointFromMoves(building.originalPos, model.movesFromReference, building.originalRot).ToSpherical();
+
+            otherPosDelta = oldOtherSprPos - buildingSprPos;
+            otherPosDeltaCount = oldOtherSprPos.GetSegmentsCount();
+        }
     }
 
     // reduce Vector3 to an array of 3 digits integers to reduce blueprint size
@@ -157,7 +231,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             return new Vector2();
         }
-        
+
         public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
         {
             Vector2 converted = ((Vector2) instance).ToDegrees();
@@ -181,7 +255,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 x = data[0].AsInt64 / JSON_PRECISION,
                 y = data[1].AsInt64 / JSON_PRECISION
             }.ToRadians();
-            
+
             return fsResult.Success;
         }
     }
@@ -196,7 +270,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             return new Quaternion();
         }
-        
+
         public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
         {
             Quaternion inst = (Quaternion) instance;
@@ -224,21 +298,46 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 z = data[2].AsInt64 / JSON_PRECISION,
                 w = data[3].AsInt64 / JSON_PRECISION
             };
-            
+
             return fsResult.Success;
         }
     }
 
+    [fsObject("2", typeof(BlueprintData_V1))]
     public class BlueprintData
     {
-        [NonSerialized]
-        public string name = "";
-        public int version = 2;
-        public Vector2 referencePos = Vector3.zero;
+        [NonSerialized] public string name = "";
+        public Vector2 referencePos = Vector2.zero;
 
         public List<BuildingCopy> copiedBuildings = new List<BuildingCopy>();
         public List<InserterCopy> copiedInserters = new List<InserterCopy>();
         public List<BeltCopy> copiedBelts = new List<BeltCopy>();
+
+        public BlueprintData() { }
+
+
+        public BlueprintData(BlueprintData_V1 model)
+        {
+            Debug.Log("Converting from v1!");
+
+            name = model.name;
+            referencePos = model.referencePos.ToSpherical();
+
+            foreach (BuildingCopy_V1 building in model.copiedBuildings.Values)
+            {
+                copiedBuildings.Add(new BuildingCopy(building, referencePos, model.referenceYaw));
+            }
+
+            foreach (BeltCopy_V1 belt in model.copiedBelts.Values)
+            {
+                copiedBelts.Add(new BeltCopy(belt, referencePos));
+            }
+
+            foreach (InserterCopy_V1 building in model.copiedInserters.Values)
+            {
+                copiedInserters.Add(new InserterCopy(building, model));
+            }
+        }
 
         public static BlueprintData Import(string input)
         {
@@ -268,17 +367,33 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             try
             {
                 fsSerializer serializer = new fsSerializer();
-                serializer.AddConverter(new Vector3Converter());
-                serializer.AddConverter(new Vector2Converter());
-                serializer.AddConverter(new QuaternionConverter());
 
                 fsData data = fsJsonParser.Parse(unzipped);
+
+                if (data.AsDictionary.ContainsKey("version"))
+                {
+                    int intVer = (int) data.AsDictionary["version"].AsInt64;
+                    data.AsDictionary["$version"] = new fsData(intVer.ToString());
+                }
+
+                string version = data.AsDictionary["$version"].AsString;
+
+                if (version.Equals("1"))
+                {
+                    serializer.AddConverter(new Vector3Converter_V1());
+                }
+                else
+                {
+                    serializer.AddConverter(new Vector3Converter());
+                    serializer.AddConverter(new Vector2Converter());
+                    serializer.AddConverter(new QuaternionConverter());
+                }
 
                 serializer.TryDeserialize<BlueprintData>(data, ref deserialized).AssertSuccessWithoutWarnings();
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error while trying to deserialise v2: " + e.ToString());
+                Console.WriteLine("Error while trying to deserialise: " + e.ToString());
                 return null;
             }
 

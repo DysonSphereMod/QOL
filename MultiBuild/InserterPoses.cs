@@ -129,7 +129,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 var otherPosDelta = copiedInserter.otherPosDelta.Rotate(yawRad, copiedInserter.otherPosDeltaCount);
                 Vector3 testPos = absoluteBuildingPosSpr
                     .ApplyDelta(otherPosDelta, copiedInserter.otherPosDeltaCount)
-                    .ToCartesian(GameMain.localPlanet.realRadius + 0.2f);
+                    .SnapToGrid();
 
                 // find building nearby
                 int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
