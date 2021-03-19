@@ -93,7 +93,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public BuildingCopy() { }
 
-        public BuildingCopy(BuildingCopy_V1 model, Vector2 referencePos)
+        public BuildingCopy(BuildingCopy_V1 model, Vector2 referencePos, float referenceYaw)
         {
             FieldInfo[] fields = GetType().GetFields();
             foreach (FieldInfo field in fields)
@@ -109,6 +109,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             originalSegmentCount = sourceSprPos.GetSegmentsCount();
             cursorRelativePos = (sourceSprPos - referencePos).Clamp();
+            cursorRelativeYaw = model.cursorRelativeYaw + referenceYaw;
         }
     }
 
@@ -324,7 +325,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             foreach (BuildingCopy_V1 building in model.copiedBuildings.Values)
             {
-                copiedBuildings.Add(new BuildingCopy(building, referencePos));
+                copiedBuildings.Add(new BuildingCopy(building, referencePos, model.referenceYaw));
             }
 
             foreach (BeltCopy_V1 belt in model.copiedBelts.Values)
