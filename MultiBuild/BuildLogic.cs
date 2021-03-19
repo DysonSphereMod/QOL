@@ -299,7 +299,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     for (int s = 0; s < snappedPointCount; s++)
                     {
                         var pos = snaps[s];
-                        var rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
+                        var rot = Maths.SphericalRotation(snaps[s], __instance.yaw + building.cursorRelativeYaw);
 
                         if (s > 0)
                         {
