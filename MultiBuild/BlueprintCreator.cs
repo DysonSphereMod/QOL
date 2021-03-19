@@ -83,7 +83,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     // target only buildings
                     int mask = 131072;
-                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 0.1f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
+                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 100f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
 
                     PlanetPhysics planetPhysics = __instance.player.planetData.physics;
                     for (int i = 0; i < found; i++)

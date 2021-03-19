@@ -5,18 +5,16 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using com.brokenmass.plugin.DSP.MultiBuildUI;
-using System.Linq;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.1.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.1.1")]
+    [BepInDependency("com.brokenmass.plugin.DSP.MultiBuildUI", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("me.xiaoye97.plugin.Dyson.AdvancedBuildDestruct", BepInDependency.DependencyFlags.SoftDependency)]
-    [BepInDependency("com.brokenmass.plugin.DSP.MultiBuildUI", BepInDependency.DependencyFlags.HardDependency)]
-
-    //KG-Long_Building_Selection_and_Free_M_Globalmap-1.0.0
+    
+    //possible incompatible dependency : KG-Long_Building_Selection_and_Free_M_Globalmap-1.0.0
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "Beta";

@@ -22,6 +22,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Vector2 cursorRelativePos = Vector3.zero;
         public int originalSegmentCount;
 
+        public int altitude = 0;
         public int backInputId;
         public int leftInputId;
         public int rightInputId;
