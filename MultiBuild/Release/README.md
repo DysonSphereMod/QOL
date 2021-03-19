@@ -82,6 +82,9 @@ When `shift+click` an exisisting building it will be copied with all the connect
   
 ## Changelog
 
+### v2.1.4-Beta
+- Fix error when hovering a multilevel tank while holding a belt in hand
+
 ### v2.1.3-Beta
 - Fix issue with colliders in multibuild mode where shift+clicking a rotated entity and using multibuild mode was leading to either too spaced or not spaced enough copies (the collider of the copies was not correctly rotated)
 - Fix issue that allowed to connect inserter to building without inserter slots (like tesla towers for example), when copying building with attached inserters
