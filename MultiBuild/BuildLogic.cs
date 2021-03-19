@@ -583,7 +583,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                         return false;
                     }
-
                     return buildPreview.desc.isBelt;
                 }))
                 .MatchForward(false,
@@ -674,7 +673,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                         return true;
                     }
-                    return false;
+
+                    return buildPreview.condition != EBuildCondition.Ok;
                 }));
 
             return matcher.InstructionEnumeration();
