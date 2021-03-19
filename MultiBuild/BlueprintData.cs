@@ -339,10 +339,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        public static BlueprintData Import(string input)
+        public static BlueprintData Import(string input, out HashSet<int> incompatibleIds)
         {
             string unzipped;
             var name = "";
+            incompatibleIds = new HashSet<int>();
 
             try
             {
@@ -400,16 +401,33 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             foreach (var building in deserialized.copiedBuildings)
             {
                 building.itemProto = LDB.items.Select((int)building.protoId);
+                if(building.itemProto == null)
+                {
+                    incompatibleIds.Add(building.protoId);
+                }
             }
             foreach (var belt in deserialized.copiedBelts)
             {
                 belt.itemProto = LDB.items.Select((int)belt.protoId);
+                if (belt.itemProto == null)
+                {
+                    incompatibleIds.Add(belt.protoId);
+                }
             }
             foreach (var inserter in deserialized.copiedInserters)
             {
                 inserter.itemProto = LDB.items.Select((int)inserter.protoId);
+                if (inserter.itemProto == null)
+                {
+                    incompatibleIds.Add(inserter.protoId);
+                }
             }
 
+
+            if(incompatibleIds.Count > 0)
+            {
+                return null;
+            }
 
             deserialized.name = name;
             return deserialized;

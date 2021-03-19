@@ -89,7 +89,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         {
                             BlueprintCreator.EndBpMode(true);
                         }
-                        var data = BlueprintData.Import(GUIUtility.systemCopyBuffer);
+                        HashSet<int> incompatibleIds;
+                        var data = BlueprintData.Import(GUIUtility.systemCopyBuffer, out incompatibleIds);
                         if (data != null)
                         {
                             BlueprintManager.Restore(data);
@@ -97,7 +98,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
                         else
                         {
-                            UIRealtimeTip.Popup("Error while importing data from your clipboard", true);
+                            string message = "Error while importing data from your clipboard";
+                            if (incompatibleIds.Count > 0)
+                            {
+                                message += $" - Found {incompatibleIds.Count} incompatible entities.\nIds: [{incompatibleIds.Join(null, ", ")}]";
+                            }
+                            UIRealtimeTip.Popup(message, true);
                         }
                     };
                     UIBlueprintGroup.onExport = () =>
