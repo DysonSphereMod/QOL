@@ -73,7 +73,6 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
 - **What are the limitations of this mod (Blueprint mode)?**  
   This mod is still in development and so has one or more know issue:
-  - positionin of entities around the poles is a bit finicky
   - in some conditions, when pasting a blueprint, it's possible to place building nearer than what is possible in vanilla
   - splitter / boxes settings are not copied
 
@@ -83,9 +82,14 @@ When `shift+click` an exisisting building it will be copied with all the connect
   
 ## Changelog
 
+### v2.1.1-Beta
+- Allow to copy / paste elevated belts (multilevel buildings are still ignored even if they appear as selected)
+- Allow to connect blueprinted belts with existing ones (only at belt extremities and direction must, obviously, match)
+- Allow belt to belt inserter in blueprint as long as both start and end belt are selected
+
 ### v2.1.0-Beta
-- BREAKING CHANGE : Blueprint data format v2: 80% blueprint size reduction. 
-- new polar coordinates positioning system. AMAZING work by `Kremnev8`
+- BREAKING CHANGE: Blueprint data format v2: 80% blueprint size reduction. 
+- new Spherical coordinates positioning system. AMAZING work by `Kremnev8`
 - General code cleanup and big performance improvements across the board
 - fix bug where building of a blueprints could be placed on water if positioned outside the mecha building range 
 - fix blueprint menu not closing in sail mode

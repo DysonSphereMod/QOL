@@ -37,6 +37,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         private static bool useExperimentalWidthFix = false;
         private static float lastMaxWidth = 0;
 
+        private static int[] _nearObjectIds = new int[128];
         public static void Reset()
         {
             if (!hasData)
@@ -179,7 +180,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 if (entityProto.prefabDesc.isInserter || entityProto.prefabDesc.minerType != EMinerType.None) continue;
 
-                if (!entityProto.prefabDesc.isBelt)
+
+                // ignore multilevel buildings (for now)
+                if (!entityProto.prefabDesc.isBelt && (entity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f) < 0.5f)
                 {
                     buildings.Add(entity);
                 }
@@ -232,7 +235,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 originalId = sourceEntity.id,
                 protoId = sourceEntityProto.ID,
                 itemProto = sourceEntityProto,
-
+                altitude = Mathf.RoundToInt(2 * (sourceEntity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f ) / 1.3333333f),
                 backInputId = factory.cargoTraffic.beltPool[belt.backInputId].entityId,
                 leftInputId = factory.cargoTraffic.beltPool[belt.leftInputId].entityId,
                 rightInputId = factory.cargoTraffic.beltPool[belt.rightInputId].entityId,
@@ -300,6 +303,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             Quaternion zeroRot = Maths.SphericalRotation(sourcePos, 0f);
             float yaw = Vector3.SignedAngle(zeroRot.Forward(), sourceRot.Forward(), zeroRot.Up());
+
 
             BuildingCopy copiedBuilding = new BuildingCopy()
             {
@@ -547,6 +551,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static List<BuildPreview> Paste(Vector3 targetPos, float yaw, bool pasteInserters = true)
         {
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
             pastedEntities.Clear();
             InserterPoses.ResetOverrides();
 
@@ -634,6 +640,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 absoluteBeltPos = GameMain.data.mainPlayer.planetData.aux.Snap(absoluteBeltPos, true, false);
 
+                // unfortunately planetData.aux.Snap doesn't allow to snap to intermediate altitudes even if onTerrain is set as false.
+                // because of this we have to calculate the final position, including the altituted AFTER the snap.
+                absoluteBeltPos = absoluteBeltPos.normalized * (GameMain.localPlanet.realRadius + 0.2f + belt.altitude * 1.3333333f / 2);
 
                 // belts have always 0 yaw
                 Quaternion absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
@@ -678,7 +687,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 if (belt.outputId != 0 &&
                     pastedEntities.TryGetValue(belt.outputId, out PastedEntity otherEntity) &&
-                    Vector3.Distance(preview.lpos, otherEntity.buildPreview.lpos) < 20) // if the belts are too far apart ignore connection
+                    Vector3.Distance(preview.lpos, otherEntity.buildPreview.lpos) < 10) // if the belts are too far apart ignore connection
                 {
                     
                     preview.output = otherEntity.buildPreview;
@@ -711,9 +720,43 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         preview.inputFromSlot = belt.connectedBuildingSlot;
                     }
                 }
+
+                bool beltHasInput = pastedEntities.ContainsKey(belt.backInputId) || pastedEntities.ContainsKey(belt.leftInputId) || pastedEntities.ContainsKey(belt.rightInputId);
+                bool beltHasOutput = pastedEntities.ContainsKey(belt.outputId);
+
+                if (!beltHasInput || !beltHasOutput)
+                {
+                    
+
+                    int found = actionBuild.nearcdLogic.GetBuildingsInAreaNonAlloc(preview.lpos, 0.34f, _nearObjectIds, false);
+                    for (int x = 0; x < found; x++)
+                    {
+                        int overlappingEntityId = _nearObjectIds[x];
+
+                        if (overlappingEntityId <= 0) continue;
+
+                        EntityData overlappingEntityData = actionBuild.factory.entityPool[overlappingEntityId];
+
+                        if (overlappingEntityData.beltId <= 0) continue;
+
+                        BeltComponent overlappingBelt = actionBuild.factory.cargoTraffic.beltPool[overlappingEntityData.beltId];
+
+                        bool overlappingBeltHasInput = (overlappingBelt.backInputId + overlappingBelt.leftInputId + overlappingBelt.rightInputId) != 0;
+                        bool overlappingBeltHasOutput = overlappingBelt.outputId != 0;
+
+                        if ((beltHasOutput && !overlappingBeltHasOutput) || (beltHasInput && !overlappingBeltHasInput ))
+                        {
+                            // found overlapping belt that can be 'replaced' to connect to existing belts
+                            preview.coverObjId = overlappingEntityId;
+                            preview.ignoreCollider = true;
+                            preview.willCover = true;
+                        }
+                    }
+                    
+                }
             }
 
-            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+            
 
             BuildLogic.ActivateColliders(ref actionBuild.nearcdLogic, absolutePositions);
 
@@ -802,7 +845,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         item.color = 0u;
                     }
 
-                    __instance.objs_1.Add(item);
+                    if(preview.ignoreCollider)
+                    {
+                        __instance.objs_0.Add(item);
+                    } else
+                    {
+                        __instance.objs_1.Add(item);
+                    }
+                    
 
                     if (preview.output != null)
                     {
@@ -826,7 +876,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             item.color = 0u;
                         }
 
-                        __instance.objs_1.Add(item);
+                        __instance.objs_0.Add(item);
 
                         Vector3 vector2 = preview.lpos - preview.input.lpos;
                         if (vector2 != Vector3.zero)

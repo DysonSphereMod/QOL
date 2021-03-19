@@ -16,11 +16,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static bool runUpdate = false;
         public static bool lastFlag;
         public static bool lastCursorWarning;
+        public static bool lastRunOriginal;
         public static string lastCursorText;
+        
 
         public static Dictionary<int, BuildingCopy> toPostProcess = new Dictionary<int, BuildingCopy>();
 
-        public static bool IsInserterConnected (BuildPreview bp)
+        public static bool IsInserterConnected(BuildPreview bp)
         {
             return (bp.input != null || bp.inputObjId != 0) && (bp.output != null || bp.outputObjId != 0);
         }
@@ -179,7 +181,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 __instance.player.mecha.buildArea = backupMechaBuildArea;
                 lastCursorText = __instance.cursorText;
                 lastCursorWarning = __instance.cursorWarning;
-
             }
             else
             {
@@ -222,14 +223,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         __instance.multiLevelCovering = true;
                     }
                 }
+
                 if (!MultiBuild.IsMultiBuildRunning() && (__instance.multiLevelCovering || !BlueprintManager.hasData))
                 {
+                    if (!lastRunOriginal)
+                    {
+                        __instance.ClearBuildPreviews();
+                    }
+                    lastRunOriginal = true;
                     return true;
                 }
 
                 // full hijacking of DetermineBuildPreviews
                 runOriginal = false;
-
+                lastRunOriginal = false;
                 if (VFInput._switchSplitter.onDown)
                 {
                     __instance.modelOffset++;
@@ -417,6 +424,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
+            lastRunOriginal = runOriginal;
             return runOriginal;
         }
 
@@ -537,10 +545,47 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return false;
         }
 
+
+
         [HarmonyTranspiler, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
         public static IEnumerable<CodeInstruction> PlayerAction_Build_CheckBuildConditions_Patch(IEnumerable<CodeInstruction> instructions)
         {
             CodeMatcher matcher = new CodeMatcher(instructions)
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.desc))),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(PrefabDesc), nameof(PrefabDesc.isBelt)))
+                )
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Nop))
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldloc_3))
+                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
+                {
+                    // remove checks for belts by stating that the current buildPreview is not a belt.
+                    if (BlueprintManager.pastedEntities.Count > 0)
+                    {
+                        var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+                        // but we have to take care of collision checks
+                        Vector3 testPos = buildPreview.lpos + buildPreview.lpos.normalized * 0.3f;
+                        if (!buildPreview.ignoreCollider)
+                        {
+                            actionBuild.GetOverlappedObjectsNonAlloc(testPos, 0.34f, 3f, false);
+                            if (actionBuild._overlappedCount > 0)
+                            {
+                                buildPreview.condition = EBuildCondition.Collide;
+                            }
+
+                            actionBuild.GetOverlappedVeinsNonAlloc(testPos, 0.6f, 3f);
+                            if (actionBuild._overlappedCount > 0)
+                            {
+                                buildPreview.condition = EBuildCondition.Collide;
+                            }
+                        }
+
+                        return false;
+                    }
+
+                    return buildPreview.desc.isBelt;
+                }))
                 .MatchForward(false,
                     new CodeMatch(OpCodes.Ldloc_3),
                     new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.condition)))
@@ -555,7 +600,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         // only check that we have enough items
                         if (buildPreview.coverObjId == 0 || buildPreview.willCover)
                         {
-                            
+
                             int id = buildPreview.item.ID;
                             int num = 1;
                             if (actionBuild.tmpInhandId == id && actionBuild.tmpInhandCount > 0)
@@ -573,7 +618,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             }
                         }
 
-                        if(buildPreview.condition != EBuildCondition.Ok || !IsInserterConnected(buildPreview))
+                        if (buildPreview.condition != EBuildCondition.Ok || !IsInserterConnected(buildPreview))
                         {
                             return true;
                         }
@@ -585,11 +630,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         Vector3 inputPos;
                         bool outputIsBelt;
                         Vector3 outputPos;
-                        if(buildPreview.input == null)
+                        if (buildPreview.input == null)
                         {
                             inputPos = actionBuild.GetObjectPose(buildPreview.inputObjId).position;
                             inputIsBelt = actionBuild.ObjectIsBelt(buildPreview.inputObjId);
-                        } else
+                        }
+                        else
                         {
                             inputPos = buildPreview.input.lpos;
                             inputIsBelt = buildPreview.input.desc.isBelt;
@@ -629,36 +675,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         return true;
                     }
                     return false;
-                }))
-                .MatchForward(false,
-                    new CodeMatch(OpCodes.Ldloc_S),
-                    new CodeMatch(OpCodes.Ldc_R4, 0.4f),
-                    new CodeMatch(OpCodes.Bge_Un)
-                 )
-                .MatchForward(false,
-                    new CodeMatch(OpCodes.Stfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.condition)))
-                )
-                .Advance(-1)
-                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Action<BuildPreview>>(buildPreview =>
-                {
-                    // remove check for belt tooClose
-                    if (BlueprintManager.pastedEntities.Count > 0)
-                    {
-                        if (buildPreview.input == null && buildPreview.output == null)
-                        {
-                            buildPreview.condition = EBuildCondition.TooClose;
-                        }
-                    }
-                }))
-                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Nop));
+                }));
 
             return matcher.InstructionEnumeration();
         }
 
-
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlanetFactory), "WriteObjectConn")]
         public static void WriteObjectConn_Prefix(ref PlanetFactory __instance, int otherObjId, ref int otherSlot)
         {
+            // allow to write connection to prebuild object when the otherSlot is not known (equals to -1)
             if (otherSlot == -1 && otherObjId < 0)
             {
                 for (int i = 4; i < 12; i++)
@@ -671,7 +696,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
         }
-        
+
         public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> positions)
         {
             for (int s = 0; s < positions.Count; s++)
