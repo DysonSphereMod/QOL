@@ -5,10 +5,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     public static class Util
     {
-        public static Vector2 ToSpherical (this Vector3 vector)
+
+        public static Vector2 ToSpherical(this Vector3 vector)
         {
             float inclination = Mathf.Acos(vector.y / vector.magnitude);
-            float azimuth  = Mathf.Atan2(vector.z, vector.x);
+            float azimuth = Mathf.Atan2(vector.z, vector.x);
             return new Vector2(inclination, azimuth);
         }
 
@@ -47,7 +48,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             float rawLatitudeIndex = (vector.x - Mathf.PI / 2) / 6.2831855f * planetRadius;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, (int)planetRadius);
         }
 
         public static Vector2 ApplyDelta(this Vector2 vector, Vector2 delta, int deltaCount)
@@ -55,7 +56,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             float sizeDeviation = deltaCount / (float)((vector + delta).GetSegmentsCount());
             var fixedDelta = new Vector2(delta.x, delta.y * sizeDeviation);
 
-            return vector + fixedDelta;
+            return (vector + fixedDelta).Clamp();
         }
 
         public static Vector2 Clamp(this Vector2 vector)
@@ -65,12 +66,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return vector;
         }
 
-        public static Vector2 ToDegrees (this Vector2 vector)
+        public static Vector2 ToDegrees(this Vector2 vector)
         {
             return vector * Mathf.Rad2Deg;
         }
 
-        public static Vector2 ToRadians (this Vector2 vector)
+        public static Vector2 ToRadians(this Vector2 vector)
         {
             return vector * Mathf.Deg2Rad;
         }
@@ -78,22 +79,22 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         /// <summary>
         /// For spherical coordinates only. Only supports angles %90 degrees
         /// </summary>
-        public static Vector2 Rotate(this Vector2 v, float delta,  int sectorCount)
+        public static Vector2 Rotate(this Vector2 v, float delta, int sectorCount)
         {
             float planetRadius = GameMain.localPlanet.realRadius;
             float value = sectorCount / planetRadius;
             delta *= -1;
             if (value == 0) value = 1f;
 
-            Vector2 correction = new Vector2(value, 1/value); //Try new Vector2(value, 1) for continuous rotation
+            Vector2 correction = new Vector2(value, 1 / value); //Try new Vector2(value, 1) for continuous rotation
 
             Vector2 rotated = new Vector2(
                 v.x * Mathf.Cos(delta) - v.y * Mathf.Sin(delta),
                 v.x * Mathf.Sin(delta) + v.y * Mathf.Cos(delta)
-            );
+            ).Clamp();
             if (Mathf.Abs(Mathf.Sin(delta)) > 0.3f)
             {
-                return rotated * correction;
+                return (rotated * correction).Clamp();
             }
 
             return rotated;

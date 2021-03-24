@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Threading;
 using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
@@ -18,7 +19,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static bool lastCursorWarning;
         public static bool lastRunOriginal;
         public static string lastCursorText;
-        
+        public static Vector3[] snaps = new Vector3[1024];
 
         public static Dictionary<int, BuildingCopy> toPostProcess = new Dictionary<int, BuildingCopy>();
 
@@ -165,22 +166,56 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
+            //long dbp, cbc,up,ug;
+
             runUpdate = true;
+            //Stopwatch timer = new Stopwatch();
+            //timer.Start();
             __instance.DetermineBuildPreviews();
+            //timer.Stop();
+
+            //dbp = timer.ElapsedTicks;
+
             if (runUpdate)
             {
+                //timer.Reset();
+                //timer.Start();
                 var backupMechaBuildArea = __instance.player.mecha.buildArea;
                 if (BlueprintManager.hasData)
                 {
                     __instance.player.mecha.buildArea = 10000f;
+
                 }
-                lastFlag = __instance.CheckBuildConditions();
+
+                if (BlueprintManager.pastedEntities.Count > 1)
+                {
+                    lastFlag = CheckBuildConditionsFast();
+                }
+                else
+                {
+                    lastFlag = __instance.CheckBuildConditions();
+                }
+                //timer.Stop();
+                //cbc = timer.ElapsedTicks;
+
+                //timer.Reset();
+                //timer.Start();
                 __instance.UpdatePreviews();
+                //timer.Stop();
+                //up = timer.ElapsedTicks;
+
+                //timer.Reset();
+                //timer.Start();
                 __instance.UpdateGizmos();
+                //timer.Stop();
+                //ug = timer.ElapsedTicks;
 
                 __instance.player.mecha.buildArea = backupMechaBuildArea;
                 lastCursorText = __instance.cursorText;
                 lastCursorWarning = __instance.cursorWarning;
+
+
+                //Debug.Log($"dbp: {dbp} | cbc: {cbc} | up: {up} | ug: {ug}");
             }
             else
             {
@@ -202,230 +237,502 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return false;
         }
 
+        public static PlayerAction_Build ClonePlayerAction_Build(PlayerAction_Build original)
+        {
+            var nearcdClone = new NearColliderLogic();
+            nearcdClone.Init(original.nearcdLogic.planet);
+            var clone = new PlayerAction_Build()
+            {
+                factory = original.factory,
+                player = original.player,
+                nearcdLogic = nearcdClone,
+                tmpPackage = original.tmpPackage,
+                planetAux = original.planetAux,
+                cursorTarget = original.cursorTarget,
+                buildPreviews = original.buildPreviews,
+                planetPhysics = original.planetPhysics,
+                previewPose = new Pose(Vector3.zero, Quaternion.identity),
+                posePairs = new List<PlayerAction_Build.PosePair>(64),
+                startSlots = new List<PlayerAction_Build.SlotPoint>(64),
+                endSlots = new List<PlayerAction_Build.SlotPoint>(64)
+            };
+
+            return clone;
+        }
+
+        public static bool CheckBuildConditionsFast()
+        {
+            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
+            var maxThreads = Environment.ProcessorCount - 1;
+            var runningThreads = 0;
+            var next = -1;
+            ManualResetEvent done = new ManualResetEvent(false);
+
+
+            for (int i = 0; i < maxThreads; i++)
+            {
+                var threadId = i;
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    int index;
+                    Interlocked.Increment(ref runningThreads);
+                    try
+                    {
+                        PlayerAction_Build ab = ClonePlayerAction_Build(actionBuild);
+                        while ((index = Interlocked.Increment(ref next)) < actionBuild.buildPreviews.Count)
+                        {
+                            CheckBuildConditionsWorker(ab, actionBuild.buildPreviews[index]);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.ToString());
+                    }
+                    finally
+                    {
+                        if (Interlocked.Decrement(ref runningThreads) == 0)
+                        {
+                            done.Set();
+                        }
+                    }
+                });
+            }
+
+            // wait for all threadPool workers to terminate.
+            done.WaitOne();
+
+            bool flag = true;
+            foreach (var buildPreview in actionBuild.buildPreviews)
+            {
+                if (buildPreview.condition != EBuildCondition.Ok)
+                {
+                    flag = false;
+                    if (!actionBuild.cursorWarning)
+                    {
+                        actionBuild.cursorWarning = true;
+                        actionBuild.cursorText = buildPreview.conditionText;
+                    }
+                }
+            }
+            if (flag && actionBuild.waitConfirm)
+            {
+                actionBuild.cursorText = "点击鼠标建造".Translate();
+            }
+            if (!flag && !VFInput.onGUI)
+            {
+                UICursor.SetCursor(ECursor.Ban);
+            }
+
+            return flag;
+        }
+
+        [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
+        public static void CheckBuildConditionsWorker(PlayerAction_Build __instance, BuildPreview bp)
+        {
+            IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                // modify the original CheckBuildConditions to only operate on a single item (so only the body of the for loop) injecting the BuildPreview passed as argument
+                CodeMatcher matcher = new CodeMatcher(instructions)
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldc_I4_0),
+                    new CodeMatch(OpCodes.Stloc_2)
+                )
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldarg_1))
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Stloc_3))
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.desc))),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(PrefabDesc), nameof(PrefabDesc.isBelt)))
+                )
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldarg_0))
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldloc_3))
+                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<PlayerAction_Build, BuildPreview, bool>>((actionBuild, buildPreview) =>
+                {
+                    // remove checks for belts by stating that the current buildPreview is not a belt.
+                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isBelt)
+                    {
+                        // but we have to take care of collision checks
+                        Vector3 testPos = buildPreview.lpos + buildPreview.lpos.normalized * 0.3f;
+                        if (!buildPreview.ignoreCollider)
+                        {
+                            actionBuild.GetOverlappedObjectsNonAlloc(testPos, 0.34f, 3f, false);
+                            if (actionBuild._overlappedCount > 0)
+                            {
+                                buildPreview.condition = EBuildCondition.Collide;
+                            }
+
+                            actionBuild.GetOverlappedVeinsNonAlloc(testPos, 0.6f, 3f);
+                            if (actionBuild._overlappedCount > 0)
+                            {
+                                buildPreview.condition = EBuildCondition.Collide;
+                            }
+                        }
+
+                        return false;
+                    }
+                    return buildPreview.desc.isBelt;
+                }))
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.condition)))
+                )
+                .Advance(1)
+                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
+                {
+                    // ignore checkbuildconditions for all inserters when copy pasting as we already took care of checking for collisions
+                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isInserter)
+                    {
+                        var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+                        // only check that we have enough items
+                        if (buildPreview.coverObjId == 0 || buildPreview.willCover)
+                        {
+
+                            int id = buildPreview.item.ID;
+                            int num = 1;
+                            if (actionBuild.tmpInhandId == id && actionBuild.tmpInhandCount > 0)
+                            {
+                                num = 1;
+                                actionBuild.tmpInhandCount--;
+                            }
+                            else
+                            {
+                                actionBuild.tmpPackage.TakeTailItems(ref id, ref num, false);
+                            }
+                            if (num == 0)
+                            {
+                                buildPreview.condition = EBuildCondition.NotEnoughItem;
+                            }
+                        }
+
+                        if (buildPreview.condition != EBuildCondition.Ok || !IsInserterConnected(buildPreview))
+                        {
+                            return true;
+                        }
+
+                        // must calculate correct refCount/refArr to ensure inserter moves has the right speed
+
+                        Vector3 posR = Vector3.zero;
+                        bool inputIsBelt;
+                        Vector3 inputPos;
+                        bool outputIsBelt;
+                        Vector3 outputPos;
+                        if (buildPreview.input == null)
+                        {
+                            inputPos = actionBuild.GetObjectPose(buildPreview.inputObjId).position;
+                            inputIsBelt = actionBuild.ObjectIsBelt(buildPreview.inputObjId);
+                        }
+                        else
+                        {
+                            inputPos = buildPreview.input.lpos;
+                            inputIsBelt = buildPreview.input.desc.isBelt;
+                        }
+                        if (buildPreview.output == null)
+                        {
+                            outputPos = actionBuild.GetObjectPose(buildPreview.outputObjId).position;
+                            outputIsBelt = actionBuild.ObjectIsBelt(buildPreview.outputObjId);
+                        }
+                        else
+                        {
+                            outputPos = buildPreview.output.lpos;
+                            outputIsBelt = buildPreview.output.desc.isBelt;
+                        }
+
+                        if (inputIsBelt && !outputIsBelt)
+                        {
+                            posR = outputPos;
+                        }
+                        else if (!inputIsBelt && outputIsBelt)
+                        {
+                            posR = inputPos;
+                        }
+                        else
+                        {
+                            posR = (inputPos + outputPos) * 0.5f;
+                        }
+                        float segmentsCount = actionBuild.planetAux.mainGrid.CalcSegmentsAcross(posR, buildPreview.lpos, buildPreview.lpos2);
+
+                        if (!inputIsBelt && !outputIsBelt)
+                        {
+                            segmentsCount -= 0.3f;
+                        }
+                        buildPreview.refCount = Mathf.RoundToInt(Mathf.Clamp(segmentsCount, 1f, 3f));
+                        buildPreview.refArr = new int[buildPreview.refCount];
+
+                        return true;
+                    }
+
+                    return buildPreview.condition != EBuildCondition.Ok;
+                }));
+
+                // trim the code just before the for loop condition checks
+                int endIdx = matcher
+                    .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.condition)))
+                )
+                    .SetOpcodeAndAdvance(OpCodes.Nop).Pos;
+
+
+                List<CodeInstruction> instructionsList = matcher.InstructionEnumeration().ToList();
+                List<CodeInstruction> code = new List<CodeInstruction>();
+
+                for (int i = 0; i < endIdx; i++)
+                {
+                    code.Add(instructionsList[i]);
+                }
+                return code.AsEnumerable();
+            }
+
+            // make compiler happy
+            _ = Transpiler(null);
+            return;
+        }
+
+
         [HarmonyPrefix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static bool PlayerAction_Build_DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
         {
-            var runOriginal = true;
-
-            if (__instance.controller.cmd.mode == 1 && __instance.player.planetData.type != EPlanetType.Gas && __instance.cursorValid)
+            if (__instance.controller.cmd.mode != 1 ||
+                __instance.player.planetData.type == EPlanetType.Gas ||
+                !__instance.cursorValid ||
+                __instance.groundSnappedPos == Vector3.zero ||
+                (__instance.handPrefabDesc != null && __instance.handPrefabDesc.minerType != EMinerType.None)
+                )
             {
-                if (__instance.handPrefabDesc != null && __instance.handPrefabDesc.minerType != EMinerType.None)
-                {
-                    return true;
-                }
-                __instance.waitConfirm = __instance.cursorValid;
-                __instance.multiLevelCovering = false;
-                if (__instance.handPrefabDesc != null && __instance.handPrefabDesc.multiLevel)
-                {
-                    int objectProtoId = __instance.GetObjectProtoId(__instance.castObjId);
-                    if (objectProtoId == __instance.handItem.ID)
-                    {
-                        __instance.multiLevelCovering = true;
-                    }
-                }
+                lastRunOriginal = true;
+                return true;
+            }
 
-                if (!MultiBuild.IsMultiBuildRunning() && (__instance.multiLevelCovering || !BlueprintManager.hasData))
+            __instance.waitConfirm = __instance.cursorValid;
+            __instance.multiLevelCovering = false;
+            if (__instance.handPrefabDesc != null && __instance.handPrefabDesc.multiLevel)
+            {
+                int objectProtoId = __instance.GetObjectProtoId(__instance.castObjId);
+                if (objectProtoId == __instance.handItem.ID)
                 {
-                    if (!lastRunOriginal)
-                    {
-                        __instance.ClearBuildPreviews();
-                    }
-                    lastRunOriginal = true;
-                    return true;
+                    __instance.multiLevelCovering = true;
                 }
+            }
 
-                // full hijacking of DetermineBuildPreviews
-                runOriginal = false;
-                lastRunOriginal = false;
-                if (VFInput._switchSplitter.onDown)
+            if (!MultiBuild.IsMultiBuildRunning() && (__instance.multiLevelCovering || !BlueprintManager.hasData))
+            {
+                if (!lastRunOriginal)
                 {
-                    __instance.modelOffset++;
-                    forceRecalculation = true;
+                    __instance.ClearBuildPreviews();
                 }
+                lastRunOriginal = true;
+                return true;
+            }
 
-                if (VFInput._rotate.onDown)
-                {
-                    __instance.yaw += 90f;
-                    __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
-                    __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
-                    forceRecalculation = true;
-                }
-                if (VFInput._counterRotate.onDown)
-                {
-                    __instance.yaw -= 90f;
-                    __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
-                    __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
-                    forceRecalculation = true;
-                }
+            // full hijacking of DetermineBuildPreviews
+            lastRunOriginal = false;
+            if (VFInput._switchSplitter.onDown)
+            {
+                __instance.modelOffset++;
+                forceRecalculation = true;
+            }
 
+            if (VFInput._rotate.onDown)
+            {
+                __instance.yaw += 90f;
+                __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
                 __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
-                __instance.previewPose.position = Vector3.zero;
-                __instance.previewPose.rotation = Quaternion.identity;
+                forceRecalculation = true;
+            }
+            if (VFInput._counterRotate.onDown)
+            {
+                __instance.yaw -= 90f;
+                __instance.yaw = Mathf.Repeat(__instance.yaw, 360f);
+                __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
+                forceRecalculation = true;
+            }
 
-                if (lastPosition == __instance.groundSnappedPos && !forceRecalculation)
+            __instance.yaw = Mathf.Round(__instance.yaw / 90f) * 90f;
+            __instance.previewPose.position = Vector3.zero;
+            __instance.previewPose.rotation = Quaternion.identity;
+
+            if (lastPosition == __instance.groundSnappedPos && !forceRecalculation)
+            {
+                // no update necessary
+                runUpdate = false;
+                return false;
+            }
+            lastPosition = __instance.groundSnappedPos;
+            forceRecalculation = false;
+
+            List<BuildPreview> previews = new List<BuildPreview>();
+
+            if (MultiBuild.IsMultiBuildRunning())
+            {
+                if (!BlueprintManager.hasData)
                 {
-                    // no update necessary
-                    runUpdate = false;
-                    return false;
+                    BlueprintManager.data.copiedBuildings.Add(new BuildingCopy()
+                    {
+                        itemProto = __instance.handItem,
+                        recipeId = __instance.copyRecipeId,
+                        modelIndex = __instance.handPrefabDesc.modelIndex
+                    });
                 }
-                lastPosition = __instance.groundSnappedPos;
-                forceRecalculation = false;
+                var building = BlueprintManager.data.copiedBuildings[0];// BlueprintManager.data.copiedBuildings.First();
 
-                List<BuildPreview> previews = new List<BuildPreview>();
+                int snapPath = path;
+                
 
-                if (MultiBuild.IsMultiBuildRunning())
+                var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
+
+                var desc = BlueprintManager.GetPrefabDesc(building);
+                Collider[] colliders = new Collider[desc.buildColliders.Length];
+                Vector3 previousPos = Vector3.zero;
+
+                var copiesCounter = 0;
+                for (int s = 0; s < snappedPointCount; s++)
                 {
-                    if (!BlueprintManager.hasData)
+                    var pos = snaps[s];
+                    var rot = Maths.SphericalRotation(snaps[s], __instance.yaw + building.cursorRelativeYaw);
+
+                    if (s > 0)
                     {
-                        BlueprintManager.data.copiedBuildings.Add(new BuildingCopy()
-                        {
-                            itemProto = __instance.handItem,
-                            recipeId = __instance.copyRecipeId,
-                            modelIndex = __instance.handPrefabDesc.modelIndex
-                        });
-                    }
-                    var building = BlueprintManager.data.copiedBuildings[0];// BlueprintManager.data.copiedBuildings.First();
+                        var sqrDistance = (previousPos - pos).sqrMagnitude;
 
-                    int snapPath = path;
-                    Vector3[] snaps = new Vector3[1024];
+                        // power towers
+                        if (desc.isPowerNode && !desc.isAccumulator && sqrDistance < 12.25f) continue;
 
-                    var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
+                        // wind turbines
+                        if (desc.windForcedPower && sqrDistance < 110.25f) continue;
 
-                    var desc = BlueprintManager.GetPrefabDesc(building);
-                    Collider[] colliders = new Collider[desc.buildColliders.Length];
-                    Vector3 previousPos = Vector3.zero;
+                        // ray receivers
+                        if (desc.gammaRayReceiver && sqrDistance < 110.25f) continue;
 
-                    var copiesCounter = 0;
-                    for (int s = 0; s < snappedPointCount; s++)
-                    {
-                        var pos = snaps[s];
-                        var rot = Maths.SphericalRotation(snaps[s], __instance.yaw + building.cursorRelativeYaw);
+                        // logistic stations
+                        if (desc.isStation && sqrDistance < (desc.isStellarStation ? 841f : 225f)) continue;
 
-                        if (s > 0)
-                        {
-                            var sqrDistance = (previousPos - pos).sqrMagnitude;
-
-                            // power towers
-                            if (desc.isPowerNode && !desc.isAccumulator && sqrDistance < 12.25f) continue;
-
-                            // wind turbines
-                            if (desc.windForcedPower && sqrDistance < 110.25f) continue;
-
-                            // ray receivers
-                            if (desc.gammaRayReceiver && sqrDistance < 110.25f) continue;
-
-                            // logistic stations
-                            if (desc.isStation && sqrDistance < (desc.isStellarStation ? 841f : 225f)) continue;
-
-                            // ejector
-                            if (desc.isEjector && sqrDistance < 110.25f) continue;
-
-                            if (desc.hasBuildCollider)
-                            {
-                                var foundCollision = false;
-                                for (var j = 0; j < desc.buildColliders.Length && !foundCollision; j++)
-                                {
-                                    var colliderData = desc.buildColliders[j];
-                                    colliderData.pos = pos + rot * colliderData.pos;
-                                    colliderData.q = rot * colliderData.q;
-                                    // check only collision with layer 27 (the layer used by the our own building colliders for the previously 'placed' building)
-                                    foundCollision = Physics.CheckBox(colliderData.pos, colliderData.ext, colliderData.q, 134217728, QueryTriggerInteraction.Collide);
-                                }
-
-                                if (foundCollision) continue;
-                            }
-                        }
-
-                        if (s > 0 && MultiBuild.spacingStore[MultiBuild.spacingIndex] > 0 && copiesCounter % MultiBuild.spacingPeriod == 0)
-                        {
-                            s += MultiBuild.spacingStore[MultiBuild.spacingIndex];
-
-                            if (s >= snappedPointCount) break;
-                            pos = snaps[s];
-                            rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
-                        }
-
-                        copiesCounter++;
-                        previousPos = pos;
+                        // ejector
+                        if (desc.isEjector && sqrDistance < 110.25f) continue;
 
                         if (desc.hasBuildCollider)
                         {
-                            for (var j = 0; j < desc.buildColliders.Length; j++)
+                            var foundCollision = false;
+                            for (var j = 0; j < desc.buildColliders.Length && !foundCollision; j++)
                             {
-                                // create temporary collider entities for the latest 'positioned' building
-                                if (colliders[j] != null)
-                                {
-                                    ColliderPool.PutCollider(colliders[j]);
-                                }
-
                                 var colliderData = desc.buildColliders[j];
                                 colliderData.pos = pos + rot * colliderData.pos;
                                 colliderData.q = rot * colliderData.q;
-                                colliders[j] = ColliderPool.TakeCollider(colliderData);
-                                colliders[j].gameObject.layer = 27;
+                                // check only collision with layer 27 (the layer used by the our own building colliders for the previously 'placed' building)
+                                foundCollision = Physics.CheckBox(colliderData.pos, colliderData.ext, colliderData.q, 134217728, QueryTriggerInteraction.Collide);
                             }
+
+                            if (foundCollision) continue;
                         }
-
-                        previews = previews.Concat(BlueprintManager.Paste(pos, __instance.yaw, MultiBuild.multiBuildInserters)).ToList();
                     }
 
-                    if (!BlueprintManager.hasData)
+                    if (s > 0 && MultiBuild.spacingStore[MultiBuild.spacingIndex] > 0 && copiesCounter % MultiBuild.spacingPeriod == 0)
                     {
-                        BlueprintManager.data.copiedBuildings.RemoveAt(0);
+                        s += MultiBuild.spacingStore[MultiBuild.spacingIndex];
+
+                        if (s >= snappedPointCount) break;
+                        pos = snaps[s];
+                        rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
                     }
-                    foreach (var collider in colliders)
+
+                    copiesCounter++;
+                    previousPos = pos;
+
+                    if (desc.hasBuildCollider)
                     {
-                        if (collider != null)
+                        for (var j = 0; j < desc.buildColliders.Length; j++)
                         {
-                            ColliderPool.PutCollider(collider);
+                            // create temporary collider entities for the latest 'positioned' building
+                            if (colliders[j] != null)
+                            {
+                                ColliderPool.PutCollider(colliders[j]);
+                            }
+
+                            var colliderData = desc.buildColliders[j];
+                            colliderData.pos = pos + rot * colliderData.pos;
+                            colliderData.q = rot * colliderData.q;
+                            colliders[j] = ColliderPool.TakeCollider(colliderData);
+                            colliders[j].gameObject.layer = 27;
                         }
                     }
-                }
-                else
-                {
-                    var pasteInserters = MultiBuild.multiBuildInserters || (BlueprintManager.data.copiedBuildings.Count + BlueprintManager.data.copiedBelts.Count > 1);
-                    previews = BlueprintManager.Paste(__instance.groundSnappedPos, __instance.yaw, pasteInserters);
+
+                    previews = previews.Concat(BlueprintManager.Paste(pos, __instance.yaw, MultiBuild.multiBuildInserters)).ToList();
                 }
 
-                // synch previews
-                for (var i = 0; i < previews.Count; i++)
+                if (!BlueprintManager.hasData)
                 {
-                    var updated = previews[i];
-                    if (i >= __instance.buildPreviews.Count)
+                    BlueprintManager.data.copiedBuildings.RemoveAt(0);
+                }
+                foreach (var collider in colliders)
+                {
+                    if (collider != null)
                     {
-                        __instance.AddBuildPreview(updated);
-                        continue;
+                        ColliderPool.PutCollider(collider);
                     }
+                }
+            }
+            else
+            {
+                var pasteInserters = MultiBuild.multiBuildInserters || (BlueprintManager.data.copiedBuildings.Count + BlueprintManager.data.copiedBelts.Count > 1);
+                previews = BlueprintManager.Paste(__instance.groundSnappedPos, __instance.yaw, pasteInserters);
+            }
 
-                    var original = __instance.buildPreviews[i];
+            // synch previews
+            var availableModelPreviews = new Dictionary<int, Queue<int>>();
 
+            foreach (var bp in __instance.buildPreviews)
+            {
+                if (bp.previewIndex >= 0)
+                {
 
-                    if (original.desc.modelIndex != updated.desc.modelIndex)
+                    int modelId = bp.desc.modelIndex;
+                    if (!availableModelPreviews.TryGetValue(modelId, out Queue<int> availableIndexes))
                     {
-                        __instance.FreePreviewModel(original);
+                        availableIndexes = new Queue<int>();
+                        availableModelPreviews.Add(modelId, availableIndexes);
                     }
-                    else
-                    {
-                        updated.previewIndex = original.previewIndex;
-                    }
-
-                    __instance.buildPreviews[i] = updated;
-                    original.Free();
+                    availableIndexes.Enqueue(bp.previewIndex);
                 }
 
-                if (__instance.buildPreviews.Count > previews.Count)
-                {
-                    var toRemove = __instance.buildPreviews.Count - previews.Count;
+                bp.Free();
+            }
 
-                    for (var i = 0; i < toRemove; i++)
+            __instance.buildPreviews.Clear();
+
+            var restored = 0;
+            foreach (var bp in previews)
+            {
+                int modelId = bp.desc.modelIndex;
+                if (availableModelPreviews.TryGetValue(modelId, out Queue<int> availableIndexes) && availableIndexes.Count > 0)
+                {
+                    restored++;
+                    bp.previewIndex = availableIndexes.Dequeue();
+                }
+                __instance.AddBuildPreview(bp);
+            }
+
+            var removed = 0;
+            foreach (var availableIndexes in availableModelPreviews.Values)
+            {
+                foreach (var previewIndex in availableIndexes)
+                {
+                    if (__instance.previewRenderers[previewIndex] != null)
                     {
-                        __instance.RemoveBuildPreview(previews.Count);
+                        removed++;
+                        UnityEngine.Object.Destroy(__instance.previewRenderers[previewIndex].sharedMaterial);
+                        __instance.previewRenderers[previewIndex].gameObject.SetActive(false);
                     }
                 }
             }
 
-            lastRunOriginal = runOriginal;
-            return runOriginal;
+            return false;
+
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
@@ -545,141 +852,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return false;
         }
 
-
-
-        [HarmonyTranspiler, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
-        public static IEnumerable<CodeInstruction> PlayerAction_Build_CheckBuildConditions_Patch(IEnumerable<CodeInstruction> instructions)
-        {
-            CodeMatcher matcher = new CodeMatcher(instructions)
-                .MatchForward(false,
-                    new CodeMatch(OpCodes.Ldloc_3),
-                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.desc))),
-                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(PrefabDesc), nameof(PrefabDesc.isBelt)))
-                )
-                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Nop))
-                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldloc_3))
-                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
-                {
-                    // remove checks for belts by stating that the current buildPreview is not a belt.
-                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isBelt)
-                    {
-                        var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-                        // but we have to take care of collision checks
-                        Vector3 testPos = buildPreview.lpos + buildPreview.lpos.normalized * 0.3f;
-                        if (!buildPreview.ignoreCollider)
-                        {
-                            actionBuild.GetOverlappedObjectsNonAlloc(testPos, 0.34f, 3f, false);
-                            if (actionBuild._overlappedCount > 0)
-                            {
-                                buildPreview.condition = EBuildCondition.Collide;
-                            }
-
-                            actionBuild.GetOverlappedVeinsNonAlloc(testPos, 0.6f, 3f);
-                            if (actionBuild._overlappedCount > 0)
-                            {
-                                buildPreview.condition = EBuildCondition.Collide;
-                            }
-                        }
-
-                        return false;
-                    }
-                    return buildPreview.desc.isBelt;
-                }))
-                .MatchForward(false,
-                    new CodeMatch(OpCodes.Ldloc_3),
-                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.condition)))
-                )
-                .Advance(1)
-                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
-                {
-                    // ignore checkbuildconditions for all inserters when copy pasting as we already took care of checking for collisions
-                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isInserter)
-                    {
-                        var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-                        // only check that we have enough items
-                        if (buildPreview.coverObjId == 0 || buildPreview.willCover)
-                        {
-
-                            int id = buildPreview.item.ID;
-                            int num = 1;
-                            if (actionBuild.tmpInhandId == id && actionBuild.tmpInhandCount > 0)
-                            {
-                                num = 1;
-                                actionBuild.tmpInhandCount--;
-                            }
-                            else
-                            {
-                                actionBuild.tmpPackage.TakeTailItems(ref id, ref num, false);
-                            }
-                            if (num == 0)
-                            {
-                                buildPreview.condition = EBuildCondition.NotEnoughItem;
-                            }
-                        }
-
-                        if (buildPreview.condition != EBuildCondition.Ok || !IsInserterConnected(buildPreview))
-                        {
-                            return true;
-                        }
-
-                        // must calculate correct refCount/refArr to ensure inserter moves has the right speed
-
-                        Vector3 posR = Vector3.zero;
-                        bool inputIsBelt;
-                        Vector3 inputPos;
-                        bool outputIsBelt;
-                        Vector3 outputPos;
-                        if (buildPreview.input == null)
-                        {
-                            inputPos = actionBuild.GetObjectPose(buildPreview.inputObjId).position;
-                            inputIsBelt = actionBuild.ObjectIsBelt(buildPreview.inputObjId);
-                        }
-                        else
-                        {
-                            inputPos = buildPreview.input.lpos;
-                            inputIsBelt = buildPreview.input.desc.isBelt;
-                        }
-                        if (buildPreview.output == null)
-                        {
-                            outputPos = actionBuild.GetObjectPose(buildPreview.outputObjId).position;
-                            outputIsBelt = actionBuild.ObjectIsBelt(buildPreview.outputObjId);
-                        }
-                        else
-                        {
-                            outputPos = buildPreview.output.lpos;
-                            outputIsBelt = buildPreview.output.desc.isBelt;
-                        }
-
-                        if (inputIsBelt && !outputIsBelt)
-                        {
-                            posR = outputPos;
-                        }
-                        else if (!inputIsBelt && outputIsBelt)
-                        {
-                            posR = inputPos;
-                        }
-                        else
-                        {
-                            posR = (inputPos + outputPos) * 0.5f;
-                        }
-                        float segmentsCount = actionBuild.planetAux.mainGrid.CalcSegmentsAcross(posR, buildPreview.lpos, buildPreview.lpos2);
-
-                        if (!inputIsBelt && !outputIsBelt)
-                        {
-                            segmentsCount -= 0.3f;
-                        }
-                        buildPreview.refCount = Mathf.RoundToInt(Mathf.Clamp(segmentsCount, 1f, 3f));
-                        buildPreview.refArr = new int[buildPreview.refCount];
-
-                        return true;
-                    }
-
-                    return buildPreview.condition != EBuildCondition.Ok;
-                }));
-
-            return matcher.InstructionEnumeration();
-        }
-
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlanetFactory), "WriteObjectConn")]
         public static void WriteObjectConn_Prefix(ref PlanetFactory __instance, int otherObjId, ref int otherSlot)
         {
@@ -697,45 +869,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        public static void ActivateColliders(ref NearColliderLogic nearCdLogic, List<Vector3> positions)
-        {
-            for (int s = 0; s < positions.Count; s++)
-            {
-                nearCdLogic.activeColHashCount = 0;
-                var center = positions[s];
-                var sqrAreaRadius = 4f * 4f;
-                nearCdLogic.MarkActivePos(center);
 
-                if (nearCdLogic.activeColHashCount > 0)
-                {
-                    for (int i = 0; i < nearCdLogic.activeColHashCount; i++)
-                    {
-                        int num2 = nearCdLogic.activeColHashes[i];
-                        ColliderData[] colliderPool = nearCdLogic.colChunks[num2].colliderPool;
-                        for (int j = 1; j < nearCdLogic.colChunks[num2].cursor; j++)
-                        {
-                            if (colliderPool[j].idType != 0)
-                            {
-                                if ((colliderPool[j].pos - center).sqrMagnitude <= sqrAreaRadius + colliderPool[j].ext.sqrMagnitude)
-                                {
-                                    if (colliderPool[j].usage != EColliderUsage.Physics || colliderPool[j].objType != EObjectType.Entity)
-                                    {
-                                        int num3 = num2 << 20 | j;
-                                        if (nearCdLogic.colliderObjs.ContainsKey(num3))
-                                        {
-                                            nearCdLogic.colliderObjs[num3].live = true;
-                                        }
-                                        else
-                                        {
-                                            nearCdLogic.colliderObjs[num3] = new ColliderObject(num3, colliderPool[j]);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }

@@ -1,17 +1,17 @@
-using BepInEx;
 using UnityEngine;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     public enum EPastedType
     {
-        building,
-        belt,
-        inserter
+        BUILDING,
+        BELT,
+        INSERTER
     }
 
     public class PastedEntity
@@ -32,10 +32,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static bool hasData = false;
 
         public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
+        public static Dictionary<int, PastedEntity> parallelPastedEntities = new Dictionary<int, PastedEntity>();
 
+        public static List<BuildPreview> previews = new List<BuildPreview>();
 
         public static bool useExperimentalWidthFix = false;
-        private static float lastMaxWidth = 0;
 
         private static int[] _nearObjectIds = new int[128];
         public static void Reset()
@@ -45,12 +46,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 return;
             }
 
-            lastMaxWidth = 0;
-
             hasData = false;
             previousData = data;
             data = new BlueprintData();
             pastedEntities.Clear();
+            parallelPastedEntities.Clear();
+            previews.Clear();
             GC.Collect();
 
             UpdateUIText();
@@ -71,6 +72,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
             pastedEntities.Clear();
+            parallelPastedEntities.Clear();
+            previews.Clear();
             GC.Collect();
             UpdateUIText();
             EnterBuildModeAfterBp();
@@ -155,24 +158,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        public static int GetBeltInputEntityId(EntityData belt)
-        {
-            PlanetFactory factory = GameMain.data.localPlanet.factory;
-            return factory.cargoTraffic.beltPool[factory.cargoTraffic.beltPool[belt.beltId].backInputId].entityId;
-        }
-
-        public static int GetBeltOutputEntityId(EntityData belt)
-        {
-            PlanetFactory factory = GameMain.data.localPlanet.factory;
-            return factory.cargoTraffic.beltPool[factory.cargoTraffic.beltPool[belt.beltId].outputId].entityId;
-        }
-
         public static void CopyEntities(List<int> entityIds)
         {
             PlanetFactory factory = GameMain.data.localPlanet.factory;
 
             var buildings = new List<EntityData>();
             var belts = new Dictionary<int, EntityData>();
+
             foreach (int id in entityIds)
             {
                 EntityData entity = factory.entityPool[id];
@@ -202,20 +194,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             foreach (EntityData belt in belts.Values) CopyBelt(belt, globalReference);
         }
 
-        public static void CopyEntity(EntityData sourceEntity, EntityData referenceEntity)
-        {
-            ItemProto sourceEntityProto = LDB.items.Select(sourceEntity.protoId);
-
-            if (sourceEntityProto.prefabDesc.isBelt)
-            {
-                CopyBelt(sourceEntity, referenceEntity);
-            }
-            else
-            {
-                CopyBuilding(sourceEntity, referenceEntity);
-            }
-        }
-
         public static BeltCopy CopyBelt(EntityData sourceEntity, EntityData referenceEntity)
         {
             PlanetFactory factory = GameMain.data.localPlanet.factory;
@@ -235,7 +213,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 originalId = sourceEntity.id,
                 protoId = sourceEntityProto.ID,
                 itemProto = sourceEntityProto,
-                altitude = Mathf.RoundToInt(2 * (sourceEntity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f ) / 1.3333333f),
+                altitude = Mathf.RoundToInt(2 * (sourceEntity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f) / 1.3333333f),
                 backInputId = factory.cargoTraffic.beltPool[belt.backInputId].entityId,
                 leftInputId = factory.cargoTraffic.beltPool[belt.leftInputId].entityId,
                 rightInputId = factory.cargoTraffic.beltPool[belt.rightInputId].entityId,
@@ -270,7 +248,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             data.copiedBelts.Add(copiedBelt);
 
-
             factory.ReadObjectConn(sourceEntity.id, 4, out _, out otherId, out _);
 
             if (otherId != 0)
@@ -281,7 +258,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 int idToFind = sourceEntity.id == endId ? startId : endId;
 
-                if(data.copiedBelts.FindIndex(x => x.originalId == idToFind) != -1) {
+                if (data.copiedBelts.FindIndex(x => x.originalId == idToFind) != -1)
+                {
 
                     EntityData inserterEntity = factory.entityPool[otherId];
                     CopyInserter(inserterEntity, sourceEntity);
@@ -394,19 +372,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             data.copiedBuildings.Add(copiedBuilding);
 
-            // Ignore building without inserter slots
-
             for (int i = 0; i < sourceEntityProto.prefabDesc.insertPoses.Length; i++)
             {
                 factory.ReadObjectConn(sourceEntity.id, i, out bool _, out int otherObjId, out int _);
 
-                if (otherObjId != 0)
+                if (otherObjId > 0)
                 {
                     EntityData inserterEntity = factory.entityPool[otherObjId];
                     CopyInserter(inserterEntity, sourceEntity);
                 }
             }
-
 
             hasData = true;
             return copiedBuilding;
@@ -529,20 +504,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
 
-/*        factory.ReadObjectConn(sourceEntity.id, 1, out bool isOutput, out int connectedId, out int connectedSlot);
+            /*        factory.ReadObjectConn(sourceEntity.id, 1, out bool isOutput, out int connectedId, out int connectedSlot);
 
-            if (connectedId != 0)
-            {
-                copiedInserter.startSlot = connectedSlot;
-            }
+                        if (connectedId != 0)
+                        {
+                            copiedInserter.startSlot = connectedSlot;
+                        }
 
 
-            factory.ReadObjectConn(sourceEntity.id, 0, out _, out connectedId, out connectedSlot);
-            if (connectedId != 0)
-            {
-                copiedInserter.endSlot = connectedSlot;
-            }
-*/
+                        factory.ReadObjectConn(sourceEntity.id, 0, out _, out connectedId, out connectedSlot);
+                        if (connectedId != 0)
+                        {
+                            copiedInserter.endSlot = connectedSlot;
+                        }
+            */
 
             data.copiedInserters.Add(copiedInserter);
 
@@ -554,123 +529,76 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
             pastedEntities.Clear();
+            parallelPastedEntities.Clear();
+            previews.Clear();
             InserterPoses.ResetOverrides();
-
-            //Quaternion absoluteTargetRot = Maths.SphericalRotation(targetPos, yaw);
-            List<BuildPreview> previews = new List<BuildPreview>();
-            List<Vector3> absolutePositions = new List<Vector3>();
 
             Vector2 targetSpr = targetPos.ToSpherical();
             float yawRad = yaw * Mathf.Deg2Rad;
 
-            float currentMaxWidth = 0;
 
             for (int i = 0; i < data.copiedBuildings.Count; i++)
             {
-                BuildingCopy building = data.copiedBuildings[i];
-                Vector2 newRelative = building.cursorRelativePos.Rotate(yawRad, building.originalSegmentCount);
-                Vector2 sprPos = newRelative + targetSpr;
-
-                float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
-                int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-                int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-                float sizeDeviation = building.originalSegmentCount / (float)newSegmentCount;
-                if (sizeDeviation > currentMaxWidth)
-                    currentMaxWidth = sizeDeviation;
-
-
-                if (useExperimentalWidthFix && sizeDeviation < lastMaxWidth)
-                    sizeDeviation = lastMaxWidth;
-
-                sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
-
-                Vector3 absoluteBuildingPos = sprPos.SnapToGrid();
-
-                Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
-                PrefabDesc desc = GetPrefabDesc(building);
-                BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc, true);
-                bp.ResetInfos();
-                bp.desc = desc;
-                bp.item = building.itemProto;
-                bp.recipeId = building.recipeId;
-                bp.lpos = absoluteBuildingPos;
-                bp.lrot = absoluteBuildingRot;
-
-                Pose pose = new Pose(absoluteBuildingPos, absoluteBuildingRot);
-
-                int objId = InserterPoses.AddOverride(pose, building.itemProto);
-
-                pastedEntities.Add(building.originalId, new PastedEntity()
-                {
-                    type = EPastedType.building,
-                    index = i,
-                    sourceBuilding = building,
-                    pose = pose,
-                    objId = objId,
-                    buildPreview = bp
-                });
-                absolutePositions.Add(absoluteBuildingPos);
-                previews.Add(bp);
+                PasteBuilding(i, data.copiedBuildings[i], targetSpr, yaw);
             }
-
 
             for (int i = 0; i < data.copiedBelts.Count; i++)
             {
-                BeltCopy belt = data.copiedBelts[i];
-                Vector2 newRelative = belt.cursorRelativePos.Rotate(yawRad, belt.originalSegmentCount);
-                Vector2 sprPos = newRelative + targetSpr;
-
-                float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
-                int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-                int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
-
-                float sizeDeviation = belt.originalSegmentCount / (float)newSegmentCount;
-                if (sizeDeviation > currentMaxWidth)
-                    currentMaxWidth = sizeDeviation;
-
-                if (useExperimentalWidthFix && sizeDeviation < lastMaxWidth)
-                    sizeDeviation = lastMaxWidth;
-
-                sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
-
-                Vector3 absoluteBeltPos = sprPos.SnapToGrid(belt.altitude * 1.3333333f / 2);
-
-                // belts have always 0 yaw
-                Quaternion absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
-
-                BuildPreview bp = BuildPreview.CreateSingle(belt.itemProto, belt.itemProto.prefabDesc, true);
-                bp.ResetInfos();
-                bp.desc = belt.itemProto.prefabDesc;
-                bp.item = belt.itemProto;
-
-                bp.lpos = absoluteBeltPos;
-                bp.lrot = absoluteBeltRot;
-                bp.outputToSlot = -1;
-                bp.outputFromSlot = 0;
-
-                bp.inputFromSlot = -1;
-                bp.inputToSlot = 1;
-
-                bp.outputOffset = 0;
-                bp.inputOffset = 0;
-
-                Pose pose = new Pose(absoluteBeltPos, absoluteBeltRot);
-
-                int objId = InserterPoses.AddOverride(pose, belt.itemProto);
-
-                pastedEntities.Add(belt.originalId, new PastedEntity()
-                {
-                    type = EPastedType.belt,
-                    index = i,
-                    pose = pose,
-                    objId = objId,
-                    buildPreview = bp,
-                });
-
-                previews.Add(bp);
+                PasteBelt(i, data.copiedBelts[i], targetSpr, yaw);
             }
 
+            if (pasteInserters && data.copiedInserters.Count > 16)
+            {
+
+                var maxThreads = Environment.ProcessorCount - 1;
+                var runningThreads = 0;
+                var next = -1;
+                ManualResetEvent done = new ManualResetEvent(false);
+
+                for (int i = 0; i < maxThreads; i++)
+                {
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        int item;
+                        Interlocked.Increment(ref runningThreads);
+
+                        try
+                        {
+                            PlayerAction_Build ab = BuildLogic.ClonePlayerAction_Build(actionBuild);
+                            while ((item = Interlocked.Increment(ref next)) < data.copiedInserters.Count)
+                            {
+                                PasteInserter(ab, item, data.copiedInserters[item], yaw);
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.ToString());
+                        }
+                        finally
+                        {
+                            if (Interlocked.Decrement(ref runningThreads) == 0)
+                            {
+                                done.Set();
+                            }
+                        }
+                    });
+                }
+
+                done.WaitOne();
+            }
+            else if (pasteInserters)
+            {
+                for (var i = 0; i < data.copiedInserters.Count; i++)
+                {
+                    PasteInserter(actionBuild, i, data.copiedInserters[i], yaw);
+                }
+            }
+            // merge the inserter pastedEntities in the main dictionaries
+            foreach (var item in parallelPastedEntities)
+            {
+                previews.Add(item.Value.buildPreview);
+                pastedEntities.Add(item.Key, item.Value);
+            }
 
             // after creating the belt previews this restore the correct connection to other belts and buildings
             foreach (BeltCopy belt in data.copiedBelts)
@@ -718,8 +646,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 if (!beltHasInput || !beltHasOutput)
                 {
-                    
-
                     int found = actionBuild.nearcdLogic.GetBuildingsInAreaNonAlloc(preview.lpos, 0.34f, _nearObjectIds, false);
                     for (int x = 0; x < found; x++)
                     {
@@ -736,7 +662,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         bool overlappingBeltHasInput = (overlappingBelt.backInputId + overlappingBelt.leftInputId + overlappingBelt.rightInputId) != 0;
                         bool overlappingBeltHasOutput = overlappingBelt.outputId != 0;
 
-                        if ((beltHasOutput && !overlappingBeltHasOutput) || (beltHasInput && !overlappingBeltHasInput ))
+                        if ((beltHasOutput && !overlappingBeltHasOutput) || (beltHasInput && !overlappingBeltHasInput))
                         {
                             // found overlapping belt that can be 'replaced' to connect to existing belts
                             preview.coverObjId = overlappingEntityId;
@@ -744,73 +670,190 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             preview.willCover = true;
                         }
                     }
-                    
+
                 }
             }
 
-            
-
-            BuildLogic.ActivateColliders(ref actionBuild.nearcdLogic, absolutePositions);
-
-            if (!pasteInserters)
-            {
-                lastMaxWidth = currentMaxWidth;
-                return previews;
-            }
-
-            foreach (InserterCopy copiedInserter in data.copiedInserters)
-            {
-                InserterPosition positionData = InserterPoses.GetPositions(copiedInserter, yawRad);
-
-                BuildPreview bp = BuildPreview.CreateSingle(LDB.items.Select(copiedInserter.itemProto.ID), copiedInserter.itemProto.prefabDesc, true);
-                bp.ResetInfos();
-
-                bp.lpos = positionData.absoluteInserterPos;
-                bp.lpos2 = positionData.absoluteInserterPos2;
-
-                bp.lrot = positionData.absoluteInserterRot;
-                bp.lrot2 = positionData.absoluteInserterRot2;
-
-                bp.inputToSlot = 1;
-                bp.outputFromSlot = 0;
-
-                bp.inputOffset = positionData.pickOffset;
-                bp.outputOffset = positionData.insertOffset;
-                bp.outputToSlot = positionData.endSlot;
-                bp.inputFromSlot = positionData.startSlot;
-                bp.condition = positionData.condition;
-
-                bp.filterId = copiedInserter.filterId;
-
-                if (pastedEntities.TryGetValue(positionData.inputOriginalId, out PastedEntity inputEntity))
-                {
-                    bp.input = inputEntity.buildPreview;
-                }
-                else
-                {
-                    bp.inputObjId = positionData.inputObjId;
-                }
-
-                if (pastedEntities.TryGetValue(positionData.outputOriginalId, out PastedEntity outputEntity))
-                {
-                    bp.output = outputEntity.buildPreview;
-                }
-                else
-                {
-                    bp.outputObjId = positionData.outputObjId;
-                }
-
-                pastedEntities.Add(copiedInserter.originalId, new PastedEntity()
-                {
-                    buildPreview = bp
-                });
-
-                previews.Add(bp);
-            }
-
-            lastMaxWidth = currentMaxWidth;
 
             return previews;
+        }
+
+        public static void PasteBuilding(int index, BuildingCopy building, Vector2 targetSpr, float yaw)
+        {
+
+            Vector2 newRelative = building.cursorRelativePos.Rotate(yaw * Mathf.Deg2Rad, building.originalSegmentCount);
+            Vector2 sprPos = newRelative + targetSpr;
+
+            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
+            int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
+            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+
+            float sizeDeviation = building.originalSegmentCount / (float)newSegmentCount;
+
+            sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
+
+            Vector3 absoluteBuildingPos = sprPos.SnapToGrid();
+
+            Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
+            PrefabDesc desc = GetPrefabDesc(building);
+            BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc, true);
+            bp.ResetInfos();
+            bp.desc = desc;
+            bp.item = building.itemProto;
+            bp.recipeId = building.recipeId;
+            bp.lpos = absoluteBuildingPos;
+            bp.lrot = absoluteBuildingRot;
+
+            Pose pose = new Pose(absoluteBuildingPos, absoluteBuildingRot);
+
+            int objId = InserterPoses.AddOverride(pose, building.itemProto);
+
+            pastedEntities.Add(building.originalId, new PastedEntity()
+            {
+                type = EPastedType.BUILDING,
+                index = index,
+                sourceBuilding = building,
+                pose = pose,
+                objId = objId,
+                buildPreview = bp
+            });
+
+            ActivateColliders(absoluteBuildingPos);
+            previews.Add(bp);
+        }
+
+        public static void PasteBelt(int index, BeltCopy belt, Vector2 targetSpr, float yaw)
+        {
+            Vector2 newRelative = belt.cursorRelativePos.Rotate(yaw * Mathf.Deg2Rad, belt.originalSegmentCount);
+            Vector2 sprPos = newRelative + targetSpr;
+
+            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
+            int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
+            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+
+            float sizeDeviation = belt.originalSegmentCount / (float)newSegmentCount;
+
+            sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
+
+            Vector3 absoluteBeltPos = sprPos.SnapToGrid(belt.altitude * 1.3333333f / 2);
+
+            // belts have always 0 yaw
+            Quaternion absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
+
+            BuildPreview bp = BuildPreview.CreateSingle(belt.itemProto, belt.itemProto.prefabDesc, false);
+
+            bp.lpos = absoluteBeltPos;
+            bp.lrot = absoluteBeltRot;
+            bp.outputToSlot = -1;
+            bp.outputFromSlot = 0;
+
+            bp.inputFromSlot = -1;
+            bp.inputToSlot = 1;
+
+            bp.outputOffset = 0;
+            bp.inputOffset = 0;
+
+            Pose pose = new Pose(absoluteBeltPos, absoluteBeltRot);
+
+            int objId = InserterPoses.AddOverride(pose, belt.itemProto);
+
+            pastedEntities.Add(belt.originalId, new PastedEntity()
+            {
+                type = EPastedType.BELT,
+                index = index,
+                pose = pose,
+                objId = objId,
+                buildPreview = bp,
+            });
+
+            previews.Add(bp);
+        }
+
+        public static void PasteInserter(PlayerAction_Build actionBuild, int index, InserterCopy inserter, float yaw)
+        {
+            InserterPosition positionData = InserterPoses.GetPositions(actionBuild, inserter, yaw * Mathf.Deg2Rad);
+
+            BuildPreview bp = BuildPreview.CreateSingle(LDB.items.Select(inserter.itemProto.ID), inserter.itemProto.prefabDesc, true);
+
+            bp.lpos = positionData.absoluteInserterPos;
+            bp.lpos2 = positionData.absoluteInserterPos2;
+
+            bp.lrot = positionData.absoluteInserterRot;
+            bp.lrot2 = positionData.absoluteInserterRot2;
+
+            bp.inputToSlot = 1;
+            bp.outputFromSlot = 0;
+
+            bp.inputOffset = positionData.pickOffset;
+            bp.outputOffset = positionData.insertOffset;
+            bp.outputToSlot = positionData.endSlot;
+            bp.inputFromSlot = positionData.startSlot;
+            bp.condition = positionData.condition;
+
+            bp.filterId = inserter.filterId;
+
+            if (pastedEntities.TryGetValue(positionData.inputOriginalId, out PastedEntity inputEntity))
+            {
+                bp.input = inputEntity.buildPreview;
+            }
+            else
+            {
+                bp.inputObjId = positionData.inputObjId;
+            }
+
+            if (pastedEntities.TryGetValue(positionData.outputOriginalId, out PastedEntity outputEntity))
+            {
+                bp.output = outputEntity.buildPreview;
+            }
+            else
+            {
+                bp.outputObjId = positionData.outputObjId;
+            }
+
+            lock (parallelPastedEntities)
+            {
+                parallelPastedEntities.Add(inserter.originalId, new PastedEntity()
+                {
+                    type = EPastedType.INSERTER,
+                    index = index,
+                    buildPreview = bp,
+                });
+            }
+        }
+
+        public static void ActivateColliders(Vector3 center)
+        {
+            NearColliderLogic nearCdLogic = GameMain.data.mainPlayer.controller.actionBuild.nearcdLogic;
+
+            nearCdLogic.activeColHashCount = 0;
+            nearCdLogic.MarkActivePos(center);
+
+            const float sqrAreaRadius = 4f * 4f;
+
+            for (int i = 0; i < nearCdLogic.activeColHashCount; i++)
+            {
+                int hash = nearCdLogic.activeColHashes[i];
+                ColliderData[] colliderPool = nearCdLogic.colChunks[hash].colliderPool;
+
+                for (int j = 1; j < nearCdLogic.colChunks[hash].cursor; j++)
+                {
+                    var collider = colliderPool[j];
+                    if (collider.idType != 0 &&
+                        (collider.pos - center).sqrMagnitude <= sqrAreaRadius + collider.ext.sqrMagnitude &&
+                        (collider.usage != EColliderUsage.Physics || collider.objType != EObjectType.Entity))
+                    {
+                        int colliderObjId = hash << 20 | j;
+                        if (nearCdLogic.colliderObjs.ContainsKey(colliderObjId))
+                        {
+                            nearCdLogic.colliderObjs[colliderObjId].live = true;
+                        }
+                        else
+                        {
+                            nearCdLogic.colliderObjs[colliderObjId] = new ColliderObject(colliderObjId, collider);
+                        }
+                    }
+                }
+            }
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(ConnGizmoRenderer), "Update")]
@@ -837,14 +880,15 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         item.color = 0u;
                     }
 
-                    if(preview.ignoreCollider)
+                    if (preview.ignoreCollider)
                     {
                         __instance.objs_0.Add(item);
-                    } else
+                    }
+                    else
                     {
                         __instance.objs_1.Add(item);
                     }
-                    
+
 
                     if (preview.output != null)
                     {
