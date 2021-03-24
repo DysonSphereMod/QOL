@@ -1,5 +1,6 @@
 using BepInEx;
 using HarmonyLib;
+using NGPT;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,8 +48,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     internal class InserterPoses
     {
         private const int INITIAL_OBJ_ID = 2000000000;
-        private static Collider[] _tmp_cols = new Collider[256];
-        private static int[] _nearObjectIds = new int[4096];
 
         public static List<BuildPreviewOverride> overrides = new List<BuildPreviewOverride>();
 
@@ -68,19 +67,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return INITIAL_OBJ_ID + overrides.Count - 1;
         }
 
-        public static InserterPosition GetPositions(InserterCopy copiedInserter, float yawRad)
+        public static InserterPosition GetPositions(PlayerAction_Build actionBuild, InserterCopy copiedInserter, float yawRad)
         {
             var pastedEntities = BlueprintManager.pastedEntities;
-            var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
             var player = actionBuild.player;
             var pastedReferenceEntity = pastedEntities[copiedInserter.referenceBuildingId];
             var pastedReferenceEntityBuildPreview = pastedReferenceEntity.buildPreview;
 
-
+            Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
             Vector3 absoluteBuildingPos = pastedReferenceEntity.pose.position;
             Vector2 absoluteBuildingPosSpr = absoluteBuildingPos.ToSpherical();
-            
-            Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
 
             var posDelta = copiedInserter.posDelta.Rotate(yawRad, copiedInserter.posDeltaCount);
             Vector3 absoluteInserterPos = absoluteBuildingPosSpr
@@ -94,11 +90,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (pastedReferenceEntity.sourceBuilding == null)
             {
-               absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos,  yawRad * Mathf.Rad2Deg);
+                absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yawRad * Mathf.Rad2Deg);
             }
 
-            Quaternion absoluteInserterRot = absoluteBuildingRot * copiedInserter.rot ;
-            Quaternion absoluteInserterRot2 = absoluteBuildingRot * copiedInserter.rot2 ;
+            Quaternion absoluteInserterRot = absoluteBuildingRot * copiedInserter.rot;
+            Quaternion absoluteInserterRot2 = absoluteBuildingRot * copiedInserter.rot2;
 
             int startSlot = copiedInserter.startSlot;
             int endSlot = copiedInserter.endSlot;
@@ -131,6 +127,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     .ApplyDelta(otherPosDelta, copiedInserter.otherPosDeltaCount)
                     .SnapToGrid();
 
+
+                int[] _nearObjectIds = new int[256];
+
                 // find building nearby
                 int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
 
@@ -152,7 +151,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         proto = LDB.items.Select((int)entityData.protoId);
                         // ignore buildings without inserter poses
                         if (!proto.prefabDesc.isBelt && proto.prefabDesc.insertPoses.Length == 0) continue;
-      
+
                         distance = Vector3.Distance(entityData.pos, testPos);
                     }
                     else
@@ -184,6 +183,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     InserterPoses.CalculatePose(actionBuild, referenceObjId, otherObjId);
                 }
+
 
                 bool hasNearbyPose = false;
 
@@ -294,6 +294,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
                 int mask = 165888;
+                Collider[] _tmp_cols = new Collider[128];
                 int collisionsFound = Physics.OverlapBoxNonAlloc(colliderData.pos, colliderData.ext, _tmp_cols, colliderData.q, mask, QueryTriggerInteraction.Collide);
 
                 PlanetPhysics physics2 = player.planetData.physics;

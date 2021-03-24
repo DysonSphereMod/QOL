@@ -2,13 +2,16 @@ using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Networking;
+using System.Text.RegularExpressions;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, "2.1.4")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL, "MultiBuild" + CHANNEL, VERSION)]
     [BepInDependency("com.brokenmass.plugin.DSP.MultiBuildUI", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency(CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.fezeral.plugins.copyinserters", BepInDependency.DependencyFlags.SoftDependency)]
@@ -18,6 +21,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "Beta";
+        public const string VERSION = "2.2.0";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
             "org.fezeral.plugins.copyinserters",
@@ -43,12 +47,33 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static bool isValidInstallation = true;
         public static List<string> incompatiblePlugins = new List<string>();
+
+        IEnumerator CheckForUpdates()
+        {
+            var req = UnityWebRequest.Get($"https://dsp.thunderstore.io/api/experimental/package/brokenmass/MultiBuild${CHANNEL}/");
+            req.timeout = 6;
+            yield return req.SendWebRequest();
+
+            if (!req.isNetworkError)
+            {
+                Regex rg = new Regex("\"version_number\":\"([^\"]*)\"");
+                var match = rg.Match(req.downloadHandler.text);
+
+                if (match.Success && VERSION != match.Groups[1].Value)
+                {
+                    // Notify user of new version
+                }
+            }
+        }
+
         internal void Awake()
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL);
-
             itemSpecificSpacing = Config.Bind<bool>("General", "itemSpecificSpacing", true, "If this option is set to true, the mod will remember the last spacing used for a specific building. Otherwise the spacing will be the same for all entities.");
             spacingStore[0] = 0;
+
+            //StartCoroutine(CheckForUpdates());
+
             try
             {
                 foreach (var pluginInfo in BepInEx.Bootstrap.Chainloader.PluginInfos)
