@@ -63,23 +63,45 @@ namespace BetterStats
 
         private static string FormatMetric(float value)
         {
-            if (value >= 10000.0)
-            {
-                return ((long)value).ToString();
-            }
+            if (value >= 1000000.0)
+                return (value / 1000000).ToString("F2") + " M";
+            else if (value >= 10000.0)
+                return (value / 1000).ToString("F2") + " k";
             else if (value > 1000.0)
-            {
                 return value.ToString("F0");
-            }
             else if (value > 0.0)
-            {
                 return value.ToString("F1");
-            }
             else
-            {
                 return value.ToString();
-            }
 
+        }
+
+        private static string FormatMetricPerSec(float value)
+        {
+            value = value / 60;
+
+            if (value >= 1000000.0)
+                return (value / 1000000).ToString("F2") + " M";
+            else if (value >= 10000.0)
+                return (value / 1000).ToString("F2") + " k";
+            else if (value > 1000.0)
+                return value.ToString("F0");
+            else if (value > 0.0)
+                return value.ToString("F1");
+            else
+                return value.ToString();
+
+        }
+
+        private static float ReverseFormat(string value)
+        {
+            string[] parts = value.Split(' ');
+            float multiplier=1;
+
+            if (parts.Length > 1)
+                multiplier = parts[1] == "k" ? 1000 : (parts[1] == "M" ? 1000000 : (parts[1] == "G" ? 1000000000 : 1));
+
+            return float.Parse(parts[0]) * multiplier;
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
@@ -91,24 +113,49 @@ namespace BetterStats
                 __instance.productLabel.text += " / Theoretical max";
                 __instance.productLabel.resizeTextForBestFit = true;
                 __instance.productLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(150, 24);
-                __instance.productText.resizeTextForBestFit = true;
 
                 __instance.consumeLabel.text += " / Theoretical max";
                 __instance.consumeLabel.resizeTextForBestFit = true;
                 __instance.consumeLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(150, 24);
 
+                __instance.productText.resizeTextForBestFit = true;
                 __instance.consumeText.resizeTextForBestFit = true;
+
+                __instance.productUnitLabel.text += "\r\n/s";
+                __instance.productUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
+                // Not sure about scalability
+                __instance.productUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(116, 0, 0);
+                __instance.productUnitLabel.lineSpacing = 1.4F;
+
+                __instance.consumeUnitLabel.text += "\r\n/s";
+                __instance.consumeUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
+                __instance.consumeUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(297, 0, 0);
+                __instance.consumeUnitLabel.lineSpacing = 1.4F;
+
+
                 string produce = "0";
+                string produceSec = "0";
                 string consume = "0";
+                string consumeSec = "0";
                 if (counter.ContainsKey(__instance.itemId))
                 {
                     var productMetrics = counter[__instance.itemId];
                     produce = FormatMetric(productMetrics.production);
+                    produceSec = FormatMetricPerSec(productMetrics.production);
                     consume = FormatMetric(productMetrics.consumption);
+                    consumeSec = FormatMetricPerSec(productMetrics.consumption);
                 }
 
-                __instance.productText.text = $"{__instance.productText.text.Trim()} / {produce}";
-                __instance.consumeText.text = $"{__instance.consumeText.text.Trim()} / {consume}";
+                string originalProductText = __instance.productText.text.Trim();
+                string originalConsumeText = __instance.consumeText.text.Trim();
+
+
+                __instance.productText.text = $"{originalProductText} / {produce}";
+                __instance.consumeText.text = $"{originalConsumeText} / {consume}";
+
+                //add values per second
+                __instance.productText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalProductText))} / {produceSec}";
+                __instance.consumeText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalConsumeText))} / {consumeSec}";
             }
         }
 
