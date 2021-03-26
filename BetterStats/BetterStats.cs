@@ -3,7 +3,6 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,6 +14,12 @@ namespace BetterStats
     {
         Harmony harmony;
         private static Dictionary<int, ProductMetrics> counter = new Dictionary<int, ProductMetrics>();
+        private static bool displaySec;
+        private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
+        private static Texture2D texOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
+        private static Sprite sprOn;
+        private static Sprite sprOff;
+        private static Image checkBoxImage;
 
         internal void Awake()
         {
@@ -104,7 +109,73 @@ namespace BetterStats
             return float.Parse(parts[0]) * multiplier;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
+        private static void OnClick()
+        {
+            if (displaySec)
+                checkBoxImage.sprite = sprOff;
+            else
+                checkBoxImage.sprite = sprOn;
+            displaySec = !displaySec;
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnInit")]
+        public static void UIProductionStatWindow_OnInit_Postfix(UIProductionStatWindow __instance)
+        {
+            // change here the default mode
+            displaySec = true;
+
+            GameObject chxGO = new GameObject("displaySec");
+
+            RectTransform rect = chxGO.AddComponent<RectTransform>();
+            rect.SetParent(__instance.productRankBox.transform.parent, false);
+
+            rect.anchorMax = new Vector2(0, 1);
+            rect.anchorMin = new Vector2(0, 1);
+            rect.sizeDelta = new Vector2(20, 20);
+            rect.pivot = new Vector2(0, 0.5f);
+            rect.anchoredPosition = new Vector2(250, -33);
+
+            Button _btn = rect.gameObject.AddComponent<Button>();
+            _btn.onClick.AddListener(OnClick);
+
+            checkBoxImage = _btn.gameObject.AddComponent<Image>();
+
+            sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
+            sprOff = Sprite.Create(texOff, new Rect(0, 0, texOff.width, texOff.height), new Vector2(0.5f, 0.5f));
+
+            checkBoxImage.sprite = displaySec ? sprOn : sprOff;
+
+            if (checkBoxImage != null)
+            {
+                checkBoxImage.color = new Color(0.8f, 0.8f, 0.8f, 1);
+            }
+
+            GameObject txtGO = new GameObject("displaySecTxt");
+            RectTransform rectTxt = txtGO.AddComponent<RectTransform>();
+            rectTxt.SetParent(chxGO.transform, false);
+
+            rectTxt.anchorMax = new Vector2(0, 0.5f);
+            rectTxt.anchorMin = new Vector2(0, 0.5f);
+            rectTxt.sizeDelta = new Vector2(100, 20);
+            rectTxt.pivot = new Vector2(0, 0.5f);
+            rectTxt.anchoredPosition = new Vector2(20,0);
+
+            Text text = rectTxt.gameObject.AddComponent<Text>();
+            text.text = "Display /s";
+            text.fontStyle = FontStyle.Normal;
+            text.fontSize = 14;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.color = new Color(0.8f, 0.8f, 0.8f, 1);
+            Font fnt = Resources.Load<Font>("ui/fonts/SAIRASB");
+            if (fnt != null)
+                text.font = fnt;
+
+            chxGO.transform.SetParent(__instance.productRankBox.transform.parent, false);
+            txtGO.transform.SetParent(chxGO.transform, false);
+        }
+
+            [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
         public static void UIProductEntry_UpdateProduct_Postfix(UIProductEntry __instance)
         {
             int statTimeLevel = __instance.productionStatWindow.statTimeLevel;
@@ -121,16 +192,19 @@ namespace BetterStats
                 __instance.productText.resizeTextForBestFit = true;
                 __instance.consumeText.resizeTextForBestFit = true;
 
-                __instance.productUnitLabel.text += "\r\n/s";
-                __instance.productUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
-                // Not sure about scalability
-                __instance.productUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(116, 0, 0);
-                __instance.productUnitLabel.lineSpacing = 1.4F;
+                //add values per second
+                if (displaySec)
+                {
+                    __instance.productUnitLabel.text += "\r\n/s";
+                    __instance.productUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
+                    __instance.productUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(116, 0, 0);
+                    __instance.productUnitLabel.lineSpacing = 1.4F;
 
-                __instance.consumeUnitLabel.text += "\r\n/s";
-                __instance.consumeUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
-                __instance.consumeUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(297, 0, 0);
-                __instance.consumeUnitLabel.lineSpacing = 1.4F;
+                    __instance.consumeUnitLabel.text += "\r\n/s";
+                    __instance.consumeUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
+                    __instance.consumeUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(297, 0, 0);
+                    __instance.consumeUnitLabel.lineSpacing = 1.4F;
+                }
 
 
                 string produce = "0";
@@ -154,8 +228,11 @@ namespace BetterStats
                 __instance.consumeText.text = $"{originalConsumeText} / {consume}";
 
                 //add values per second
-                __instance.productText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalProductText))} / {produceSec}";
-                __instance.consumeText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalConsumeText))} / {consumeSec}";
+                if (displaySec)
+                {
+                    __instance.productText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalProductText))} / {produceSec}";
+                    __instance.consumeText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalConsumeText))} / {consumeSec}";
+                }
             }
         }
 
