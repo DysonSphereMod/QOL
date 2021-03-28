@@ -2,10 +2,11 @@
 
 This mods gives you the ability to build multiple copies of a building, with optional space between the copies.
 It also allow you to create / restore/ export/ import blueprints, allowing you to copy and paste whole parts of your base
+Please carefully read the FAQ section.
 
 Visit the amazing website created by `Diacred` [https://www.dysonsphereblueprints.com](https://www.dysonsphereblueprints.com) to view and share blueprints!
 
-This mod is **NOT COMPATIBLE** with AdvancedBuildDestruct and Copyinserters, but that shouldn't be a problem as this mod provides the same functionalities (multibuild, copy of inserters, etc).
+This mod is **NOT COMPATIBLE** with `AdvancedBuildDestruct` and `Copyinserters`, but that shouldn't be a problem as this mod provides the same functionalities (multibuild, copy of inserters, etc).
 
 The mod will not initialise if any of the incompatible mods are loaded. please remove them from your modman profile or from your plugins (if you are installing mods manually)
 
@@ -13,11 +14,15 @@ The mod will not initialise if any of the incompatible mods are loaded. please r
 
 > In this screenshot you can see [MultiBuild](https://dsp.thunderstore.io/package/brokenmass/MultiBuild/) in multibuild mode and [BuildCounter](https://dsp.thunderstore.io/package/brokenmass/BuildCounter/);
 
-## Beta Notice
+## Release channels
 
-This version is under development and cannot , yet, be considered fully stable. It should not affect in any destructive manner your savegame, but you might experience some 'weirdness' and graphic glitches when using this mod.
+This mod is released on 2 separate "channels":
 
-Please carefully read the limitation of the current beta version of this mod.
+-   [MultiBuild](https://dsp.thunderstore.io/package/brokenmass/MultiBuild/): The stable version of this mod. Only when functionalities have reached a target level of stability they are promoted to this channel. This mean that this version is updated less often than the other. Consider this the `SLOW CHANNEL` and choose this version if you prefer stability over functionalities.
+
+-   [MultiBuildBeta](https://dsp.thunderstore.io/package/brokenmass/MultiBuildBeta/): The 'bleeding' edge version of the mod, aligned to the most recent version of the code. While still being highly reliable, when using this versions you might experience some 'weirdness', graphic glitches and, very rarely, an error message. Consider this the `FAST CHANNEL` and and choose this version if you want the latest functionalities and/or if you want to contribute to the development of this mod.
+
+The two channels are not compatible with each other and none of the 2 will load if they are both loaded at the same time.
 
 ## Disclaimer
 
@@ -81,7 +86,7 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
 ## Changelog
 
-### v2.2.0-Beta
+### v2.2.0
 
 -   MultiBuild is now MultiThreaded. You should notice an improvments in performance when pasting large blueprints / long lines of buildings
 -   fix 2 bugs (`NPE` and `array index outOfBounds`) happening when blueprinting unbuilt buildings or buildings with unbuilt inserters
