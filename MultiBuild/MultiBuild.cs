@@ -20,8 +20,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     //possible incompatible dependency : KG-Long_Building_Selection_and_Free_M_Globalmap-1.0.0
     public class MultiBuild : BaseUnityPlugin
     {
-        public const string CHANNEL = "";
-        public const string VERSION = "2.2.1";
+        public const string CHANNEL = "Beta";
+        public const string VERSION = "2.3.0";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
             "org.fezeral.plugins.copyinserters",
@@ -114,8 +114,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         {
                             BlueprintCreator.EndBpMode(true);
                         }
-                        HashSet<int> incompatibleIds;
-                        var data = BlueprintData.Import(GUIUtility.systemCopyBuffer, out incompatibleIds);
+                        var data = BlueprintData.Import(GUIUtility.systemCopyBuffer, out HashSet<int> incompatibleIds);
                         if (data != null)
                         {
                             BlueprintManager.Restore(data);
@@ -260,6 +259,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             spacingIndex = 0;
             BuildLogic.path = 0;
             BuildLogic.forceRecalculation = true;
+            BuildLogic.lastRunOriginal = true;
             multiBuildInserters = true;
             multiBuildEnabled = false;
             startPos = Vector3.zero;
@@ -277,9 +277,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (__instance.cmd.type != ECommand.None && __instance.cmd.type != ECommand.Follow &&
                 (__instance.cmd.mode != lastCmdMode || __instance.cmd.type != lastCmdType))
             {
-
-                ResetMultiBuild();
-
+                if (__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 1)
+                {
+                    ResetMultiBuild();
+                }
                 if (__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 0)
                 {
                     BlueprintCreator.EndBpMode();

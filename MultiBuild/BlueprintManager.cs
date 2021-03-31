@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Collections.Concurrent;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
@@ -14,11 +15,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         INSERTER
     }
 
+    public enum EPastedStatus
+    {
+        NEW,
+        UPDATE,
+        REMOVE
+    }
+
     public class PastedEntity
     {
+        public EPastedStatus status;
         public EPastedType type;
-        public int index;
         public BuildingCopy sourceBuilding;
+        public BeltCopy sourceBelt;
+        public InserterCopy sourceInserter;
         public BuildPreview buildPreview;
         public Pose pose;
         public int objId;
@@ -27,18 +37,17 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     [HarmonyPatch]
     public class BlueprintManager
     {
+        public const int COPY_INDEX_MULTIPLIER = 10_000_000;
+
         public static BlueprintData previousData = new BlueprintData();
         public static BlueprintData data = new BlueprintData();
         public static bool hasData = false;
 
-        public static Dictionary<int, PastedEntity> pastedEntities = new Dictionary<int, PastedEntity>();
-        public static Dictionary<int, PastedEntity> parallelPastedEntities = new Dictionary<int, PastedEntity>();
-
-        public static List<BuildPreview> previews = new List<BuildPreview>();
-
+        public static ConcurrentDictionary<int, PastedEntity> pastedEntities = new ConcurrentDictionary<int, PastedEntity>(Util.MAX_THREADS, 0);
         public static bool useExperimentalWidthFix = false;
 
-        private static int[] _nearObjectIds = new int[128];
+        private static int[][] _nearObjectIds = new int[Util.MAX_THREADS][];
+        private static PlayerAction_Build[] _abs = new PlayerAction_Build[Util.MAX_THREADS];
         public static void Reset()
         {
             if (!hasData)
@@ -50,8 +59,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             previousData = data;
             data = new BlueprintData();
             pastedEntities.Clear();
-            parallelPastedEntities.Clear();
-            previews.Clear();
             GC.Collect();
 
             UpdateUIText();
@@ -72,8 +79,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
             pastedEntities.Clear();
-            parallelPastedEntities.Clear();
-            previews.Clear();
             GC.Collect();
             UpdateUIText();
             EnterBuildModeAfterBp();
@@ -472,7 +477,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 filterId = inserter.filter,
 
-
                 startSlot = -1,
                 endSlot = -1,
 
@@ -524,162 +528,137 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return copiedInserter;
         }
 
-        public static List<BuildPreview> Paste(Vector3 targetPos, float yaw, bool pasteInserters = true)
+        public static void PreparePaste()
+        {
+            InserterPoses.ResetOverrides();
+
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
+            for (var i = 0; i < Util.MAX_THREADS; i++)
+            {
+                _abs[i] = Util.ClonePlayerAction_Build(actionBuild);
+                _nearObjectIds[i] = new int[128];
+            }
+
+            foreach (var pastedEntity in pastedEntities.Values)
+            {
+                pastedEntity.status = EPastedStatus.REMOVE;
+            }
+        }
+
+        public static void AfterPaste()
         {
             PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
+            var entitiesToRemove = pastedEntities.Where(entity => entity.Value.status == EPastedStatus.REMOVE).ToList();
+            foreach (var pastedEntity in entitiesToRemove)
+            {
+                actionBuild.RemoveBuildPreview(pastedEntity.Value.buildPreview);
+                pastedEntities.TryRemove(pastedEntity.Key, out _);
+                pastedEntity.Value.buildPreview.Free();
+            }
+        }
+
+        [HarmonyPrefix, HarmonyPatch(typeof(PlayerAction_Build), "ClearBuildPreviews")]
+        public static void PlayerAction_Build_ClearBuildPreviews_Prefix()
+        {
             pastedEntities.Clear();
-            parallelPastedEntities.Clear();
-            previews.Clear();
             InserterPoses.ResetOverrides();
+        }
+
+        public static void Paste(Vector3 targetPos, float yaw, bool pasteInserters = true, int copyIndex = 0)
+        {
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
             Vector2 targetSpr = targetPos.ToSpherical();
             float yawRad = yaw * Mathf.Deg2Rad;
 
-
-            for (int i = 0; i < data.copiedBuildings.Count; i++)
+            ConcurrentQueue<BuildingCopy> buildingsQueue = new ConcurrentQueue<BuildingCopy>(data.copiedBuildings);
+            Util.Parallelize((int threadIndex) =>
             {
-                PasteBuilding(i, data.copiedBuildings[i], targetSpr, yaw);
-            }
-
-            for (int i = 0; i < data.copiedBelts.Count; i++)
-            {
-                PasteBelt(i, data.copiedBelts[i], targetSpr, yaw);
-            }
-
-            if (pasteInserters && data.copiedInserters.Count > 16)
-            {
-
-                var maxThreads = Environment.ProcessorCount - 1;
-                var runningThreads = 0;
-                var next = -1;
-                ManualResetEvent done = new ManualResetEvent(false);
-
-                for (int i = 0; i < maxThreads; i++)
+                while (buildingsQueue.TryDequeue(out BuildingCopy building))
                 {
-                    ThreadPool.QueueUserWorkItem(_ =>
+                    var pastedEntity = ConcurrentPasteBuilding(threadIndex, building, targetSpr, yaw, copyIndex);
+
+                    lock (actionBuild.nearcdLogic)
                     {
-                        int item;
-                        Interlocked.Increment(ref runningThreads);
+                        actionBuild.nearcdLogic.ActiveEntityBuildCollidersInArea(pastedEntity.pose.position, 5f);
+                    }
 
-                        try
-                        {
-                            PlayerAction_Build ab = BuildLogic.ClonePlayerAction_Build(actionBuild);
-                            while ((item = Interlocked.Increment(ref next)) < data.copiedInserters.Count)
-                            {
-                                PasteInserter(ab, item, data.copiedInserters[item], yaw);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e.ToString());
-                        }
-                        finally
-                        {
-                            if (Interlocked.Decrement(ref runningThreads) == 0)
-                            {
-                                done.Set();
-                            }
-                        }
-                    });
+                    BuildLogic.CheckBuildConditionsWorker(_abs[threadIndex], pastedEntity.buildPreview);
                 }
+            });
 
-                done.WaitOne();
-            }
-            else if (pasteInserters)
+            ConcurrentQueue<BeltCopy> beltsQueue = new ConcurrentQueue<BeltCopy>(data.copiedBelts);
+            Util.Parallelize((int threadIndex) =>
             {
-                for (var i = 0; i < data.copiedInserters.Count; i++)
+                while (beltsQueue.TryDequeue(out BeltCopy belt))
                 {
-                    PasteInserter(actionBuild, i, data.copiedInserters[i], yaw);
+                    var pastedEntity = ConcurrentPasteBelt(threadIndex, belt, targetSpr, yaw, copyIndex);
                 }
-            }
-            // merge the inserter pastedEntities in the main dictionaries
-            foreach (var item in parallelPastedEntities)
-            {
-                previews.Add(item.Value.buildPreview);
-                pastedEntities.Add(item.Key, item.Value);
-            }
+            });
+
+
 
             // after creating the belt previews this restore the correct connection to other belts and buildings
-            foreach (BeltCopy belt in data.copiedBelts)
+            beltsQueue = new ConcurrentQueue<BeltCopy>(data.copiedBelts);
+            Util.Parallelize((int threadIndex) =>
             {
-                BuildPreview preview = pastedEntities[belt.originalId].buildPreview;
-
-                if (belt.outputId != 0 &&
-                    pastedEntities.TryGetValue(belt.outputId, out PastedEntity otherEntity) &&
-                    Vector3.Distance(preview.lpos, otherEntity.buildPreview.lpos) < 10) // if the belts are too far apart ignore connection
+                while (beltsQueue.TryDequeue(out BeltCopy belt))
                 {
-
-                    preview.output = otherEntity.buildPreview;
-                    var otherBelt = data.copiedBelts[otherEntity.index];
-
-                    if (otherBelt.backInputId == belt.originalId)
-                    {
-                        preview.outputToSlot = 1;
-                    }
-                    if (otherBelt.leftInputId == belt.originalId)
-                    {
-                        preview.outputToSlot = 2;
-                    }
-                    if (otherBelt.rightInputId == belt.originalId)
-                    {
-                        preview.outputToSlot = 3;
-                    }
+                    var pastedEntity = ConcurrentConnectBelt(threadIndex, belt, copyIndex);
+                    BuildLogic.CheckBuildConditionsWorker(_abs[threadIndex], pastedEntity.buildPreview);
                 }
+            });
 
-                if (belt.connectedBuildingId != 0 && pastedEntities.TryGetValue(belt.connectedBuildingId, out PastedEntity otherBuilding))
+            if (pasteInserters)
+            {
+                ConcurrentQueue<InserterCopy> inserterQueue = new ConcurrentQueue<InserterCopy>(data.copiedInserters);
+                Util.Parallelize((threadIndex) =>
                 {
-                    if (belt.connectedBuildingIsOutput)
+                    while (inserterQueue.TryDequeue(out InserterCopy inserter))
                     {
-                        preview.output = otherBuilding.buildPreview;
-                        preview.outputToSlot = belt.connectedBuildingSlot;
+                        var pastedEntity = ConcurrentPasteInserter(threadIndex, inserter, yaw, copyIndex);
+
+
                     }
-                    else
-                    {
-                        preview.input = otherBuilding.buildPreview;
-                        preview.inputFromSlot = belt.connectedBuildingSlot;
-                    }
-                }
-
-                bool beltHasInput = pastedEntities.ContainsKey(belt.backInputId) || pastedEntities.ContainsKey(belt.leftInputId) || pastedEntities.ContainsKey(belt.rightInputId);
-                bool beltHasOutput = pastedEntities.ContainsKey(belt.outputId);
-
-                if (!beltHasInput || !beltHasOutput)
-                {
-                    int found = actionBuild.nearcdLogic.GetBuildingsInAreaNonAlloc(preview.lpos, 0.34f, _nearObjectIds, false);
-                    for (int x = 0; x < found; x++)
-                    {
-                        int overlappingEntityId = _nearObjectIds[x];
-
-                        if (overlappingEntityId <= 0) continue;
-
-                        EntityData overlappingEntityData = actionBuild.factory.entityPool[overlappingEntityId];
-
-                        if (overlappingEntityData.beltId <= 0) continue;
-
-                        BeltComponent overlappingBelt = actionBuild.factory.cargoTraffic.beltPool[overlappingEntityData.beltId];
-
-                        bool overlappingBeltHasInput = (overlappingBelt.backInputId + overlappingBelt.leftInputId + overlappingBelt.rightInputId) != 0;
-                        bool overlappingBeltHasOutput = overlappingBelt.outputId != 0;
-
-                        if ((beltHasOutput && !overlappingBeltHasOutput) || (beltHasInput && !overlappingBeltHasInput))
-                        {
-                            // found overlapping belt that can be 'replaced' to connect to existing belts
-                            preview.coverObjId = overlappingEntityId;
-                            preview.ignoreCollider = true;
-                            preview.willCover = true;
-                        }
-                    }
-
-                }
+                });
             }
-
-
-            return previews;
         }
 
-        public static void PasteBuilding(int index, BuildingCopy building, Vector2 targetSpr, float yaw)
+        public static PastedEntity ConcurrentPasteBuilding(int threadIndex, BuildingCopy building, Vector2 targetSpr, float yaw, int copyIndex)
         {
+            var actionBuild = _abs[threadIndex];
+            int pasteId = COPY_INDEX_MULTIPLIER * copyIndex + building.originalId;
+
+            if (!pastedEntities.TryGetValue(pasteId, out PastedEntity pastedEntity))
+            {
+                PrefabDesc desc = GetPrefabDesc(building);
+                BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc, true);
+                bp.ResetInfos();
+                bp.desc = desc;
+                bp.item = building.itemProto;
+                bp.recipeId = building.recipeId;
+
+                pastedEntity = new PastedEntity()
+                {
+                    status = EPastedStatus.NEW,
+                    type = EPastedType.BUILDING,
+                    sourceBuilding = building,
+                    buildPreview = bp
+                };
+
+                pastedEntities.TryAdd(pasteId, pastedEntity);
+
+                lock (actionBuild.buildPreviews)
+                {
+                    actionBuild.buildPreviews.Add(bp);
+                }
+            }
+            else
+            {
+                pastedEntity.status = EPastedStatus.UPDATE;
+            }
 
             Vector2 newRelative = building.cursorRelativePos.Rotate(yaw * Mathf.Deg2Rad, building.originalSegmentCount);
             Vector2 sprPos = newRelative + targetSpr;
@@ -693,37 +672,48 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             sprPos = new Vector2(newRelative.x, newRelative.y * sizeDeviation) + targetSpr;
 
             Vector3 absoluteBuildingPos = sprPos.SnapToGrid();
-
             Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
-            PrefabDesc desc = GetPrefabDesc(building);
-            BuildPreview bp = BuildPreview.CreateSingle(building.itemProto, desc, true);
-            bp.ResetInfos();
-            bp.desc = desc;
-            bp.item = building.itemProto;
-            bp.recipeId = building.recipeId;
-            bp.lpos = absoluteBuildingPos;
-            bp.lrot = absoluteBuildingRot;
 
             Pose pose = new Pose(absoluteBuildingPos, absoluteBuildingRot);
 
-            int objId = InserterPoses.AddOverride(pose, building.itemProto);
+            pastedEntity.objId = InserterPoses.AddOverride(pose, building.itemProto);
+            pastedEntity.pose = pose;
 
-            pastedEntities.Add(building.originalId, new PastedEntity()
-            {
-                type = EPastedType.BUILDING,
-                index = index,
-                sourceBuilding = building,
-                pose = pose,
-                objId = objId,
-                buildPreview = bp
-            });
+            pastedEntity.buildPreview.lpos = absoluteBuildingPos;
+            pastedEntity.buildPreview.lrot = absoluteBuildingRot;
+            pastedEntity.buildPreview.condition = EBuildCondition.Ok;
 
-            ActivateColliders(absoluteBuildingPos);
-            previews.Add(bp);
+            return pastedEntity;
         }
 
-        public static void PasteBelt(int index, BeltCopy belt, Vector2 targetSpr, float yaw)
+        public static PastedEntity ConcurrentPasteBelt(int threadIndex, BeltCopy belt, Vector2 targetSpr, float yaw, int copyIndex)
         {
+            var actionBuild = _abs[threadIndex];
+            int pasteId = COPY_INDEX_MULTIPLIER * copyIndex + belt.originalId;
+            if (!pastedEntities.TryGetValue(pasteId, out PastedEntity pastedEntity))
+            {
+                BuildPreview bp = BuildPreview.CreateSingle(belt.itemProto, belt.itemProto.prefabDesc, false);
+
+                pastedEntity = new PastedEntity()
+                {
+                    status = EPastedStatus.NEW,
+                    type = EPastedType.BELT,
+                    sourceBelt = belt,
+                    buildPreview = bp,
+                };
+
+                pastedEntities.TryAdd(pasteId, pastedEntity);
+
+                lock (actionBuild.buildPreviews)
+                {
+                    actionBuild.buildPreviews.Add(bp);
+                }
+            }
+            else
+            {
+                pastedEntity.status = EPastedStatus.UPDATE;
+            }
+
             Vector2 newRelative = belt.cursorRelativePos.Rotate(yaw * Mathf.Deg2Rad, belt.originalSegmentCount);
             Vector2 sprPos = newRelative + targetSpr;
 
@@ -740,120 +730,200 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             // belts have always 0 yaw
             Quaternion absoluteBeltRot = Maths.SphericalRotation(absoluteBeltPos, 0f);
 
-            BuildPreview bp = BuildPreview.CreateSingle(belt.itemProto, belt.itemProto.prefabDesc, false);
-
-            bp.lpos = absoluteBeltPos;
-            bp.lrot = absoluteBeltRot;
-            bp.outputToSlot = -1;
-            bp.outputFromSlot = 0;
-
-            bp.inputFromSlot = -1;
-            bp.inputToSlot = 1;
-
-            bp.outputOffset = 0;
-            bp.inputOffset = 0;
 
             Pose pose = new Pose(absoluteBeltPos, absoluteBeltRot);
 
-            int objId = InserterPoses.AddOverride(pose, belt.itemProto);
+            pastedEntity.objId = InserterPoses.AddOverride(pose, belt.itemProto);
+            pastedEntity.pose = pose;
 
-            pastedEntities.Add(belt.originalId, new PastedEntity()
-            {
-                type = EPastedType.BELT,
-                index = index,
-                pose = pose,
-                objId = objId,
-                buildPreview = bp,
-            });
+            pastedEntity.buildPreview.lpos = absoluteBeltPos;
+            pastedEntity.buildPreview.lrot = absoluteBeltRot;
 
-            previews.Add(bp);
+
+
+            pastedEntity.buildPreview.condition = EBuildCondition.Ok;
+
+            return pastedEntity;
         }
 
-        public static void PasteInserter(PlayerAction_Build actionBuild, int index, InserterCopy inserter, float yaw)
+        public static PastedEntity ConcurrentPasteInserter(int threadIndex, InserterCopy inserter, float yaw, int copyIndex)
         {
-            InserterPosition positionData = InserterPoses.GetPositions(actionBuild, inserter, yaw * Mathf.Deg2Rad);
-
-            BuildPreview bp = BuildPreview.CreateSingle(LDB.items.Select(inserter.itemProto.ID), inserter.itemProto.prefabDesc, true);
-
-            bp.lpos = positionData.absoluteInserterPos;
-            bp.lpos2 = positionData.absoluteInserterPos2;
-
-            bp.lrot = positionData.absoluteInserterRot;
-            bp.lrot2 = positionData.absoluteInserterRot2;
-
-            bp.inputToSlot = 1;
-            bp.outputFromSlot = 0;
-
-            bp.inputOffset = positionData.pickOffset;
-            bp.outputOffset = positionData.insertOffset;
-            bp.outputToSlot = positionData.endSlot;
-            bp.inputFromSlot = positionData.startSlot;
-            bp.condition = positionData.condition;
-
-            bp.filterId = inserter.filterId;
-
-            if (pastedEntities.TryGetValue(positionData.inputOriginalId, out PastedEntity inputEntity))
+            var actionBuild = _abs[threadIndex];
+            int pasteId = COPY_INDEX_MULTIPLIER * copyIndex + inserter.originalId;
+            if (!pastedEntities.TryGetValue(pasteId, out PastedEntity pastedEntity))
             {
-                bp.input = inputEntity.buildPreview;
-            }
-            else
-            {
-                bp.inputObjId = positionData.inputObjId;
-            }
+                BuildPreview bp = BuildPreview.CreateSingle(inserter.itemProto, inserter.itemProto.prefabDesc, true);
 
-            if (pastedEntities.TryGetValue(positionData.outputOriginalId, out PastedEntity outputEntity))
-            {
-                bp.output = outputEntity.buildPreview;
-            }
-            else
-            {
-                bp.outputObjId = positionData.outputObjId;
-            }
-
-            lock (parallelPastedEntities)
-            {
-                parallelPastedEntities.Add(inserter.originalId, new PastedEntity()
+                pastedEntity = new PastedEntity()
                 {
+                    status = EPastedStatus.NEW,
                     type = EPastedType.INSERTER,
-                    index = index,
+                    sourceInserter = inserter,
                     buildPreview = bp,
-                });
-            }
-        }
+                };
 
-        public static void ActivateColliders(Vector3 center)
-        {
-            NearColliderLogic nearCdLogic = GameMain.data.mainPlayer.controller.actionBuild.nearcdLogic;
+                bp.filterId = inserter.filterId;
+                bp.inputToSlot = 1;
+                bp.outputFromSlot = 0;
 
-            nearCdLogic.activeColHashCount = 0;
-            nearCdLogic.MarkActivePos(center);
+                pastedEntities.TryAdd(pasteId, pastedEntity);
 
-            const float sqrAreaRadius = 4f * 4f;
-
-            for (int i = 0; i < nearCdLogic.activeColHashCount; i++)
-            {
-                int hash = nearCdLogic.activeColHashes[i];
-                ColliderData[] colliderPool = nearCdLogic.colChunks[hash].colliderPool;
-
-                for (int j = 1; j < nearCdLogic.colChunks[hash].cursor; j++)
+                lock (actionBuild.buildPreviews)
                 {
-                    var collider = colliderPool[j];
-                    if (collider.idType != 0 &&
-                        (collider.pos - center).sqrMagnitude <= sqrAreaRadius + collider.ext.sqrMagnitude &&
-                        (collider.usage != EColliderUsage.Physics || collider.objType != EObjectType.Entity))
-                    {
-                        int colliderObjId = hash << 20 | j;
-                        if (nearCdLogic.colliderObjs.ContainsKey(colliderObjId))
-                        {
-                            nearCdLogic.colliderObjs[colliderObjId].live = true;
-                        }
-                        else
-                        {
-                            nearCdLogic.colliderObjs[colliderObjId] = new ColliderObject(colliderObjId, collider);
-                        }
-                    }
+                    actionBuild.buildPreviews.Add(bp);
                 }
             }
+            else
+            {
+                pastedEntity.status = EPastedStatus.UPDATE;
+            }
+
+            InserterPosition positionData = InserterPoses.GetPositions(actionBuild, inserter, yaw * Mathf.Deg2Rad, copyIndex);
+
+            pastedEntity.buildPreview.lpos = positionData.absoluteInserterPos;
+            pastedEntity.buildPreview.lpos2 = positionData.absoluteInserterPos2;
+
+            pastedEntity.buildPreview.lrot = positionData.absoluteInserterRot;
+            pastedEntity.buildPreview.lrot2 = positionData.absoluteInserterRot2;
+
+            pastedEntity.buildPreview.inputOffset = positionData.pickOffset;
+            pastedEntity.buildPreview.outputOffset = positionData.insertOffset;
+            pastedEntity.buildPreview.outputToSlot = positionData.endSlot;
+            pastedEntity.buildPreview.inputFromSlot = positionData.startSlot;
+
+            pastedEntity.buildPreview.condition = positionData.condition;
+
+            pastedEntity.buildPreview.input = null;
+            pastedEntity.buildPreview.inputObjId = 0;
+            pastedEntity.buildPreview.output = null;
+            pastedEntity.buildPreview.outputObjId = 0;
+
+            if (pastedEntities.TryGetValue(positionData.inputPastedId, out PastedEntity inputPastedEntity))
+            {
+                pastedEntity.buildPreview.input = inputPastedEntity.buildPreview;
+            }
+            else
+            {
+                pastedEntity.buildPreview.inputObjId = positionData.inputEntityId;
+            }
+
+            if (pastedEntities.TryGetValue(positionData.outputPastedId, out PastedEntity outputPastedEntity))
+            {
+                pastedEntity.buildPreview.output = outputPastedEntity.buildPreview;
+            }
+            else
+            {
+                pastedEntity.buildPreview.outputObjId = positionData.outputEntityId;
+            }
+
+            return pastedEntity;
+        }
+
+        public static PastedEntity ConcurrentConnectBelt(int threadIndex, BeltCopy belt, int copyIndex)
+        {
+            var actionBuild = _abs[threadIndex];
+            int pasteId = COPY_INDEX_MULTIPLIER * copyIndex + belt.originalId;
+            var pastedEntity = pastedEntities[pasteId];
+
+            BuildPreview buildPreview = pastedEntity.buildPreview;
+
+            buildPreview.output = null;
+            buildPreview.outputToSlot = -1;
+            buildPreview.outputFromSlot = 0;
+            buildPreview.outputOffset = 0;
+
+            buildPreview.input = null;
+            buildPreview.inputFromSlot = -1;
+            buildPreview.inputToSlot = 1;
+            buildPreview.inputOffset = 0;
+
+            buildPreview.coverObjId = 0;
+            buildPreview.ignoreCollider = false;
+            buildPreview.willCover = false;
+
+            var pastedBackInputId = COPY_INDEX_MULTIPLIER * copyIndex + belt.backInputId;
+            var pastedLeftInputId = COPY_INDEX_MULTIPLIER * copyIndex + belt.leftInputId;
+            var pastedRightInputId = COPY_INDEX_MULTIPLIER * copyIndex + belt.rightInputId;
+            var pastedOutputId = COPY_INDEX_MULTIPLIER * copyIndex + belt.outputId;
+            var pastedConnectedBuildingId = COPY_INDEX_MULTIPLIER * copyIndex + belt.connectedBuildingId;
+
+
+            if (pastedOutputId != 0 &&
+                pastedEntities.TryGetValue(pastedOutputId, out PastedEntity otherPastedEntity) &&
+                otherPastedEntity.type == EPastedType.BELT &&
+                otherPastedEntity.status != EPastedStatus.REMOVE &&
+                Vector3.Distance(buildPreview.lpos, otherPastedEntity.buildPreview.lpos) < 10) // if the belts are too far apart ignore connection
+            {
+                buildPreview.output = otherPastedEntity.buildPreview;
+                var otherBelt = otherPastedEntity.sourceBelt;
+
+                if (otherBelt.backInputId == belt.originalId)
+                {
+                    buildPreview.outputToSlot = 1;
+                }
+                if (otherBelt.leftInputId == belt.originalId)
+                {
+                    buildPreview.outputToSlot = 2;
+                }
+                if (otherBelt.rightInputId == belt.originalId)
+                {
+                    buildPreview.outputToSlot = 3;
+                }
+            }
+
+
+
+            if (pastedConnectedBuildingId != 0 &&
+                pastedEntities.TryGetValue(pastedConnectedBuildingId, out PastedEntity otherBuilding) &&
+                otherBuilding.type == EPastedType.BUILDING &&
+                otherBuilding.status != EPastedStatus.REMOVE)
+            {
+                if (belt.connectedBuildingIsOutput)
+                {
+                    buildPreview.output = otherBuilding.buildPreview;
+                    buildPreview.outputToSlot = belt.connectedBuildingSlot;
+                }
+                else
+                {
+                    buildPreview.input = otherBuilding.buildPreview;
+                    buildPreview.inputFromSlot = belt.connectedBuildingSlot;
+                }
+            }
+
+            bool beltHasInput = pastedEntities.ContainsKey(pastedBackInputId) || pastedEntities.ContainsKey(pastedLeftInputId) || pastedEntities.ContainsKey(pastedRightInputId);
+            bool beltHasOutput = pastedEntities.ContainsKey(pastedOutputId);
+
+            if (!beltHasInput || !beltHasOutput)
+            {
+                var nearObjId = _nearObjectIds[threadIndex];
+                int found = actionBuild.nearcdLogic.GetBuildingsInAreaNonAlloc(buildPreview.lpos, 0.34f, nearObjId, false);
+                for (int x = 0; x < found; x++)
+                {
+                    int overlappingEntityId = nearObjId[x];
+
+                    if (overlappingEntityId <= 0) continue;
+
+                    EntityData overlappingEntityData = actionBuild.factory.entityPool[overlappingEntityId];
+
+                    if (overlappingEntityData.beltId <= 0) continue;
+
+                    BeltComponent overlappingBelt = actionBuild.factory.cargoTraffic.beltPool[overlappingEntityData.beltId];
+
+                    bool overlappingBeltHasInput = (overlappingBelt.backInputId + overlappingBelt.leftInputId + overlappingBelt.rightInputId) != 0;
+                    bool overlappingBeltHasOutput = overlappingBelt.outputId != 0;
+
+                    if ((beltHasOutput && !overlappingBeltHasOutput) || (beltHasInput && !overlappingBeltHasInput))
+                    {
+                        // found overlapping belt that can be 'replaced' to connect to existing belts
+                        buildPreview.coverObjId = overlappingEntityId;
+                        buildPreview.ignoreCollider = true;
+                        buildPreview.willCover = true;
+                    }
+                }
+
+            }
+
+            return pastedEntity;
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(ConnGizmoRenderer), "Update")]

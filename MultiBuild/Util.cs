@@ -1,10 +1,73 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     public static class Util
     {
+        public static int MAX_THREADS = Environment.ProcessorCount - 1;
+        public static PlayerAction_Build ClonePlayerAction_Build(PlayerAction_Build original)
+        {
+            var nearcdClone = new NearColliderLogic()
+            {
+                planet = original.nearcdLogic.planet,
+                colChunks = original.nearcdLogic.colChunks,
+                activeColHashes = new int[600],
+                activeColHashCount = 0,
+                colliderObjs = original.nearcdLogic.colliderObjs
+            };
+
+            var clone = new PlayerAction_Build()
+            {
+                factory = original.factory,
+                player = original.player,
+                nearcdLogic = nearcdClone,
+                tmpPackage = original.tmpPackage,
+                planetAux = original.planetAux,
+                cursorTarget = original.cursorTarget,
+                buildPreviews = original.buildPreviews,
+                planetPhysics = original.planetPhysics,
+                previewPose = new Pose(Vector3.zero, Quaternion.identity),
+                posePairs = new List<PlayerAction_Build.PosePair>(64),
+                startSlots = new List<PlayerAction_Build.SlotPoint>(64),
+                endSlots = new List<PlayerAction_Build.SlotPoint>(64)
+            };
+
+            return clone;
+        }
+        public static void Parallelize(Action<int> job)
+        {
+            Task[] tasks = new Task[MAX_THREADS];
+
+            for (int i = 0; i < MAX_THREADS; i++)
+            {
+                int taskIndex = i;
+                tasks[taskIndex] = Task.Factory.StartNew(() =>
+                {
+                    try
+                    {
+                        job(taskIndex);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
+                });
+            }
+            try
+            {
+                Task.WaitAll(tasks, 1000);
+            }
+            catch (AggregateException ae)
+            {
+                Console.WriteLine("One or more exceptions occurred: ");
+                foreach (var ex in ae.Flatten().InnerExceptions)
+                    Console.WriteLine($"   {ex.Message}");
+            }
+        }
 
         public static Vector2 ToSpherical(this Vector3 vector)
         {
