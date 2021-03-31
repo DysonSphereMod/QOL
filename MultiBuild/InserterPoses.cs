@@ -2,9 +2,11 @@ using BepInEx;
 using HarmonyLib;
 using NGPT;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Threading;
 using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.MultiBuild
@@ -29,11 +31,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public short pickOffset;
         public short insertOffset;
 
-        public int inputOriginalId;
-        public int outputOriginalId;
+        public int inputPastedId;
+        public int outputPastedId;
 
-        public int inputObjId;
-        public int outputObjId;
+        public int inputEntityId;
+        public int outputEntityId;
 
         public EBuildCondition condition;
     }
@@ -48,30 +50,38 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     internal class InserterPoses
     {
         private const int INITIAL_OBJ_ID = 2000000000;
-
-        public static List<BuildPreviewOverride> overrides = new List<BuildPreviewOverride>();
+        private static int nextId = INITIAL_OBJ_ID;
+        public static ConcurrentDictionary<int, BuildPreviewOverride> overrides = new ConcurrentDictionary<int, BuildPreviewOverride>();
 
         public static void ResetOverrides()
         {
+            nextId = INITIAL_OBJ_ID;
             overrides.Clear();
+
         }
 
         public static int AddOverride(Pose pose, ItemProto itemProto)
         {
-            overrides.Add(new BuildPreviewOverride()
+            var overrideId = Interlocked.Increment(ref nextId);
+
+            overrides.TryAdd(overrideId, new BuildPreviewOverride()
             {
                 pose = pose,
                 itemProto = itemProto
             });
 
-            return INITIAL_OBJ_ID + overrides.Count - 1;
+            return overrideId;
+
         }
 
-        public static InserterPosition GetPositions(PlayerAction_Build actionBuild, InserterCopy copiedInserter, float yawRad)
+        public static InserterPosition GetPositions(PlayerAction_Build actionBuild, InserterCopy copiedInserter, float yawRad, int copyIndex)
         {
             var pastedEntities = BlueprintManager.pastedEntities;
             var player = actionBuild.player;
-            var pastedReferenceEntity = pastedEntities[copiedInserter.referenceBuildingId];
+
+            var pastedReferenceEntityId = BlueprintManager.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.referenceBuildingId;
+
+            var pastedReferenceEntity = pastedEntities[pastedReferenceEntityId];
             var pastedReferenceEntityBuildPreview = pastedReferenceEntity.buildPreview;
 
             Quaternion absoluteBuildingRot = pastedReferenceEntity.pose.rotation;
@@ -102,16 +112,21 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             short pickOffset = copiedInserter.pickOffset;
             short insertOffset = copiedInserter.insertOffset;
 
-            var referenceId = copiedInserter.referenceBuildingId;
             var referenceObjId = pastedReferenceEntity.objId;
 
-            var otherId = 0;
+            var otherPastedId = 0;
+            var otherEntityId = 0;
+
             var otherObjId = 0;
-            if (pastedEntities.ContainsKey(copiedInserter.pickTarget) && pastedEntities.ContainsKey(copiedInserter.insertTarget))
+
+            var pastedPickTargetId = BlueprintManager.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.pickTarget;
+            var pastedInsertTargetId = BlueprintManager.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.insertTarget;
+
+            if (pastedEntities.ContainsKey(pastedPickTargetId) && pastedEntities.ContainsKey(pastedInsertTargetId))
             {
                 // cool we copied both source and target of the inserters
-                otherId = copiedInserter.pickTarget == copiedInserter.referenceBuildingId ? copiedInserter.insertTarget : copiedInserter.pickTarget;
-                otherObjId = pastedEntities[otherId].objId;
+                otherPastedId = pastedPickTargetId == pastedReferenceEntityId ? pastedInsertTargetId : pastedPickTargetId;
+                otherObjId = pastedEntities[otherPastedId].objId;
             }
             else
             {
@@ -168,11 +183,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     // ignore entitites that ore not (built) belts or don't have inserterPoses
                     if ((proto.prefabDesc.isBelt == copiedInserter.otherIsBelt || proto.prefabDesc.insertPoses.Length > 0) && distance < maxDistance)
                     {
-                        otherId = otherObjId = id;
+                        otherObjId = otherEntityId = id;
                         maxDistance = distance;
                     }
                 }
             }
+
             if (otherObjId != 0)
             {
                 if (copiedInserter.incoming)
@@ -259,7 +275,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 condition = EBuildCondition.Ok
             };
 
-            if (!pastedEntities.ContainsKey(otherId))
+            if (otherEntityId != 0)
             {
                 Vector3 forward = absoluteInserterPos2 - absoluteInserterPos;
 
@@ -294,29 +310,29 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
                 int mask = 165888;
-                Collider[] _tmp_cols = new Collider[128];
+                Collider[] _tmp_cols = new Collider[16];
                 int collisionsFound = Physics.OverlapBoxNonAlloc(colliderData.pos, colliderData.ext, _tmp_cols, colliderData.q, mask, QueryTriggerInteraction.Collide);
 
                 PlanetPhysics physics2 = player.planetData.physics;
                 for (int j = 0; j < collisionsFound; j++)
                 {
                     physics2.GetColliderData(_tmp_cols[j], out ColliderData colliderData2);
-                    if (colliderData2.objId != 0 && colliderData2.objId != otherId && colliderData2.usage == EColliderUsage.Build)
+                    if (colliderData2.objId != 0 && colliderData2.objId != otherEntityId && colliderData2.usage == EColliderUsage.Build)
                     {
                         position.condition = EBuildCondition.Collide;
-                        otherId = 0;
-                        otherObjId = 0;
+                        otherPastedId = 0;
+                        otherEntityId = 0;
 
                         break;
                     }
                 }
             }
 
-            position.inputObjId = copiedInserter.incoming ? otherObjId : referenceObjId;
-            position.inputOriginalId = copiedInserter.incoming ? otherId : referenceId;
+            position.inputEntityId = copiedInserter.incoming ? otherEntityId : 0;
+            position.inputPastedId = copiedInserter.incoming ? otherPastedId : pastedReferenceEntityId;
 
-            position.outputObjId = copiedInserter.incoming ? referenceObjId : otherObjId;
-            position.outputOriginalId = copiedInserter.incoming ? referenceId : otherId;
+            position.outputEntityId = copiedInserter.incoming ? 0 : otherEntityId;
+            position.outputPastedId = copiedInserter.incoming ? pastedReferenceEntityId : otherPastedId;
 
             return position;
         }
@@ -482,7 +498,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (objId >= INITIAL_OBJ_ID)
             {
-                __result = overrides[objId - INITIAL_OBJ_ID].pose;
+                __result = overrides[objId].pose;
                 return false;
             }
 
@@ -494,7 +510,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (objId >= INITIAL_OBJ_ID)
             {
-                __result = overrides[objId - INITIAL_OBJ_ID].itemProto.ID;
+                __result = overrides[objId].itemProto.ID;
                 return false;
             }
 
@@ -507,7 +523,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (objId >= INITIAL_OBJ_ID)
             {
                 // we always ahve to return false otherwise calculatePose will throw (See TODO above)
-                __result = false; // overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isBelt;
+                __result = false; // overrides[objId].itemProto.prefabDesc.isBelt;
                 return false;
             }
 
@@ -519,7 +535,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (objId >= INITIAL_OBJ_ID)
             {
-                __result = overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.isInserter;
+                __result = overrides[objId].itemProto.prefabDesc.isInserter;
                 return false;
             }
 
@@ -531,7 +547,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             if (objId >= INITIAL_OBJ_ID)
             {
-                __result = overrides[objId - INITIAL_OBJ_ID].itemProto.prefabDesc.insertPoses;
+                __result = overrides[objId].itemProto.prefabDesc.insertPoses;
                 return false;
             }
 

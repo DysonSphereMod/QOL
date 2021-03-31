@@ -32,8 +32,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static bool PlayerAction_Build_CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
             var runOriginal = true;
-            if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 0
-                && MultiBuild.IsMultiBuildEnabled() && !__instance.multiLevelCovering)
+            if (__instance.waitConfirm &&
+                VFInput._buildConfirm.onDown &&
+                MultiBuild.IsMultiBuildEnabled() &&
+                __instance.buildPreviews.Count > 0 &&
+                !__instance.multiLevelCovering)
             {
                 if (MultiBuild.startPos == Vector3.zero)
                 {
@@ -230,77 +233,28 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (__instance.waitConfirm && VFInput._buildConfirm.onDown)
                 {
                     __instance.ClearBuildPreviews();
-                    BuildLogic.forceRecalculation = true;
+                    forceRecalculation = true;
                 }
             }
 
             return false;
         }
 
-        public static PlayerAction_Build ClonePlayerAction_Build(PlayerAction_Build original)
-        {
-            var nearcdClone = new NearColliderLogic();
-            nearcdClone.Init(original.nearcdLogic.planet);
-            var clone = new PlayerAction_Build()
-            {
-                factory = original.factory,
-                player = original.player,
-                nearcdLogic = nearcdClone,
-                tmpPackage = original.tmpPackage,
-                planetAux = original.planetAux,
-                cursorTarget = original.cursorTarget,
-                buildPreviews = original.buildPreviews,
-                planetPhysics = original.planetPhysics,
-                previewPose = new Pose(Vector3.zero, Quaternion.identity),
-                posePairs = new List<PlayerAction_Build.PosePair>(64),
-                startSlots = new List<PlayerAction_Build.SlotPoint>(64),
-                endSlots = new List<PlayerAction_Build.SlotPoint>(64)
-            };
 
-            return clone;
-        }
 
         public static bool CheckBuildConditionsFast()
         {
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
 
-            var maxThreads = Environment.ProcessorCount - 1;
-            var runningThreads = 0;
-            var next = -1;
-            ManualResetEvent done = new ManualResetEvent(false);
-
-
-            for (int i = 0; i < maxThreads; i++)
-            {
-                var threadId = i;
-                ThreadPool.QueueUserWorkItem(_ =>
-                {
-                    int index;
-                    Interlocked.Increment(ref runningThreads);
-                    try
-                    {
-                        PlayerAction_Build ab = ClonePlayerAction_Build(actionBuild);
-                        while ((index = Interlocked.Increment(ref next)) < actionBuild.buildPreviews.Count)
-                        {
-                            CheckBuildConditionsWorker(ab, actionBuild.buildPreviews[index]);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
-                    finally
-                    {
-                        if (Interlocked.Decrement(ref runningThreads) == 0)
-                        {
-                            done.Set();
-                        }
-                    }
-                });
-            }
-
-            // wait for all threadPool workers to terminate.
-            done.WaitOne();
+            /* Util.Parallelize((_) =>
+             {
+                 int index;
+                 PlayerAction_Build ab = Util.ClonePlayerAction_Build(actionBuild);
+                 while ((index = Interlocked.Increment(ref next)) < actionBuild.buildPreviews.Count)
+                 {
+                     CheckBuildConditionsWorker(ab, actionBuild.buildPreviews[index]);
+                 }
+             });*/
 
             bool flag = true;
             foreach (var buildPreview in actionBuild.buildPreviews)
@@ -328,7 +282,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyReversePatch, HarmonyPatch(typeof(PlayerAction_Build), "CheckBuildConditions")]
+#pragma warning disable IDE0060 // Remove unused parameter
         public static void CheckBuildConditionsWorker(PlayerAction_Build __instance, BuildPreview bp)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
@@ -506,6 +462,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 (__instance.handPrefabDesc != null && __instance.handPrefabDesc.minerType != EMinerType.None)
                 )
             {
+                if (!lastRunOriginal)
+                {
+                    __instance.ClearBuildPreviews();
+                }
                 lastRunOriginal = true;
                 return true;
             }
@@ -532,7 +492,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
             // full hijacking of DetermineBuildPreviews
-            lastRunOriginal = false;
+
             if (VFInput._switchSplitter.onDown)
             {
                 __instance.modelOffset++;
@@ -562,19 +522,24 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 // no update necessary
                 runUpdate = false;
+                lastRunOriginal = false;
                 return false;
             }
             lastPosition = __instance.groundSnappedPos;
             forceRecalculation = false;
 
-            List<BuildPreview> previews = new List<BuildPreview>();
-
+            if (lastRunOriginal)
+            {
+                __instance.ClearBuildPreviews();
+            }
+            BlueprintManager.PreparePaste();
             if (MultiBuild.IsMultiBuildRunning())
             {
                 if (!BlueprintManager.hasData)
                 {
                     BlueprintManager.data.copiedBuildings.Add(new BuildingCopy()
                     {
+                        originalId = 0,
                         itemProto = __instance.handItem,
                         recipeId = __instance.copyRecipeId,
                         modelIndex = __instance.handPrefabDesc.modelIndex
@@ -583,7 +548,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 var building = BlueprintManager.data.copiedBuildings[0];// BlueprintManager.data.copiedBuildings.First();
 
                 int snapPath = path;
-
 
                 var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
 
@@ -641,6 +605,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
                     }
 
+                    BlueprintManager.Paste(pos, __instance.yaw, MultiBuild.multiBuildInserters, copiesCounter);
                     copiesCounter++;
                     previousPos = pos;
 
@@ -661,8 +626,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             colliders[j].gameObject.layer = 27;
                         }
                     }
-
-                    previews = previews.Concat(BlueprintManager.Paste(pos, __instance.yaw, MultiBuild.multiBuildInserters)).ToList();
                 }
 
                 if (!BlueprintManager.hasData)
@@ -680,57 +643,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             else
             {
                 var pasteInserters = MultiBuild.multiBuildInserters || (BlueprintManager.data.copiedBuildings.Count + BlueprintManager.data.copiedBelts.Count > 1);
-                previews = BlueprintManager.Paste(__instance.groundSnappedPos, __instance.yaw, pasteInserters);
+                BlueprintManager.Paste(__instance.groundSnappedPos, __instance.yaw, pasteInserters);
             }
+            BlueprintManager.AfterPaste();
 
-            // synch previews
-            var availableModelPreviews = new Dictionary<int, Queue<int>>();
 
-            foreach (var bp in __instance.buildPreviews)
-            {
-                if (bp.previewIndex >= 0)
-                {
-
-                    int modelId = bp.desc.modelIndex;
-                    if (!availableModelPreviews.TryGetValue(modelId, out Queue<int> availableIndexes))
-                    {
-                        availableIndexes = new Queue<int>();
-                        availableModelPreviews.Add(modelId, availableIndexes);
-                    }
-                    availableIndexes.Enqueue(bp.previewIndex);
-                }
-
-                bp.Free();
-            }
-
-            __instance.buildPreviews.Clear();
-
-            var restored = 0;
-            foreach (var bp in previews)
-            {
-                int modelId = bp.desc.modelIndex;
-                if (availableModelPreviews.TryGetValue(modelId, out Queue<int> availableIndexes) && availableIndexes.Count > 0)
-                {
-                    restored++;
-                    bp.previewIndex = availableIndexes.Dequeue();
-                }
-                __instance.AddBuildPreview(bp);
-            }
-
-            var removed = 0;
-            foreach (var availableIndexes in availableModelPreviews.Values)
-            {
-                foreach (var previewIndex in availableIndexes)
-                {
-                    if (__instance.previewRenderers[previewIndex] != null)
-                    {
-                        removed++;
-                        UnityEngine.Object.Destroy(__instance.previewRenderers[previewIndex].sharedMaterial);
-                        __instance.previewRenderers[previewIndex].gameObject.SetActive(false);
-                    }
-                }
-            }
-
+            lastRunOriginal = false;
             return false;
 
         }
