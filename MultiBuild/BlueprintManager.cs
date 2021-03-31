@@ -663,9 +663,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             Vector2 newRelative = building.cursorRelativePos.Rotate(yaw * Mathf.Deg2Rad, building.originalSegmentCount);
             Vector2 sprPos = newRelative + targetSpr;
 
-            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
+            int segments = (int)(GameMain.localPlanet.realRadius / 4f + 0.1f) * 4;
+            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * GameMain.localPlanet.realRadius;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
 
             float sizeDeviation = building.originalSegmentCount / (float)newSegmentCount;
 
@@ -717,9 +718,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             Vector2 newRelative = belt.cursorRelativePos.Rotate(yaw * Mathf.Deg2Rad, belt.originalSegmentCount);
             Vector2 sprPos = newRelative + targetSpr;
 
-            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * 200;
+            int segments = (int)(GameMain.localPlanet.realRadius / 4f + 0.1f) * 4;
+            float rawLatitudeIndex = (sprPos.x - Mathf.PI / 2) / 6.2831855f * GameMain.localPlanet.realRadius;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, 200);
+            int newSegmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
 
             float sizeDeviation = belt.originalSegmentCount / (float)newSegmentCount;
 
