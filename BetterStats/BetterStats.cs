@@ -9,17 +9,46 @@ using UnityEngine.UI;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.0.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.1.0")]
     public class BetterStats : BaseUnityPlugin
     {
+        public class EnhancedUIProductEntryElements
+        {
+            public Text maxProductionLabel;
+            public Text maxProductionValue;
+            public Text maxProductionUnit;
+
+            public Text maxConsumptionLabel;
+            public Text maxConsumptionValue;
+            public Text maxConsumptionUnit;
+
+            public Text counterProductionLabel;
+            public Text counterProductionValue;
+
+            public Text counterConsumptionLabel;
+            public Text counterConsumptionValue;
+        }
         Harmony harmony;
         private static Dictionary<int, ProductMetrics> counter = new Dictionary<int, ProductMetrics>();
-        private static bool displaySec;
+        private static bool displaySec = true;
+        private static GameObject txtGO, chxGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
         private static Texture2D texOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
         private static Sprite sprOn;
         private static Sprite sprOff;
         private static Image checkBoxImage;
+
+        private const int initialXOffset = 70;
+        private const int valuesWidth = 90;
+        private const int unitsWidth = 20;
+        private const int labelsWidth = valuesWidth + unitsWidth;
+        private const int margin = 10;
+        private const int maxOffset = labelsWidth + margin;
+
+        private static int lastStatTimer;
+
+        private static Dictionary<UIProductEntry, EnhancedUIProductEntryElements> enhancements = new Dictionary<UIProductEntry, EnhancedUIProductEntryElements>();
+        private static UIProductionStatWindow statWindow;
 
         internal void Awake()
         {
@@ -38,9 +67,17 @@ namespace BetterStats
         internal void OnDestroy()
         {
             // For ScriptEngine hot-reloading
+            if (txtGO != null)
+            {
+                Destroy(txtGO);
+                Destroy(chxGO);
+                Destroy(sprOn);
+                Destroy(sprOff);
+            }
+            ClearEnhancedUIProductEntries();
+
             harmony.UnpatchSelf();
         }
-
 
         private class ProductMetrics
         {
@@ -49,6 +86,36 @@ namespace BetterStats
             public float consumption = 0;
             public int producers = 0;
             public int consumers = 0;
+        }
+
+        private static void ClearEnhancedUIProductEntries()
+        {
+            if (statWindow == null) return;
+
+            //wipe all productentry as we have heavily modified the layout
+            foreach (var entry in statWindow.entryPool)
+            {
+                entry.Destroy();
+            }
+
+
+            enhancements.Clear();
+            statWindow.entryPool.Clear();
+        }
+
+        private static Text CopyText(Text original, Vector2 positionDelta)
+        {
+            var copied = Instantiate(original);
+            copied.transform.SetParent(original.transform.parent, false);
+            var copiedRectTransform = copied.GetComponent<RectTransform>();
+            var originalRectTransform = original.GetComponent<RectTransform>();
+
+            copiedRectTransform.anchorMin = originalRectTransform.anchorMin;
+            copiedRectTransform.anchorMax = originalRectTransform.anchorMax;
+            copiedRectTransform.sizeDelta = originalRectTransform.sizeDelta;
+            copiedRectTransform.anchoredPosition = originalRectTransform.anchoredPosition + positionDelta;
+
+            return copied;
         }
 
         private static void EnsureId(ref Dictionary<int, ProductMetrics> dict, int id)
@@ -63,8 +130,6 @@ namespace BetterStats
                 });
             }
         }
-
-
 
         private static string FormatMetric(float value)
         {
@@ -81,27 +146,10 @@ namespace BetterStats
 
         }
 
-        private static string FormatMetricPerSec(float value)
-        {
-            value = value / 60;
-
-            if (value >= 1000000.0)
-                return (value / 1000000).ToString("F2") + " M";
-            else if (value >= 10000.0)
-                return (value / 1000).ToString("F2") + " k";
-            else if (value > 1000.0)
-                return value.ToString("F0");
-            else if (value > 0.0)
-                return value.ToString("F1");
-            else
-                return value.ToString();
-
-        }
-
         private static float ReverseFormat(string value)
         {
             string[] parts = value.Split(' ');
-            float multiplier=1;
+            float multiplier = 1;
 
             if (parts.Length > 1)
                 multiplier = parts[1] == "k" ? 1000 : (parts[1] == "M" ? 1000000 : (parts[1] == "G" ? 1000000000 : 1));
@@ -109,22 +157,139 @@ namespace BetterStats
             return float.Parse(parts[0]) * multiplier;
         }
 
-        private static void OnClick()
+        private static EnhancedUIProductEntryElements EnhanceUIProductEntry(UIProductEntry __instance)
         {
-            if (displaySec)
-                checkBoxImage.sprite = sprOff;
-            else
-                checkBoxImage.sprite = sprOn;
-            displaySec = !displaySec;
+            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
+            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(22, 12);
+
+            __instance.favoriteBtn1.GetComponent<RectTransform>().anchoredPosition = new Vector2(26, -32);
+            __instance.favoriteBtn2.GetComponent<RectTransform>().anchoredPosition = new Vector2(49, -32);
+            __instance.favoriteBtn3.GetComponent<RectTransform>().anchoredPosition = new Vector2(72, -32);
+            __instance.itemName.transform.SetParent(__instance.itemIcon.transform.parent, false);
+            var itemNameRect = __instance.itemName.GetComponent<RectTransform>();
+
+            itemNameRect.pivot = new Vector2(0.5f, 0f);
+            itemNameRect.anchorMin = new Vector2(0, 0);
+            itemNameRect.anchorMax = new Vector2(1f, 0);
+
+            itemNameRect.anchoredPosition = new Vector2(0, 0);
+            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
+
+            __instance.itemName.resizeTextForBestFit = true;
+            __instance.itemName.resizeTextMaxSize = 14;
+            __instance.itemName.alignment = TextAnchor.MiddleCenter;
+            __instance.itemName.alignByGeometry = true;
+            __instance.itemName.horizontalOverflow = HorizontalWrapMode.Wrap;
+            __instance.itemName.lineSpacing = 0.6f;
+
+            var sepLine = __instance.consumeUnitLabel.transform.parent.Find("sep-line");
+            sepLine.GetComponent<RectTransform>().pivot = new Vector2(0f, 1f);
+            sepLine.GetComponent<RectTransform>().rotation = Quaternion.Euler(0f, 0f, 90f);
+            sepLine.GetComponent<RectTransform>().sizeDelta = new Vector2(1, 336);
+            sepLine.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -50);
+
+
+            __instance.productLabel.alignment = TextAnchor.UpperRight;
+            __instance.productLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(labelsWidth, 24);
+            __instance.productLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset, 0);
+            __instance.productLabel.GetComponent<RectTransform>().ForceUpdateRectTransforms();
+
+            __instance.productText.alignByGeometry = true;
+            __instance.productText.resizeTextForBestFit = true;
+            __instance.productText.resizeTextMaxSize = 34;
+            __instance.productText.alignment = TextAnchor.LowerRight;
+            __instance.productText.GetComponent<RectTransform>().sizeDelta = new Vector2(valuesWidth, 40);
+            __instance.productText.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset, 56);
+
+            __instance.productUnitLabel.alignByGeometry = true;
+            __instance.productUnitLabel.alignment = TextAnchor.LowerLeft;
+            __instance.productUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(unitsWidth, 24);
+            __instance.productUnitLabel.GetComponent<RectTransform>().pivot = new Vector2(0f, 0f);
+            __instance.productUnitLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset + valuesWidth + 4, -42);
+
+            __instance.consumeLabel.alignment = TextAnchor.UpperRight;
+            __instance.consumeLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(labelsWidth, 24);
+            __instance.consumeLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset, -60);
+
+            __instance.consumeText.alignByGeometry = true;
+            __instance.consumeText.resizeTextForBestFit = true;
+            __instance.consumeText.resizeTextMaxSize = 34;
+            __instance.consumeText.alignment = TextAnchor.LowerRight;
+            __instance.consumeText.GetComponent<RectTransform>().sizeDelta = new Vector2(valuesWidth, 40);
+            __instance.consumeText.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset, -4);
+
+            __instance.consumeUnitLabel.alignByGeometry = true;
+            __instance.consumeUnitLabel.alignment = TextAnchor.LowerLeft;
+            __instance.consumeUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(unitsWidth, 24);
+            __instance.consumeUnitLabel.GetComponent<RectTransform>().anchorMin = new Vector2(0f, 0f);
+            __instance.consumeUnitLabel.GetComponent<RectTransform>().anchorMax = new Vector2(0f, 0f);
+            __instance.consumeUnitLabel.GetComponent<RectTransform>().pivot = new Vector2(0f, 0f);
+            __instance.consumeUnitLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset + valuesWidth + 4, -4);
+
+            var maxProductionLabel = CopyText(__instance.productLabel, new Vector2(maxOffset, 0));
+            maxProductionLabel.text = "Theoretical Max";
+            var maxProductionValue = CopyText(__instance.productText, new Vector2(maxOffset, 0));
+            maxProductionValue.text = "0";
+            var maxProductionUnit = CopyText(__instance.productUnitLabel, new Vector2(maxOffset, 0));
+            maxProductionUnit.text = "/min";
+
+            var maxConsumptionLabel = CopyText(__instance.consumeLabel, new Vector2(maxOffset, 0));
+            maxConsumptionLabel.text = "Theoretical Max";
+            var maxConsumptionValue = CopyText(__instance.consumeText, new Vector2(maxOffset, 0));
+            maxConsumptionValue.text = "0";
+            var maxConsumptionUnit = CopyText(__instance.consumeUnitLabel, new Vector2(maxOffset, 0));
+            maxConsumptionUnit.text = "/min";
+
+            var counterProductionLabel = CopyText(__instance.productLabel, new Vector2(-initialXOffset, 0));
+            counterProductionLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
+            counterProductionLabel.text = "Producers";
+            var counterProductionValue = CopyText(__instance.productText, new Vector2(-initialXOffset, 0));
+            counterProductionValue.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
+            counterProductionValue.text = "0";
+
+            var counterConsumptionLabel = CopyText(__instance.consumeLabel, new Vector2(-initialXOffset, 0));
+            counterConsumptionLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
+            counterConsumptionLabel.text = "Consumers";
+            var counterConsumptionValue = CopyText(__instance.consumeText, new Vector2(-initialXOffset, 0));
+            counterConsumptionValue.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
+            counterConsumptionValue.text = "0";
+
+            var enhancement = new EnhancedUIProductEntryElements()
+            {
+                maxProductionLabel = maxProductionLabel,
+                maxProductionValue = maxProductionValue,
+                maxProductionUnit = maxProductionUnit,
+
+                maxConsumptionLabel = maxConsumptionLabel,
+                maxConsumptionValue = maxConsumptionValue,
+                maxConsumptionUnit = maxConsumptionUnit,
+
+                counterProductionLabel = counterProductionLabel,
+                counterProductionValue = counterProductionValue,
+
+                counterConsumptionLabel = counterConsumptionLabel,
+                counterConsumptionValue = counterConsumptionValue
+            };
+
+            enhancements.Add(__instance, enhancement);
+
+            return enhancement;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnInit")]
-        public static void UIProductionStatWindow_OnInit_Postfix(UIProductionStatWindow __instance)
+        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnOpen")]
+        public static void UIProductionStatWindow__OnOpen_Postfix(UIProductionStatWindow __instance)
         {
-            // change here the default mode
-            displaySec = true;
+            if (statWindow == null)
+            {
+                statWindow = __instance;
+            }
 
-            GameObject chxGO = new GameObject("displaySec");
+            if (chxGO != null) return;
+
+            sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
+            sprOff = Sprite.Create(texOff, new Rect(0, 0, texOff.width, texOff.height), new Vector2(0.5f, 0.5f));
+
+            chxGO = new GameObject("displaySec");
 
             RectTransform rect = chxGO.AddComponent<RectTransform>();
             rect.SetParent(__instance.productRankBox.transform.parent, false);
@@ -136,32 +301,31 @@ namespace BetterStats
             rect.anchoredPosition = new Vector2(250, -33);
 
             Button _btn = rect.gameObject.AddComponent<Button>();
-            _btn.onClick.AddListener(OnClick);
+            _btn.onClick.AddListener(() =>
+            {
+                displaySec = !displaySec;
+                checkBoxImage.sprite = displaySec ? sprOn : sprOff;
+            });
 
             checkBoxImage = _btn.gameObject.AddComponent<Image>();
-
-            sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
-            sprOff = Sprite.Create(texOff, new Rect(0, 0, texOff.width, texOff.height), new Vector2(0.5f, 0.5f));
+            checkBoxImage.color = new Color(0.8f, 0.8f, 0.8f, 1);
 
             checkBoxImage.sprite = displaySec ? sprOn : sprOff;
 
-            if (checkBoxImage != null)
-            {
-                checkBoxImage.color = new Color(0.8f, 0.8f, 0.8f, 1);
-            }
 
-            GameObject txtGO = new GameObject("displaySecTxt");
+            txtGO = new GameObject("displaySecTxt");
             RectTransform rectTxt = txtGO.AddComponent<RectTransform>();
+
             rectTxt.SetParent(chxGO.transform, false);
 
             rectTxt.anchorMax = new Vector2(0, 0.5f);
             rectTxt.anchorMin = new Vector2(0, 0.5f);
             rectTxt.sizeDelta = new Vector2(100, 20);
             rectTxt.pivot = new Vector2(0, 0.5f);
-            rectTxt.anchoredPosition = new Vector2(20,0);
+            rectTxt.anchoredPosition = new Vector2(20, 0);
 
             Text text = rectTxt.gameObject.AddComponent<Text>();
-            text.text = "Display /s";
+            text.text = "Display /sec";
             text.fontStyle = FontStyle.Normal;
             text.fontSize = 14;
             text.verticalOverflow = VerticalWrapMode.Overflow;
@@ -175,65 +339,81 @@ namespace BetterStats
             txtGO.transform.SetParent(chxGO.transform, false);
         }
 
-            [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
+        [HarmonyPrefix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnUpdate")]
+        public static void UIProductionStatWindow__OnUpdate_Prefix(UIProductionStatWindow __instance)
+        {
+            if (statWindow == null)
+            {
+                statWindow = __instance;
+            }
+            if (lastStatTimer != __instance.statTimeLevel && (__instance.statTimeLevel == 5 || lastStatTimer == 5))
+            {
+                ClearEnhancedUIProductEntries();
+            }
+
+            lastStatTimer = __instance.statTimeLevel;
+        }
+
+
+        [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
         public static void UIProductEntry_UpdateProduct_Postfix(UIProductEntry __instance)
         {
-            int statTimeLevel = __instance.productionStatWindow.statTimeLevel;
-            if (statTimeLevel != 5)
+            if (__instance.productionStatWindow.statTimeLevel == 5) return;
+
+            if (!enhancements.TryGetValue(__instance, out EnhancedUIProductEntryElements enhancement))
             {
-                __instance.productLabel.text += " / Theoretical max";
-                __instance.productLabel.resizeTextForBestFit = true;
-                __instance.productLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(150, 24);
+                enhancement = EnhanceUIProductEntry(__instance);
 
-                __instance.consumeLabel.text += " / Theoretical max";
-                __instance.consumeLabel.resizeTextForBestFit = true;
-                __instance.consumeLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(150, 24);
-
-                __instance.productText.resizeTextForBestFit = true;
-                __instance.consumeText.resizeTextForBestFit = true;
-
-                //add values per second
-                if (displaySec)
-                {
-                    __instance.productUnitLabel.text += "\r\n/s";
-                    __instance.productUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
-                    __instance.productUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(116, 0, 0);
-                    __instance.productUnitLabel.lineSpacing = 1.4F;
-
-                    __instance.consumeUnitLabel.text += "\r\n/s";
-                    __instance.consumeUnitLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 56);
-                    __instance.consumeUnitLabel.GetComponent<RectTransform>().localPosition = new Vector3(297, 0, 0);
-                    __instance.consumeUnitLabel.lineSpacing = 1.4F;
-                }
-
-
-                string produce = "0";
-                string produceSec = "0";
-                string consume = "0";
-                string consumeSec = "0";
-                if (counter.ContainsKey(__instance.itemId))
-                {
-                    var productMetrics = counter[__instance.itemId];
-                    produce = FormatMetric(productMetrics.production);
-                    produceSec = FormatMetricPerSec(productMetrics.production);
-                    consume = FormatMetric(productMetrics.consumption);
-                    consumeSec = FormatMetricPerSec(productMetrics.consumption);
-                }
-
-                string originalProductText = __instance.productText.text.Trim();
-                string originalConsumeText = __instance.consumeText.text.Trim();
-
-
-                __instance.productText.text = $"{originalProductText} / {produce}";
-                __instance.consumeText.text = $"{originalConsumeText} / {consume}";
-
-                //add values per second
-                if (displaySec)
-                {
-                    __instance.productText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalProductText))} / {produceSec}";
-                    __instance.consumeText.text += $"\r\n{FormatMetricPerSec(ReverseFormat(originalConsumeText))} / {consumeSec}";
-                }
             }
+
+
+            string originalProductText = __instance.productText.text.Trim();
+            string originalConsumeText = __instance.consumeText.text.Trim();
+
+            string producers = "0";
+            string consumers = "0";
+            string maxProduction = "0";
+            string maxConsumption = "0";
+            string unit = "/min";
+            int divider = 1;
+
+            //add values per second
+            if (displaySec)
+            {
+                divider = 60;
+                unit = "/sec";
+
+
+                originalProductText = $"{FormatMetric(ReverseFormat(originalProductText) / divider)}";
+                originalConsumeText = $"{FormatMetric(ReverseFormat(originalConsumeText) / divider)}";
+            }
+
+            __instance.productUnitLabel.text =
+                __instance.consumeUnitLabel.text =
+                enhancement.maxProductionUnit.text =
+                enhancement.maxConsumptionUnit.text = unit;
+
+            if (counter.ContainsKey(__instance.itemId))
+            {
+                var productMetrics = counter[__instance.itemId];
+                maxProduction = FormatMetric(productMetrics.production / divider);
+                maxConsumption = FormatMetric(productMetrics.consumption / divider);
+
+                producers = productMetrics.producers.ToString();
+                consumers = productMetrics.consumers.ToString();
+            }
+
+            __instance.productText.text = $"{originalProductText}";
+            __instance.consumeText.text = $"{originalConsumeText}";
+
+            enhancement.maxProductionValue.text = maxProduction;
+            enhancement.maxConsumptionValue.text = maxConsumption;
+
+            enhancement.counterProductionValue.text = producers;
+            enhancement.counterConsumptionValue.text = consumers;
+
+            enhancement.maxProductionValue.color = enhancement.counterProductionValue.color = __instance.productText.color;
+            enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "ComputeDisplayEntries")]
