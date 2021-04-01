@@ -86,6 +86,10 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
 ## Changelog
 
+### v2.2.1
+
+-   Fix compatibility with game version 0.6.17.6112
+
 ### v2.2.0
 
 -   MultiBuild is now MultiThreaded. You should notice an improvments in performance when pasting large blueprints / long lines of buildings

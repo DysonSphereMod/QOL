@@ -21,7 +21,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "";
-        public const string VERSION = "2.2.0";
+        public const string VERSION = "2.2.1";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
             "org.fezeral.plugins.copyinserters",
@@ -351,7 +351,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (spacingStore[spacingIndex] > 0)
                 {
                     ___modeText.text += $" - Spacing {spacingStore[spacingIndex]}";
-                    if(spacingPeriod > 1)
+                    if (spacingPeriod > 1)
                     {
                         ___modeText.text += $" every {spacingPeriod} copies";
                     }

@@ -97,7 +97,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     var stationComponent = __instance.factory.transport.GetStationComponent(entity.stationId);
                     foreach (var settings in sourceBuilding.stationSettings)
                     {
-                        __instance.factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer.package);
+                        __instance.factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer);
                     }
                     foreach (var slotFilter in sourceBuilding.slotFilters)
                     {
@@ -583,7 +583,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 var building = BlueprintManager.data.copiedBuildings[0];// BlueprintManager.data.copiedBuildings.First();
 
                 int snapPath = path;
-                
+
 
                 var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
 
