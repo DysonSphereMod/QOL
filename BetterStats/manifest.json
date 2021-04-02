@@ -1,7 +1,7 @@
 {
   "name": "BetterStats",
   "description": "Add more information to the production stats panel",
-  "version_number": "1.1.0",
+  "version_number": "1.1.1",
   "dependencies": [],
   "website_url": "https://github.com/DysonSphereMod/QOL"
 }

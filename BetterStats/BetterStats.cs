@@ -1,5 +1,4 @@
 using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -9,7 +8,7 @@ using UnityEngine.UI;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.1.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.1.1")]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
@@ -354,7 +353,6 @@ namespace BetterStats
             lastStatTimer = __instance.statTimeLevel;
         }
 
-
         [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
         public static void UIProductEntry_UpdateProduct_Postfix(UIProductEntry __instance)
         {
@@ -457,8 +455,10 @@ namespace BetterStats
         public static void AddPlanetFactoryData(PlanetFactory planetFactory)
         {
             var factorySystem = planetFactory.factorySystem;
-
+            var transport = planetFactory.transport;
             var veinPool = planetFactory.planet.factory.veinPool;
+            var miningSpeedScale = (double)GameMain.history.miningSpeedScale;
+
             for (int i = 1; i < factorySystem.minerCursor; i++)
             {
                 var miner = factorySystem.minerPool[i];
@@ -482,7 +482,7 @@ namespace BetterStats
                 EnsureId(ref counter, productId);
 
                 float frequency = 60f / (float)((double)miner.period / 600000.0);
-                float speed = (float)(0.0001 * (double)miner.speed * (double)GameMain.history.miningSpeedScale);
+                float speed = (float)(0.0001 * (double)miner.speed * miningSpeedScale);
 
                 float production = 0f;
                 if (factorySystem.minerPool[i].type == EMinerType.Water)
@@ -502,36 +502,36 @@ namespace BetterStats
                 counter[productId].producers++;
 
             }
-            for (int j = 1; j < factorySystem.assemblerCursor; j++)
+            for (int i = 1; i < factorySystem.assemblerCursor; i++)
             {
-                var assembler = factorySystem.assemblerPool[j];
-                if (assembler.id != j || assembler.recipeId == 0) continue;
+                var assembler = factorySystem.assemblerPool[i];
+                if (assembler.id != i || assembler.recipeId == 0) continue;
 
                 var frequency = 60f / (float)((double)assembler.timeSpend / 600000.0);
                 var speed = (float)(0.0001 * (double)assembler.speed);
 
-                for (int k = 0; k < assembler.requires.Length; k++)
+                for (int j = 0; j < assembler.requires.Length; j++)
                 {
-                    var productId = assembler.requires[k];
+                    var productId = assembler.requires[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].consumption += frequency * speed * assembler.requireCounts[k];
+                    counter[productId].consumption += frequency * speed * assembler.requireCounts[j];
                     counter[productId].consumers++;
                 }
 
-                for (int k = 0; k < assembler.products.Length; k++)
+                for (int j = 0; j < assembler.products.Length; j++)
                 {
-                    var productId = assembler.products[k];
+                    var productId = assembler.products[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].production += frequency * speed * assembler.productCounts[k];
+                    counter[productId].production += frequency * speed * assembler.productCounts[j];
                     counter[productId].producers++;
                 }
             }
-            for (int k = 1; k < factorySystem.fractionateCursor; k++)
+            for (int i = 1; i < factorySystem.fractionateCursor; i++)
             {
-                var fractionator = factorySystem.fractionatePool[k];
-                if (fractionator.id != k) continue;
+                var fractionator = factorySystem.fractionatePool[i];
+                if (fractionator.id != i) continue;
 
                 if (fractionator.need != 0)
                 {
@@ -551,50 +551,68 @@ namespace BetterStats
                 }
 
             }
-            for (int l = 1; l < factorySystem.ejectorCursor; l++)
+            for (int i = 1; i < factorySystem.ejectorCursor; i++)
             {
-                var ejector = factorySystem.ejectorPool[l];
-                if (ejector.id != l) continue;
+                var ejector = factorySystem.ejectorPool[i];
+                if (ejector.id != i) continue;
 
                 EnsureId(ref counter, ejector.bulletId);
 
                 counter[ejector.bulletId].consumption += 60f / (float)(ejector.chargeSpend + ejector.coldSpend) * 600000f;
                 counter[ejector.bulletId].consumers++;
             }
-            for (int m = 1; m < factorySystem.siloCursor; m++)
+            for (int i = 1; i < factorySystem.siloCursor; i++)
             {
-                var silo = factorySystem.siloPool[m];
-                if (silo.id != m) continue;
+                var silo = factorySystem.siloPool[i];
+                if (silo.id != i) continue;
 
                 EnsureId(ref counter, silo.bulletId);
 
                 counter[silo.bulletId].consumption += 60f / (float)(silo.chargeSpend + silo.coldSpend) * 600000f;
                 counter[silo.bulletId].consumers++;
             }
-            for (int n = 1; n < factorySystem.labCursor; n++)
+            for (int i = 1; i < factorySystem.labCursor; i++)
             {
-                var lab = factorySystem.labPool[n];
-                if (lab.id != n || !lab.matrixMode) continue;
+                var lab = factorySystem.labPool[i];
+                if (lab.id != i || !lab.matrixMode) continue;
                 float frequency = 60f / (float)((double)lab.timeSpend / 600000.0);
 
-                for (int k = 0; k < lab.requires.Length; k++)
+                for (int j = 0; j < lab.requires.Length; j++)
                 {
-                    var productId = lab.requires[k];
+                    var productId = lab.requires[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].consumption += frequency * lab.requireCounts[k];
+                    counter[productId].consumption += frequency * lab.requireCounts[j];
                     counter[productId].consumers++;
                 }
 
-                for (int k = 0; k < lab.products.Length; k++)
+                for (int j = 0; j < lab.products.Length; j++)
                 {
-                    var productId = lab.products[k];
+                    var productId = lab.products[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].production += frequency * lab.productCounts[k];
+                    counter[productId].production += frequency * lab.productCounts[j];
                     counter[productId].producers++;
                 }
 
+            }
+            for (int i = 1; i < transport.stationCursor; i++)
+            {
+                var station = transport.stationPool[i];
+                if (station == null || station.id != i || !station.isCollector) continue;
+
+                double collectorsWorkCost = transport.collectorsWorkCost;
+                double gasTotalHeat = planetFactory.planet.gasTotalHeat;
+                float collectSpeedRate = (gasTotalHeat - collectorsWorkCost > 0.0) ? ((float)((miningSpeedScale * gasTotalHeat - collectorsWorkCost) / (gasTotalHeat - collectorsWorkCost))) : 1f;
+
+                for (int j = 0; j < station.collectionIds.Length; j++)
+                {
+                    var productId = station.collectionIds[j];
+                    EnsureId(ref counter, productId);
+
+                    counter[productId].production += 60 * 60 * station.collectionPerTick[j] * collectSpeedRate;
+                    counter[productId].producers++;
+                }
             }
         }
     }

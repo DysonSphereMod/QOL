@@ -6,6 +6,10 @@ This mod improves the production stats panel to add the count of producer/consum
 
 ## Changelog
 
+### v1.1.1
+
+- Include production of Orbital Collector stations
+
 ### v1.1.0
 
 - Improved UI
