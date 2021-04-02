@@ -2,6 +2,6 @@
     "name": "MultiDestruct",
     "description": "This mods gives you the ability to destruct in an area with a configurable filter.",
     "version_number": "1.0.0",
-    "dependencies": [],
+    "dependencies": ["xiaoye97-BepInEx-5.4.5"],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }

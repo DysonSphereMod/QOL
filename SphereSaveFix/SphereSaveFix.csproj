@@ -67,15 +67,6 @@
     <Reference Include="Mono.Cecil">
       <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.dll</HintPath>
     </Reference>
-    <Reference Include="Mono.Cecil.Mdb">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.Mdb.dll</HintPath>
-    </Reference>
-    <Reference Include="Mono.Cecil.Pdb">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.Pdb.dll</HintPath>
-    </Reference>
-    <Reference Include="Mono.Cecil.Rocks">
-      <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\Mono.Cecil.Rocks.dll</HintPath>
-    </Reference>
     <Reference Include="MonoMod.RuntimeDetour">
       <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\MonoMod.RuntimeDetour.dll</HintPath>
     </Reference>
@@ -88,9 +79,6 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\SteamLibrary\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>..\..\..\SteamLibrary\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>..\..\..\SteamLibrary\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.UI.dll</HintPath>

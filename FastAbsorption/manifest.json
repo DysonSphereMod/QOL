@@ -2,6 +2,6 @@
     "name": "FastAbsorption",
     "description": "Speeds up dyshon sphere absorption of solar sails",
     "version_number": "1.1.0",
-    "dependencies": [],
+    "dependencies": ["xiaoye97-BepInEx-5.4.5"],
     "website_url": "https://github.com/DysonSphereMod/FastAbsorption"
 }

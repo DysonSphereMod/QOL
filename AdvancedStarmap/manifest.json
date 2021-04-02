@@ -2,6 +2,6 @@
     "name": "AdvancedStarmap",
     "description": "Add more star and planet informations to the starmap",
     "version_number": "1.0.0",
-    "dependencies": [],
+    "dependencies": ["xiaoye97-BepInEx-5.4.5"],
     "website_url": "https://github.com/DysonSphereMod/AdvancedStarmap"
 }
