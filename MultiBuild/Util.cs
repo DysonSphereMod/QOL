@@ -92,9 +92,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             float theta = sprPos.x - Mathf.PI / 2;
             float phi = sprPos.y - Mathf.PI / 2;
 
+            int segments = (int)(planetRadius / 4f + 0.1f) * 4;
             float rawLatitudeIndex = theta / 6.2831855f * planetRadius;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            float segmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, (int)planetRadius);
+            float segmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
 
             float newPhi = phi / 6.2831855f * segmentCount;
             rawLatitudeIndex = Mathf.Round(rawLatitudeIndex * 5f) / 5f;
@@ -109,9 +110,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             float planetRadius = GameMain.localPlanet.realRadius;
 
+            int segments = (int)(planetRadius / 4f + 0.1f) * 4;
             float rawLatitudeIndex = (vector.x - Mathf.PI / 2) / 6.2831855f * planetRadius;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, (int)planetRadius);
+            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
         }
 
         public static Vector2 ApplyDelta(this Vector2 vector, Vector2 delta, int deltaCount)
