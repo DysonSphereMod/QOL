@@ -36,7 +36,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPostfix, HarmonyPatch(typeof(PlayerAction_Build), "SetCopyInfo")]
         public static void PlayerAction_Build_SetCopyInfo_Postfix(ref PlayerAction_Build __instance, int objectId)
         {
-            if(bpMode)
+            if (bpMode)
             {
                 EndBpMode(true);
             }
@@ -71,7 +71,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
                     circleGizmo.radius = MultiBuild.selectionRadius;
 
-                    if(__instance.groundTestPos != Vector3.zero)
+                    if (__instance.groundTestPos != Vector3.zero)
                     {
                         circleGizmo.position = __instance.groundTestPos;
                     }
@@ -160,7 +160,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 selectionGizmo.Close();
             }
 
-            
+
             bpSelection.Clear();
             if (circleGizmo != null)
             {
