@@ -234,7 +234,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
         {
-            Vector2 converted = ((Vector2) instance).ToDegrees();
+            Vector2 converted = ((Vector2)instance).ToDegrees();
             var data = new List<fsData>
             {
                 new fsData((int)Math.Round(converted.x * JSON_PRECISION)),
@@ -273,7 +273,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public override fsResult TrySerialize(object instance, out fsData serialized, Type storageType)
         {
-            Quaternion inst = (Quaternion) instance;
+            Quaternion inst = (Quaternion)instance;
             var data = new List<fsData>
             {
                 new fsData((int)Math.Round(inst.x * JSON_PRECISION)),
@@ -373,7 +373,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 if (data.AsDictionary.ContainsKey("version"))
                 {
-                    int intVer = (int) data.AsDictionary["version"].AsInt64;
+                    int intVer = (int)data.AsDictionary["version"].AsInt64;
                     data.AsDictionary["$version"] = new fsData(intVer.ToString());
                 }
 
@@ -401,7 +401,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             foreach (var building in deserialized.copiedBuildings)
             {
                 building.itemProto = LDB.items.Select((int)building.protoId);
-                if(building.itemProto == null)
+                if (building.itemProto == null)
                 {
                     incompatibleIds.Add(building.protoId);
                 }
@@ -424,7 +424,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
 
-            if(incompatibleIds.Count > 0)
+            if (incompatibleIds.Count > 0)
             {
                 return null;
             }

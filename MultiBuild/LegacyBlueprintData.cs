@@ -98,7 +98,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public Dictionary<int, BuildingCopy_V1> copiedBuildings = new Dictionary<int, BuildingCopy_V1>();
         public Dictionary<int, InserterCopy_V1> copiedInserters = new Dictionary<int, InserterCopy_V1>();
         public Dictionary<int, BeltCopy_V1> copiedBelts = new Dictionary<int, BeltCopy_V1>();
-        
+
         public static Vector3 GetPointFromMoves(Vector3 from, Vector3[] moves, Quaternion fromRotation)
         {
             var targetPos = from;
@@ -110,7 +110,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return targetPos;
         }
     }
-    
+
     public class Vector3Converter_V1 : fsDirectConverter<Vector3>
     {
         public const float JSON_PRECISION = 100f;
