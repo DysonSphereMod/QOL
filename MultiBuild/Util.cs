@@ -87,19 +87,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static Vector3 SnapToGrid(this Vector2 sprPos, float altitude = 0)
         {
             float planetRadius = GameMain.localPlanet.realRadius;
+            int segments = GameMain.localPlanet.aux.mainGrid.segment;
 
             //Both with +90 deg from physics definition
             float theta = sprPos.x - Mathf.PI / 2;
             float phi = sprPos.y - Mathf.PI / 2;
 
-            float rawLatitudeIndex = theta / 6.2831855f * planetRadius;
+            float rawLatitudeIndex = theta / 6.2831855f * segments;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            float segmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, (int)planetRadius);
+            float segmentCount = PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
 
             float newPhi = phi / 6.2831855f * segmentCount;
             rawLatitudeIndex = Mathf.Round(rawLatitudeIndex * 5f) / 5f;
             newPhi = Mathf.Round(newPhi * 5f) / 5f;
-            theta = rawLatitudeIndex / planetRadius * 6.2831855f;
+            theta = rawLatitudeIndex / segments * 6.2831855f;
             phi = newPhi / segmentCount * 6.2831855f;
 
             return new Vector2(theta + Mathf.PI / 2, phi + Mathf.PI / 2).ToCartesian(planetRadius + 0.2f + altitude);
@@ -107,11 +108,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static int GetSegmentsCount(this Vector2 vector)
         {
-            float planetRadius = GameMain.localPlanet.realRadius;
+            int segments = GameMain.localPlanet.aux.mainGrid.segment;
 
-            float rawLatitudeIndex = (vector.x - Mathf.PI / 2) / 6.2831855f * planetRadius;
+            float rawLatitudeIndex = (vector.x - Mathf.PI / 2) / 6.2831855f * segments;
             int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, (int)planetRadius);
+            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
         }
 
         public static Vector2 ApplyDelta(this Vector2 vector, Vector2 delta, int deltaCount)

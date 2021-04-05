@@ -151,6 +151,9 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>copy $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\plugins\$(TargetFileName)"
-copy "$(ProjectDir)\blueprintsbundle" "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\plugins\blueprintsbundle"</PostBuildEvent>
+copy "$(ProjectDir)\blueprintsbundle" "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\plugins\blueprintsbundle"
+
+copy "$(TargetPath)" "$(SolutionDir)\MultiBuild\Release\"
+copy "$(ProjectDir)\blueprintsbundle" "$(SolutionDir)\MultiBuild\Release\"</PostBuildEvent>
   </PropertyGroup>
 </Project>
