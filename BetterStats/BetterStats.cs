@@ -452,6 +452,9 @@ namespace BetterStats
 
         }
 
+        // speed of fasted belt(mk3 belt) is 1800 items per minute
+        public const float BELT_MAX_ITEMS_PER_MINUTE = 1800;
+
         public static void AddPlanetFactoryData(PlanetFactory planetFactory)
         {
             var factorySystem = planetFactory.factorySystem;
@@ -497,6 +500,7 @@ namespace BetterStats
                 {
                     production = frequency * speed * miner.veinCount;
                 }
+                production = Math.Min(BELT_MAX_ITEMS_PER_MINUTE, production);
 
                 counter[productId].production += production;
                 counter[productId].producers++;
