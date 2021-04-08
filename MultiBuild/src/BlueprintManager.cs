@@ -24,14 +24,17 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
     public class PastedEntity
     {
+        public int pasteId;
         public EPastedStatus status;
         public EPastedType type;
         public BuildingCopy sourceBuilding;
         public BeltCopy sourceBelt;
         public InserterCopy sourceInserter;
         public BuildPreview buildPreview;
+        public ConcurrentDictionary<int, PastedEntity> connectedEntities = new ConcurrentDictionary<int, PastedEntity>();
         public Pose pose;
         public int objId;
+        public int postObjId;
     }
 
     [HarmonyPatch]

@@ -219,27 +219,5 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 BlueprintCreator.bpMode;
         }
 
-        [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
-        public static void UIGeneralTips__OnUpdate_Postfix(ref Text ___modeText)
-        {
-            if (BuildLogic.IsMultiBuildAvailable() && BuildLogic.multiBuildEnabled)
-            {
-                ___modeText.text += $"\nMultiBuild [{(BuildLogic.startPos == Vector3.zero ? "START" : "END")}]";
-
-                if (BuildLogic.spacingStore[BuildLogic.spacingIndex] > 0)
-                {
-                    ___modeText.text += $" - Spacing {BuildLogic.spacingStore[BuildLogic.spacingIndex]}";
-                    if (BuildLogic.spacingPeriod > 1)
-                    {
-                        ___modeText.text += $" every {BuildLogic.spacingPeriod} copies";
-                    }
-                }
-            }
-
-            if (BlueprintCreator.bpMode)
-            {
-                ___modeText.text = "Blueprint Mode";
-            }
-        }
     }
 }

@@ -14,13 +14,25 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     [Serializable]
     public class SplitterSettings
     {
-        public int index;
-        public int itemId;
-        public int max;
-        public ELogisticStorage localLogic;
-        public ELogisticStorage remoteLogic;
+        public int outFilter;
+        public int inPrioritySlot;
+        public int outPrioritySlot;
+        public bool inPriority;
+        public bool outPriority;
     }
 
+    [Serializable]
+    public class StationConfig
+    {
+        public long workEnergyPerTick;
+        public double tripRangeDrones;
+        public double tripRangeShips;
+        public double warpEnableDist;
+        public bool warperNecessary;
+        public bool includeOrbitCollector;
+        public int deliveryDrones;
+        public int deliveryShips;
+    }
 
     [Serializable]
     public class StationSetting
@@ -99,9 +111,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public int recipeId;
 
+        public StationConfig stationConfig;
         public List<StationSetting> stationSettings = new List<StationSetting>();
         public List<SlotFilter> slotFilters = new List<SlotFilter>();
 
+        public SplitterSettings splitterSettings;
         public BuildingCopy() { }
 
         public BuildingCopy(BuildingCopy_V1 model, Vector2 referencePos, float referenceYaw)

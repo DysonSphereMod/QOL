@@ -31,7 +31,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static string lastCursorText;
         public static Vector3[] snaps = new Vector3[1024];
 
-        public static Dictionary<int, BuildingCopy> toPostProcess = new Dictionary<int, BuildingCopy>();
+        public static Dictionary<int, PastedEntity> toPostProcess = new Dictionary<int, PastedEntity>();
 
 
         public static bool IsMultiBuildAvailable()
@@ -168,45 +168,100 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "AfterPrebuild")]
-        public static void PlayerAction_Build_AfterPrebuilds_Prefix()
+        public static void PlayerAction_Build_AfterPrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
-            foreach (var item in BlueprintManager.pastedEntities)
+            foreach (var pastedEntity in BlueprintManager.pastedEntities.Values)
             {
-                var buildPreview = item.Value.buildPreview;
-                var sourceBuilding = item.Value.sourceBuilding;
-                if (buildPreview.objId >= 0 || item.Value.sourceBuilding == null)
+                var buildPreview = pastedEntity.buildPreview;
+                var sourceBuilding = pastedEntity.sourceBuilding;
+
+                if (buildPreview.objId >= 0)
                 {
                     continue;
                 }
+                pastedEntity.objId = buildPreview.objId;
 
-                if (sourceBuilding.itemProto.prefabDesc.isStation && sourceBuilding.slotFilters.Count + sourceBuilding.stationSettings.Count > 0)
+                if (pastedEntity.type == EPastedType.BUILDING)
                 {
-                    toPostProcess.Add(buildPreview.objId, item.Value.sourceBuilding);
+                    if (sourceBuilding.itemProto.prefabDesc.isStation && sourceBuilding.slotFilters.Count + sourceBuilding.stationSettings.Count > 0)
+                    {
+                        toPostProcess.Add(buildPreview.objId, pastedEntity);
+                    }
+                    if (sourceBuilding.itemProto.prefabDesc.isSplitter)
+                    {
+                        toPostProcess.Add(buildPreview.objId, pastedEntity);
+                        foreach (var otherPastedEntity in pastedEntity.connectedEntities.Values)
+                        {
+                            // postpocess the splitter after every belt has been built
+                            toPostProcess.Add(otherPastedEntity.buildPreview.objId, pastedEntity);
+                        }
+                    }
                 }
             }
+            if (BlueprintManager.pastedEntities.Count > 0)
+            {
+                __instance.ClearBuildPreviews();
+            }
+
+            forceRecalculation = true;
         }
 
         [HarmonyPrefix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(PlayerAction_Build), "NotifyBuilt")]
         public static void PlayerAction_Build_NotifyBuilt_Prefix(ref PlayerAction_Build __instance, int preObjId, int postObjId)
         {
             forceRecalculation = true;
-            if (toPostProcess.TryGetValue(preObjId, out BuildingCopy sourceBuilding))
+            if (toPostProcess.TryGetValue(preObjId, out PastedEntity pastedEntity))
             {
-                var entity = __instance.factory.entityPool[postObjId];
+                var factory = __instance.factory;
+                if (pastedEntity.objId == preObjId)
+                {
+                    pastedEntity.postObjId = postObjId;
+                }
+
+                var entity = factory.entityPool[postObjId];
 
                 if (entity.stationId > 0)
                 {
+                    var sourceBuilding = pastedEntity.sourceBuilding;
+                    var stationConfig = sourceBuilding.stationConfig;
                     var stationComponent = __instance.factory.transport.GetStationComponent(entity.stationId);
+
+                    if (stationConfig != null)
+                    {
+                        factory.powerSystem.consumerPool[stationComponent.pcId].workEnergyPerTick = stationConfig.workEnergyPerTick;
+
+                        stationComponent.tripRangeDrones = stationConfig.tripRangeDrones;
+                        stationComponent.tripRangeShips = stationConfig.tripRangeShips;
+                        stationComponent.warpEnableDist = stationConfig.warpEnableDist;
+                        stationComponent.warperNecessary = stationConfig.warperNecessary;
+                        stationComponent.includeOrbitCollector = stationConfig.includeOrbitCollector;
+                        stationComponent.deliveryDrones = stationConfig.deliveryDrones;
+                        stationComponent.deliveryShips = stationConfig.deliveryShips;
+                    }
+
                     foreach (var settings in sourceBuilding.stationSettings)
                     {
-                        __instance.factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer);
+                        factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer);
                     }
                     foreach (var slotFilter in sourceBuilding.slotFilters)
                     {
                         stationComponent.slots[slotFilter.slotIndex].storageIdx = slotFilter.storageIdx;
                     }
+
                 }
 
+                if (pastedEntity.type == EPastedType.BUILDING && pastedEntity.buildPreview.desc.isSplitter && pastedEntity.postObjId != 0)
+                {
+                    var splitterPool = factory.cargoTraffic.splitterPool;
+                    var splitterEntity = factory.entityPool[pastedEntity.postObjId];
+                    var splitterSettings = pastedEntity.sourceBuilding.splitterSettings;
+
+                    if (splitterSettings != null)
+                    {
+                        splitterPool[splitterEntity.splitterId].SetPriority(splitterSettings.inPrioritySlot, splitterSettings.inPriority, 0);
+                        splitterPool[splitterEntity.splitterId].SetPriority(splitterSettings.outPrioritySlot, splitterSettings.outPriority, splitterSettings.outFilter);
+                    }
+                }
 
                 toPostProcess.Remove(preObjId);
             }
@@ -328,12 +383,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (lastFlag)
             {
                 __instance.CreatePrebuilds();
-
-                if (__instance.waitConfirm && VFInput._buildConfirm.onDown)
-                {
-                    __instance.ClearBuildPreviews();
-                    forceRecalculation = true;
-                }
             }
 
             return false;
