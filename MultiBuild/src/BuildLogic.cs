@@ -11,10 +11,20 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     [HarmonyPatch]
     public class BuildLogic
     {
+        public static bool multiBuildEnabled = false;
+        public static bool multiBuildPossible = true;
+        public static bool multiBuildInserters = true;
         public static int path = 0;
+        public static Vector3 startPos = Vector3.zero;
         public static Vector3 lastPosition = Vector3.zero;
+
+        public static Dictionary<int, int> spacingStore = new Dictionary<int, int>();
+        public static int spacingIndex = 0;
+        public static int spacingPeriod = 1;
+
         public static bool forceRecalculation = false;
         public static bool runUpdate = false;
+
         public static bool lastFlag;
         public static bool lastCursorWarning;
         public static bool lastRunOriginal;
@@ -22,6 +32,95 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static Vector3[] snaps = new Vector3[1024];
 
         public static Dictionary<int, BuildingCopy> toPostProcess = new Dictionary<int, BuildingCopy>();
+
+
+        public static bool IsMultiBuildAvailable()
+        {
+            return UIGame.viewMode == EViewMode.Build && GameMain.mainPlayer.controller.cmd.mode == 1 && multiBuildPossible;
+        }
+
+        public static bool IsMultiBuildEnabled()
+        {
+            return IsMultiBuildAvailable() && multiBuildEnabled;
+        }
+
+        public static bool IsMultiBuildRunning()
+        {
+            return IsMultiBuildEnabled() && startPos != Vector3.zero;
+        }
+
+        public static void ResetMultiBuild()
+        {
+            spacingIndex = 0;
+            path = 0;
+            forceRecalculation = true;
+            lastRunOriginal = true;
+            multiBuildInserters = true;
+            multiBuildEnabled = false;
+            startPos = Vector3.zero;
+            spacingPeriod = 1;
+            if (!MultiBuild.itemSpecificSpacing.Value)
+            {
+                spacingStore[spacingIndex] = 0;
+            }
+        }
+
+        public static void OnUpdate()
+        {
+            var isEnabled = IsMultiBuildEnabled();
+
+            if (Input.GetKeyUp(KeyCode.LeftAlt) && IsMultiBuildAvailable())
+            {
+                multiBuildEnabled = !multiBuildEnabled;
+                if (multiBuildEnabled)
+                {
+                    startPos = Vector3.zero;
+                }
+                forceRecalculation = true;
+            }
+
+            if (Input.GetKeyUp(KeyCode.Tab) && IsMultiBuildAvailable())
+            {
+                multiBuildInserters = !multiBuildInserters;
+                forceRecalculation = true;
+            }
+
+            if (VFInput.control && (Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
+            {
+                spacingPeriod++;
+                forceRecalculation = true;
+            }
+
+            if (VFInput.control && (Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isEnabled && spacingPeriod > 1)
+            {
+                spacingPeriod--;
+                forceRecalculation = true;
+            }
+
+            if (!VFInput.control && (Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
+            {
+                spacingStore[spacingIndex]++;
+                forceRecalculation = true;
+            }
+
+            if (!VFInput.control && (Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isEnabled && spacingStore[spacingIndex] > 0)
+            {
+                spacingStore[spacingIndex]--;
+                forceRecalculation = true;
+            }
+
+            if ((Input.GetKeyUp(KeyCode.Alpha0) || Input.GetKeyUp(KeyCode.Keypad0)) && isEnabled)
+            {
+                spacingStore[spacingIndex] = 0;
+                spacingPeriod = 1;
+                forceRecalculation = true;
+            }
+            if (Input.GetKeyUp(KeyCode.Z) && IsMultiBuildRunning())
+            {
+                path = 1 - path;
+                forceRecalculation = true;
+            }
+        }
 
         public static bool IsInserterConnected(BuildPreview bp)
         {
@@ -34,19 +133,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             var runOriginal = true;
             if (__instance.waitConfirm &&
                 VFInput._buildConfirm.onDown &&
-                MultiBuild.IsMultiBuildEnabled() &&
+                IsMultiBuildEnabled() &&
                 __instance.buildPreviews.Count > 0 &&
                 !__instance.multiLevelCovering)
             {
-                if (MultiBuild.startPos == Vector3.zero)
+                if (startPos == Vector3.zero)
                 {
-                    MultiBuild.startPos = __instance.groundSnappedPos;
+                    startPos = __instance.groundSnappedPos;
                     lastPosition = Vector3.zero;
                     runOriginal = false;
                 }
                 else
                 {
-                    MultiBuild.startPos = Vector3.zero;
+                    startPos = Vector3.zero;
                     runOriginal = true;
                 }
 
@@ -153,19 +252,19 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 BlueprintManager.data.copiedBuildings.Count > 1
                 )
             {
-                MultiBuild.multiBuildPossible = false;
+                multiBuildPossible = false;
             }
             else
             {
-                MultiBuild.multiBuildPossible = true;
+                multiBuildPossible = true;
             }
 
-            if (MultiBuild.itemSpecificSpacing.Value && __instance.handItem != null && MultiBuild.spacingIndex != __instance.handItem.ID)
+            if (MultiBuild.itemSpecificSpacing.Value && __instance.handItem != null && spacingIndex != __instance.handItem.ID)
             {
-                MultiBuild.spacingIndex = __instance.handItem.ID;
-                if (!MultiBuild.spacingStore.ContainsKey(MultiBuild.spacingIndex))
+                spacingIndex = __instance.handItem.ID;
+                if (!spacingStore.ContainsKey(spacingIndex))
                 {
-                    MultiBuild.spacingStore[MultiBuild.spacingIndex] = 0;
+                    spacingStore[spacingIndex] = 0;
                 }
             }
 
@@ -190,7 +289,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 }
 
-                if (BlueprintManager.pastedEntities.Count > 1)
+                if (BlueprintManager.pastedEntities.Count > 0)
                 {
                     lastFlag = CheckBuildConditionsFast();
                 }
@@ -240,21 +339,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return false;
         }
 
-
-
         public static bool CheckBuildConditionsFast()
         {
             var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-
-            /* Util.Parallelize((_) =>
-             {
-                 int index;
-                 PlayerAction_Build ab = Util.ClonePlayerAction_Build(actionBuild);
-                 while ((index = Interlocked.Increment(ref next)) < actionBuild.buildPreviews.Count)
-                 {
-                     CheckBuildConditionsWorker(ab, actionBuild.buildPreviews[index]);
-                 }
-             });*/
 
             bool flag = true;
             foreach (var buildPreview in actionBuild.buildPreviews)
@@ -481,7 +568,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            if (!MultiBuild.IsMultiBuildRunning() && (__instance.multiLevelCovering || !BlueprintManager.hasData))
+            if (!IsMultiBuildRunning() && (__instance.multiLevelCovering || !BlueprintManager.hasData))
             {
                 if (!lastRunOriginal)
                 {
@@ -533,7 +620,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 __instance.ClearBuildPreviews();
             }
             BlueprintManager.PreparePaste();
-            if (MultiBuild.IsMultiBuildRunning())
+            if (IsMultiBuildRunning())
             {
                 if (!BlueprintManager.hasData)
                 {
@@ -549,7 +636,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 int snapPath = path;
 
-                var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(MultiBuild.startPos, __instance.groundSnappedPos, ref snapPath, snaps);
+                var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(startPos, __instance.groundSnappedPos, ref snapPath, snaps);
 
                 var desc = BlueprintManager.GetPrefabDesc(building);
                 Collider[] colliders = new Collider[desc.buildColliders.Length];
@@ -596,16 +683,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
                     }
 
-                    if (s > 0 && MultiBuild.spacingStore[MultiBuild.spacingIndex] > 0 && copiesCounter % MultiBuild.spacingPeriod == 0)
+                    if (s > 0 && spacingStore[spacingIndex] > 0 && copiesCounter % spacingPeriod == 0)
                     {
-                        s += MultiBuild.spacingStore[MultiBuild.spacingIndex];
+                        s += spacingStore[spacingIndex];
 
                         if (s >= snappedPointCount) break;
                         pos = snaps[s];
                         rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
                     }
 
-                    BlueprintManager.Paste(pos, __instance.yaw, MultiBuild.multiBuildInserters, copiesCounter);
+                    BlueprintManager.Paste(pos, __instance.yaw, multiBuildInserters, copiesCounter);
                     copiesCounter++;
                     previousPos = pos;
 
@@ -642,7 +729,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             else
             {
-                var pasteInserters = MultiBuild.multiBuildInserters || (BlueprintManager.data.copiedBuildings.Count + BlueprintManager.data.copiedBelts.Count > 1);
+                var pasteInserters = multiBuildInserters || (BlueprintManager.data.copiedBuildings.Count + BlueprintManager.data.copiedBelts.Count > 1);
                 BlueprintManager.Paste(__instance.groundSnappedPos, __instance.yaw, pasteInserters);
             }
             BlueprintManager.AfterPaste();

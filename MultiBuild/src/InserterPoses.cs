@@ -79,7 +79,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             var pastedEntities = BlueprintManager.pastedEntities;
             var player = actionBuild.player;
 
-            var pastedReferenceEntityId = BlueprintManager.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.referenceBuildingId;
+            var pastedReferenceEntityId = BlueprintManager_Paste.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.referenceBuildingId;
 
             var pastedReferenceEntity = pastedEntities[pastedReferenceEntityId];
             var pastedReferenceEntityBuildPreview = pastedReferenceEntity.buildPreview;
@@ -119,8 +119,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             var otherObjId = 0;
 
-            var pastedPickTargetId = BlueprintManager.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.pickTarget;
-            var pastedInsertTargetId = BlueprintManager.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.insertTarget;
+            var pastedPickTargetId = BlueprintManager_Paste.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.pickTarget;
+            var pastedInsertTargetId = BlueprintManager_Paste.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.insertTarget;
 
             if (pastedEntities.ContainsKey(pastedPickTargetId) && pastedEntities.ContainsKey(pastedInsertTargetId))
             {

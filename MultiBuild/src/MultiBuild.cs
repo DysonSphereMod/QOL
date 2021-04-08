@@ -32,15 +32,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static ConfigEntry<bool> itemSpecificSpacing;
         public static List<UIKeyTipNode> allTips;
         public static Dictionary<String, UIKeyTipNode> tooltips = new Dictionary<String, UIKeyTipNode>();
-        public static bool multiBuildEnabled = false;
-        public static bool multiBuildPossible = true;
-        public static bool multiBuildInserters = true;
-        public static Vector3 startPos = Vector3.zero;
-        public static Dictionary<int, int> spacingStore = new Dictionary<int, int>();
-        public static int spacingIndex = 0;
-        public static int spacingPeriod = 1;
-
-        public static int selectionRadius = 5;
 
         public static bool isValidInstallation = true;
         public static List<string> incompatiblePlugins = new List<string>();
@@ -49,7 +40,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.MultiBuild" + CHANNEL);
             itemSpecificSpacing = Config.Bind<bool>("General", "itemSpecificSpacing", true, "If this option is set to true, the mod will remember the last spacing used for a specific building. Otherwise the spacing will be the same for all entities.");
-            spacingStore[0] = 0;
+            BuildLogic.spacingStore[0] = 0;
 
             try
             {
@@ -151,100 +142,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 return;
             }
-            var isEnabled = IsMultiBuildEnabled();
 
-            if (Input.GetKeyUp(KeyCode.LeftAlt) && IsMultiBuildAvailable())
-            {
-                multiBuildEnabled = !multiBuildEnabled;
-                if (multiBuildEnabled)
-                {
-                    startPos = Vector3.zero;
-                }
-                BuildLogic.forceRecalculation = true;
-            }
-
-            if (Input.GetKeyUp(KeyCode.Tab) && IsMultiBuildAvailable())
-            {
-                multiBuildInserters = !multiBuildInserters;
-                BuildLogic.forceRecalculation = true;
-            }
-
-            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && BlueprintCreator.bpMode && selectionRadius < 14)
-            {
-                ++selectionRadius;
-            }
-
-            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && BlueprintCreator.bpMode && selectionRadius > 1)
-            {
-                --selectionRadius;
-            }
-
-            if (VFInput.control && (Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
-            {
-                spacingPeriod++;
-                BuildLogic.forceRecalculation = true;
-            }
-
-            if (VFInput.control && (Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isEnabled && spacingPeriod > 1)
-            {
-                spacingPeriod--;
-                BuildLogic.forceRecalculation = true;
-            }
-
-            if (!VFInput.control && (Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && isEnabled)
-            {
-                spacingStore[spacingIndex]++;
-                BuildLogic.forceRecalculation = true;
-            }
-
-            if (!VFInput.control && (Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && isEnabled && spacingStore[spacingIndex] > 0)
-            {
-                spacingStore[spacingIndex]--;
-                BuildLogic.forceRecalculation = true;
-            }
-
-            if ((Input.GetKeyUp(KeyCode.Alpha0) || Input.GetKeyUp(KeyCode.Keypad0)) && isEnabled)
-            {
-                spacingStore[spacingIndex] = 0;
-                spacingPeriod = 1;
-                BuildLogic.forceRecalculation = true;
-            }
-            if (Input.GetKeyUp(KeyCode.Z) && IsMultiBuildRunning())
-            {
-                BuildLogic.path = 1 - BuildLogic.path;
-                BuildLogic.forceRecalculation = true;
-            }
-        }
-
-        public static bool IsMultiBuildAvailable()
-        {
-            return UIGame.viewMode == EViewMode.Build && GameMain.mainPlayer.controller.cmd.mode == 1 && multiBuildPossible;
-        }
-
-        public static bool IsMultiBuildEnabled()
-        {
-            return IsMultiBuildAvailable() && multiBuildEnabled;
-        }
-
-        public static bool IsMultiBuildRunning()
-        {
-            return IsMultiBuildEnabled() && startPos != Vector3.zero;
-        }
-
-        public static void ResetMultiBuild()
-        {
-            spacingIndex = 0;
-            BuildLogic.path = 0;
-            BuildLogic.forceRecalculation = true;
-            BuildLogic.lastRunOriginal = true;
-            multiBuildInserters = true;
-            multiBuildEnabled = false;
-            startPos = Vector3.zero;
-            spacingPeriod = 1;
-            if (!itemSpecificSpacing.Value)
-            {
-                spacingStore[spacingIndex] = 0;
-            }
+            BuildLogic.OnUpdate();
+            BlueprintCreator.OnUpdate();
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerController), "UpdateCommandState")]
@@ -256,7 +156,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 if (__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 1)
                 {
-                    ResetMultiBuild();
+                    BuildLogic.ResetMultiBuild();
                 }
                 if (__instance.cmd.type != ECommand.Build || __instance.cmd.mode != 0)
                 {
@@ -302,7 +202,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
             }
-            tooltips["toggle-build"].desired = tooltips["toggle-inserters"].desired = IsMultiBuildAvailable();
+            tooltips["toggle-build"].desired = tooltips["toggle-inserters"].desired = BuildLogic.IsMultiBuildAvailable();
 
             tooltips["rotate-path"].desired =
                 tooltips["zero-spacing"].desired =
@@ -310,7 +210,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 tooltips["increase-spacing"].desired =
                 tooltips["decrease-period"].desired =
                 tooltips["increase-period"].desired =
-                    IsMultiBuildRunning();
+                    BuildLogic.IsMultiBuildRunning();
 
             tooltips["increase-radius"].desired =
                 tooltips["decrease-radius"].desired =
@@ -322,16 +222,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
         public static void UIGeneralTips__OnUpdate_Postfix(ref Text ___modeText)
         {
-            if (IsMultiBuildAvailable() && multiBuildEnabled)
+            if (BuildLogic.IsMultiBuildAvailable() && BuildLogic.multiBuildEnabled)
             {
-                ___modeText.text += $"\nMultiBuild [{(startPos == Vector3.zero ? "START" : "END")}]";
+                ___modeText.text += $"\nMultiBuild [{(BuildLogic.startPos == Vector3.zero ? "START" : "END")}]";
 
-                if (spacingStore[spacingIndex] > 0)
+                if (BuildLogic.spacingStore[BuildLogic.spacingIndex] > 0)
                 {
-                    ___modeText.text += $" - Spacing {spacingStore[spacingIndex]}";
-                    if (spacingPeriod > 1)
+                    ___modeText.text += $" - Spacing {BuildLogic.spacingStore[BuildLogic.spacingIndex]}";
+                    if (BuildLogic.spacingPeriod > 1)
                     {
-                        ___modeText.text += $" every {spacingPeriod} copies";
+                        ___modeText.text += $" every {BuildLogic.spacingPeriod} copies";
                     }
                 }
             }
