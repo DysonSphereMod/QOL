@@ -86,6 +86,13 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
 ## Changelog
 
+### v2.3.0-Beta
+
+-   Correctly copy Splitter settings (FINALLY) (only when blueprinting and not when `shift + clicking` to avoid mistakes)
+-   Correctly copy Logistic station settings (only when blueprinting and not when `shift + clicking` to avoid mistakes)
+-   Improve compatibility with [Touhma GalacticScale](https://dsp.thunderstore.io/package/Touhma/Touhma_GalacticScale/) (thanks innominata)
+-   Rewritten multithreading logic to further improve fps with big blueprints
+
 ### v2.2.1
 
 -   Fix compatibility with game version 0.6.17.6112

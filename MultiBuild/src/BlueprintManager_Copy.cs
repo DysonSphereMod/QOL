@@ -171,6 +171,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 StationComponent stationComponent = factory.transport.stationPool[sourceEntity.stationId];
 
+                copiedBuilding.stationConfig = new StationConfig()
+                {
+                    workEnergyPerTick = factory.powerSystem.consumerPool[stationComponent.pcId].workEnergyPerTick,
+                    tripRangeDrones = stationComponent.tripRangeDrones,
+                    tripRangeShips = stationComponent.tripRangeShips,
+                    warpEnableDist = stationComponent.warpEnableDist,
+                    warperNecessary = stationComponent.warperNecessary,
+                    includeOrbitCollector = stationComponent.includeOrbitCollector,
+                    deliveryDrones = stationComponent.deliveryDrones,
+                    deliveryShips = stationComponent.deliveryShips
+                };
+
                 for (int i = 0; i < stationComponent.slots.Length; i++)
                 {
                     if (stationComponent.slots[i].storageIdx != 0)
@@ -200,7 +212,24 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             else if (sourceEntity.splitterId > 0)
             {
+                var splitterComponent = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
+                copiedBuilding.splitterSettings = new SplitterSettings()
+                {
+                    inPriority = splitterComponent.inPriority,
+                    outPriority = splitterComponent.outPriority,
+                    outFilter = splitterComponent.outFilter
 
+                };
+
+                var slots = new List<int>(4) { splitterComponent.beltA, splitterComponent.beltB, splitterComponent.beltC, splitterComponent.beltD };
+                if (copiedBuilding.splitterSettings.inPriority)
+                {
+                    copiedBuilding.splitterSettings.inPrioritySlot = slots.IndexOf(splitterComponent.input0);
+                }
+                if (copiedBuilding.splitterSettings.outPriority)
+                {
+                    copiedBuilding.splitterSettings.outPrioritySlot = slots.IndexOf(splitterComponent.output0);
+                }
                 // TODO: find a way to restore splitter settings
                 // SplitterComponent splitterComponent = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
 

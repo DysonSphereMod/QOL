@@ -31,7 +31,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     }
 
 
-
     [Serializable]
     public class BuildingCopy_V1
     {

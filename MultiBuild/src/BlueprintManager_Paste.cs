@@ -101,6 +101,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 pastedEntity = new PastedEntity()
                 {
+                    pasteId = pasteId,
                     status = EPastedStatus.NEW,
                     type = EPastedType.BUILDING,
                     sourceBuilding = building,
@@ -140,6 +141,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             pastedEntity.buildPreview.lrot = absoluteBuildingRot;
             pastedEntity.buildPreview.condition = EBuildCondition.Ok;
 
+            pastedEntity.connectedEntities.Clear();
+
             return pastedEntity;
         }
 
@@ -153,6 +156,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 pastedEntity = new PastedEntity()
                 {
+                    pasteId = pasteId,
                     status = EPastedStatus.NEW,
                     type = EPastedType.BELT,
                     sourceBelt = belt,
@@ -194,8 +198,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             pastedEntity.buildPreview.lpos = absoluteBeltPos;
             pastedEntity.buildPreview.lrot = absoluteBeltRot;
 
-
-
             pastedEntity.buildPreview.condition = EBuildCondition.Ok;
 
             return pastedEntity;
@@ -211,6 +213,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                 pastedEntity = new PastedEntity()
                 {
+                    pasteId = pasteId,
                     status = EPastedStatus.NEW,
                     type = EPastedType.INSERTER,
                     sourceInserter = inserter,
@@ -302,9 +305,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             var pastedOutputId = COPY_INDEX_MULTIPLIER * copyIndex + belt.outputId;
             var pastedConnectedBuildingId = COPY_INDEX_MULTIPLIER * copyIndex + belt.connectedBuildingId;
 
+            PastedEntity otherPastedEntity;
 
             if (pastedOutputId != 0 &&
-                BlueprintManager.pastedEntities.TryGetValue(pastedOutputId, out PastedEntity otherPastedEntity) &&
+                BlueprintManager.pastedEntities.TryGetValue(pastedOutputId, out otherPastedEntity) &&
                 otherPastedEntity.type == EPastedType.BELT &&
                 otherPastedEntity.status != EPastedStatus.REMOVE &&
                 Vector3.Distance(buildPreview.lpos, otherPastedEntity.buildPreview.lpos) < 10) // if the belts are too far apart ignore connection
@@ -329,20 +333,22 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
 
             if (pastedConnectedBuildingId != 0 &&
-                BlueprintManager.pastedEntities.TryGetValue(pastedConnectedBuildingId, out PastedEntity otherBuilding) &&
-                otherBuilding.type == EPastedType.BUILDING &&
-                otherBuilding.status != EPastedStatus.REMOVE)
+                BlueprintManager.pastedEntities.TryGetValue(pastedConnectedBuildingId, out otherPastedEntity) &&
+                otherPastedEntity.type == EPastedType.BUILDING &&
+                otherPastedEntity.status != EPastedStatus.REMOVE)
             {
                 if (belt.connectedBuildingIsOutput)
                 {
-                    buildPreview.output = otherBuilding.buildPreview;
+                    buildPreview.output = otherPastedEntity.buildPreview;
                     buildPreview.outputToSlot = belt.connectedBuildingSlot;
                 }
                 else
                 {
-                    buildPreview.input = otherBuilding.buildPreview;
+                    buildPreview.input = otherPastedEntity.buildPreview;
                     buildPreview.inputFromSlot = belt.connectedBuildingSlot;
                 }
+                otherPastedEntity.connectedEntities.TryAdd(pasteId, pastedEntity);
+                //pastedEntity.connectedEntities.Add(otherPastedEntity);
             }
 
             bool beltHasInput = BlueprintManager.pastedEntities.ContainsKey(pastedBackInputId) || BlueprintManager.pastedEntities.ContainsKey(pastedLeftInputId) || BlueprintManager.pastedEntities.ContainsKey(pastedRightInputId);
