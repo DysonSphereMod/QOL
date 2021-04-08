@@ -12,6 +12,17 @@ using UnityEngine;
 namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     [Serializable]
+    public class SplitterSettings
+    {
+        public int index;
+        public int itemId;
+        public int max;
+        public ELogisticStorage localLogic;
+        public ELogisticStorage remoteLogic;
+    }
+
+
+    [Serializable]
     public class StationSetting
     {
         public int index;
