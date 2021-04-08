@@ -15,8 +15,23 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         private static CircleGizmo circleGizmo;
 
         public static bool bpMode = false;
+        public static int selectionRadius = 5;
+
         private static Dictionary<int, BoxGizmo> bpSelection = new Dictionary<int, BoxGizmo>();
         private static Collider[] _tmp_cols = new Collider[1024];
+
+        public static void OnUpdate()
+        {
+            if ((Input.GetKeyUp(KeyCode.Equals) || Input.GetKeyUp(KeyCode.KeypadPlus)) && BlueprintCreator.bpMode && BlueprintCreator.selectionRadius < 14)
+            {
+                ++BlueprintCreator.selectionRadius;
+            }
+
+            if ((Input.GetKeyUp(KeyCode.Minus) || Input.GetKeyUp(KeyCode.KeypadMinus)) && BlueprintCreator.bpMode && BlueprintCreator.selectionRadius > 1)
+            {
+                --BlueprintCreator.selectionRadius;
+            }
+        }
 
         [HarmonyPostfix, HarmonyPatch(typeof(UIBuildingGrid), "Update")]
         public static void UIBuildingGrid_Update_Postfix(ref UIBuildingGrid __instance)
@@ -49,7 +64,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (itemProto.prefabDesc.insertPoses.Length > 0)
             {
                 var toAdd = new List<int>() { objectId };
-                BlueprintManager.CopyEntities(toAdd);
+                BlueprintManager.Copy(toAdd);
 
                 if (BlueprintManager.hasData)
                 {
@@ -69,7 +84,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 if (circleGizmo != null)
                 {
                     circleGizmo.color = removeMode ? REMOVE_SELECTION_GIZMO_COLOR : ADD_SELECTION_GIZMO_COLOR;
-                    circleGizmo.radius = MultiBuild.selectionRadius;
+                    circleGizmo.radius = selectionRadius;
 
                     if (__instance.groundTestPos != Vector3.zero)
                     {
@@ -83,7 +98,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     // target only buildings
                     int mask = 131072;
-                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(MultiBuild.selectionRadius, 100f, MultiBuild.selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
+                    int found = Physics.OverlapBoxNonAlloc(__instance.groundTestPos, new Vector3(selectionRadius, 100f, selectionRadius), _tmp_cols, Maths.SphericalRotation(__instance.groundTestPos, 0f), mask, QueryTriggerInteraction.Collide);
 
                     PlanetPhysics planetPhysics = __instance.player.planetData.physics;
                     for (int i = 0; i < found; i++)
@@ -154,7 +169,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             bpMode = false;
 
 
-            BlueprintManager.CopyEntities(bpSelection.Keys.ToList());
+            BlueprintManager.Copy(bpSelection.Keys.ToList());
             foreach (var selectionGizmo in bpSelection.Values)
             {
                 selectionGizmo.Close();

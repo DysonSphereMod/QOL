@@ -38,6 +38,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             return clone;
         }
+
         public static void Parallelize(Action<int> job)
         {
             Task[] tasks = new Task[MAX_THREADS];
@@ -69,11 +70,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        public static Vector2 ToSpherical(this Vector3 vector)
+        public static int GetSegmentsCount(this Vector2 vector)
         {
-            float inclination = Mathf.Acos(vector.y / vector.magnitude);
-            float azimuth = Mathf.Atan2(vector.z, vector.x);
-            return new Vector2(inclination, azimuth);
+            int segments = GameMain.localPlanet.aux.mainGrid.segment;
+
+            float rawLatitudeIndex = (vector.x - Mathf.PI / 2) / 6.2831855f * segments;
+            int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
+            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
         }
 
         public static Vector3 ToCartesian(this Vector2 vector, float realRadius)
@@ -106,13 +109,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return new Vector2(theta + Mathf.PI / 2, phi + Mathf.PI / 2).ToCartesian(planetRadius + 0.2f + altitude);
         }
 
-        public static int GetSegmentsCount(this Vector2 vector)
+        public static Vector2 ToSpherical(this Vector3 vector)
         {
-            int segments = GameMain.localPlanet.aux.mainGrid.segment;
-
-            float rawLatitudeIndex = (vector.x - Mathf.PI / 2) / 6.2831855f * segments;
-            int latitudeIndex = Mathf.FloorToInt(Mathf.Max(0f, Mathf.Abs(rawLatitudeIndex) - 0.1f));
-            return PlanetGrid.DetermineLongitudeSegmentCount(latitudeIndex, segments);
+            float inclination = Mathf.Acos(vector.y / vector.magnitude);
+            float azimuth = Mathf.Atan2(vector.z, vector.x);
+            return new Vector2(inclination, azimuth);
         }
 
         public static Vector2 ApplyDelta(this Vector2 vector, Vector2 delta, int deltaCount)

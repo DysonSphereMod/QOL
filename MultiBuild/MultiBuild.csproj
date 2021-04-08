@@ -142,17 +142,19 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ACPublic.cs" />
-    <Compile Include="BlueprintCreator.cs" />
-    <Compile Include="BlueprintData.cs" />
-    <Compile Include="BlueprintManager.cs" />
-    <Compile Include="IncompatibilityNotice.cs" />
-    <Compile Include="InserterPoses.cs" />
-    <Compile Include="BuildLogic.cs" />
-    <Compile Include="LegacyBlueprintData.cs" />
-    <Compile Include="MultiBuild.cs" />
+    <Compile Include="src\ACPublic.cs" />
+    <Compile Include="src\BlueprintCreator.cs" />
+    <Compile Include="src\BlueprintDataModels\BlueprintData.cs" />
+    <Compile Include="src\BlueprintManager.cs" />
+    <Compile Include="src\BlueprintManager_Copy.cs" />
+    <Compile Include="src\BlueprintManager_Paste.cs" />
+    <Compile Include="src\IncompatibilityNotice.cs" />
+    <Compile Include="src\InserterPoses.cs" />
+    <Compile Include="src\BuildLogic.cs" />
+    <Compile Include="src\BlueprintDataModels\BlueprintData_V1.cs" />
+    <Compile Include="src\MultiBuild.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Util.cs" />
+    <Compile Include="src\Util.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
@@ -171,6 +173,7 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>copy $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\BepInEx\scripts\$(TargetFileName)"
