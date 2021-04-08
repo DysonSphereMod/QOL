@@ -18,7 +18,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "Beta";
-        public const string VERSION = "2.3.0";
+        public const string VERSION = "2.3.2";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
             "org.fezeral.plugins.copyinserters",
@@ -219,5 +219,27 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 BlueprintCreator.bpMode;
         }
 
+        [HarmonyPostfix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(UIGeneralTips), "_OnUpdate")]
+        public static void UIGeneralTips__OnUpdate_Postfix(ref Text ___modeText)
+        {
+            if (BuildLogic.IsMultiBuildAvailable() && BuildLogic.multiBuildEnabled)
+            {
+                ___modeText.text += $"\nMultiBuild [{(BuildLogic.startPos == Vector3.zero ? "START" : "END")}]";
+
+                if (BuildLogic.spacingStore[BuildLogic.spacingIndex] > 0)
+                {
+                    ___modeText.text += $" - Spacing {BuildLogic.spacingStore[BuildLogic.spacingIndex]}";
+                    if (BuildLogic.spacingPeriod > 1)
+                    {
+                        ___modeText.text += $" every {BuildLogic.spacingPeriod} copies";
+                    }
+                }
+            }
+
+            if (BlueprintCreator.bpMode)
+            {
+                ___modeText.text = "Blueprint Mode";
+            }
+        }
     }
 }

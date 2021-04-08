@@ -335,15 +335,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             if (runUpdate)
             {
-                //timer.Reset();
-                //timer.Start();
-                var backupMechaBuildArea = __instance.player.mecha.buildArea;
-                if (BlueprintManager.hasData)
-                {
-                    __instance.player.mecha.buildArea = 10000f;
-
-                }
-
                 if (BlueprintManager.pastedEntities.Count > 0)
                 {
                     lastFlag = CheckBuildConditionsFast();
@@ -367,10 +358,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 //timer.Stop();
                 //ug = timer.ElapsedTicks;
 
-                __instance.player.mecha.buildArea = backupMechaBuildArea;
+
                 lastCursorText = __instance.cursorText;
                 lastCursorWarning = __instance.cursorWarning;
-
 
                 //Debug.Log($"dbp: {dbp} | cbc: {cbc} | up: {up} | ug: {ug}");
             }

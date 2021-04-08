@@ -28,6 +28,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         public static void Paste(BlueprintData data, Vector3 targetPos, float yaw, bool pasteInserters = true, int copyIndex = 0)
         {
             PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+            var backupMechaBuildArea = actionBuild.player.mecha.buildArea;
+            actionBuild.player.mecha.buildArea = 10000f;
 
             Vector2 targetSpr = targetPos.ToSpherical();
             float yawRad = yaw * Mathf.Deg2Rad;
@@ -57,8 +59,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             });
 
-
-
             // after creating the belt previews this restore the correct connection to other belts and buildings
             beltsQueue = new ConcurrentQueue<BeltCopy>(data.copiedBelts);
             Util.Parallelize((int threadIndex) =>
@@ -83,6 +83,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
                 });
             }
+
+            actionBuild.player.mecha.buildArea = backupMechaBuildArea;
         }
 
         public static PastedEntity ConcurrentPasteBuilding(int threadIndex, BuildingCopy building, Vector2 targetSpr, float yaw, int copyIndex)

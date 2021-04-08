@@ -8,7 +8,7 @@
 !*.csproj
 !.editorconfig
 !.gitignore
-!README.md
+!*.md
 
 bin/
 obj/
