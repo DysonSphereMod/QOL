@@ -340,7 +340,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public BlueprintData() { }
 
-
         public BlueprintData(BlueprintData_V1 model)
         {
             Debug.Log("Converting from v1!");
@@ -458,7 +457,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return deserialized;
         }
 
-
+        public void Clear()
+        {
+            referencePos = Vector2.zero;
+            copiedBuildings.Clear();
+            copiedInserters.Clear();
+            copiedBelts.Clear();
+        }
         public string Export()
         {
             fsSerializer serializer = new fsSerializer();

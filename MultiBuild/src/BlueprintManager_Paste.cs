@@ -78,8 +78,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     while (inserterQueue.TryDequeue(out InserterCopy inserter))
                     {
                         var pastedEntity = ConcurrentPasteInserter(threadIndex, inserter, yaw, copyIndex);
-
-
+                        BuildLogic.CheckBuildConditionsWorker(_abs[threadIndex], pastedEntity.buildPreview);
                     }
                 });
             }

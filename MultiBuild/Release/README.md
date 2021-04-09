@@ -34,7 +34,7 @@ If it stops working following a game update, you can just disable it and your ga
 
 ### MultiBuild Mode
 
-Select a building from the building bar or copy an exisiting building, then press `LEFT ALT` keyboard button to enter multibuild mode.
+Select a building from the building bar or copy an existing building, then press `LEFT ALT` keyboard button to enter multibuild mode.
 
 This mode is disabled while holding a blueprint (for now).
 
@@ -43,7 +43,7 @@ This mode is disabled while holding a blueprint (for now).
 -   Press `+` and `-` on your keyboard to increase / decrease the spacing between buildings
 -   Press `CTRL +` and `CTRL -` on your keyboard to increase / decrease the spacing period (number of copied before adding a space)
 -   Press `0` to reset spacing to 0 and spacing period to 1
--   Press `Z` to 'rotate' the building path (if you are not buildin on a straight line)
+-   Press `Z` to 'rotate' the building path (if you are not building on a straight line)
 
 ### Blueprint Mode
 
@@ -52,6 +52,7 @@ Click the blueprint button in the build dock
 -   The first button initiate the creation of a new blueprint
     -   `left click` (and hold if you want) to add entities to the blueprint
     -   hold `CTRL` and `left click` (and hold if you want) to remove entities from the blueprint
+    -   hold `ALT` and `left click` to define the blueprint reference building. This is the "center" of your blueprint and where the cursor will be positioned when pasting.
     -   `right click` to exit blueprint creation mode
 -   The second button restore the last used blueprint
 -   The 3rd button exports the current blueprint to your clipboard
@@ -59,7 +60,7 @@ Click the blueprint button in the build dock
 
 ### Inserter copy functionality
 
-When `shift+click` an exisisting building it will be copied with all the connected insters (creating a minimal blueprint , that you can store and reload);
+When `shift+click` an existing building it will be copied with all the connected inserters (creating a minimal blueprint , that you can store and reload);
 
 ## Configuration
 
@@ -73,7 +74,7 @@ When `shift+click` an exisisting building it will be copied with all the connect
 ## FAQ
 
 -   **What are the limitations of this mod (MultiBuild mode)?**  
-    This mod doens't allow to place multiple miners, oil extractors or orbital collectors.
+    This mod doesn't allow to place multiple miners, oil extractors or orbital collectors.
 
 -   **What are the limitations of this mod (Blueprint mode)?**  
     This mod is still in development and so has one or more know issue:
@@ -85,6 +86,12 @@ When `shift+click` an exisisting building it will be copied with all the connect
 -   Add ability to build a full 'loop' of a certain type of building. useful to build a lot of solar panels.
 
 ## Changelog
+
+### v2.3.4-Beta
+
+-   Fix issue where the mod was not correctly checking if you had enough items to paste the blueprint (especially with inserters)
+-   Allows to define the blueprint reference building by holding `ALT` and clicking a building. The reference will be the 'center' of your blueprint
+-   Silence error message related to buffer limits when pasting huge blueprints (>8k belts)
 
 ### v2.3.3-Beta
 
@@ -103,7 +110,7 @@ When `shift+click` an exisisting building it will be copied with all the connect
 -   Correctly copy Splitter settings (FINALLY) (only when blueprinting and not when `shift + clicking` to avoid mistakes)
 -   Correctly copy Logistic station settings (only when blueprinting and not when `shift + clicking` to avoid mistakes)
 -   Improve compatibility with [Touhma GalacticScale](https://dsp.thunderstore.io/package/Touhma/Touhma_GalacticScale/) (thanks innominata)
--   Rewritten multithreading logic to further improve fps with big blueprints
+-   Rewritten multi-threading logic to further improve fps with big blueprints
 
 ### v2.2.1
 
@@ -111,7 +118,7 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
 ### v2.2.0
 
--   MultiBuild is now MultiThreaded. You should notice an improvments in performance when pasting large blueprints / long lines of buildings
+-   MultiBuild is now MultiThreaded. You should notice an improvements in performance when pasting large blueprints / long lines of buildings
 -   fix 2 bugs (`NPE` and `array index outOfBounds`) happening when blueprinting unbuilt buildings or buildings with unbuilt inserters
 
 ### Previous versions

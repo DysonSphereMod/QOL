@@ -438,7 +438,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<PlayerAction_Build, BuildPreview, bool>>((actionBuild, buildPreview) =>
                 {
                     // remove checks for belts by stating that the current buildPreview is not a belt.
-                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isBelt)
+                    if (buildPreview.desc.isBelt)
                     {
                         // but we have to take care of collision checks
                         Vector3 testPos = buildPreview.lpos + buildPreview.lpos.normalized * 0.3f;
@@ -468,30 +468,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 .Advance(1)
                 .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
                 {
+                    PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+                    ConcurrentEnoughItemCheck(buildPreview);
                     // ignore checkbuildconditions for all inserters when copy pasting as we already took care of checking for collisions
-                    if (BlueprintManager.pastedEntities.Count > 0 && buildPreview.desc.isInserter)
+                    if (buildPreview.desc.isInserter)
                     {
-                        var actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
-                        // only check that we have enough items
-                        if (buildPreview.coverObjId == 0 || buildPreview.willCover)
-                        {
-
-                            int id = buildPreview.item.ID;
-                            int num = 1;
-                            if (actionBuild.tmpInhandId == id && actionBuild.tmpInhandCount > 0)
-                            {
-                                num = 1;
-                                actionBuild.tmpInhandCount--;
-                            }
-                            else
-                            {
-                                actionBuild.tmpPackage.TakeTailItems(ref id, ref num, false);
-                            }
-                            if (num == 0)
-                            {
-                                buildPreview.condition = EBuildCondition.NotEnoughItem;
-                            }
-                        }
 
                         if (buildPreview.condition != EBuildCondition.Ok || !IsInserterConnected(buildPreview))
                         {
@@ -551,7 +532,18 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
 
                     return buildPreview.condition != EBuildCondition.Ok;
-                }));
+                }))
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.coverObjId)))
+                )
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetOpcodeAndAdvance(OpCodes.Nop)
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldc_I4_0));
+
+
 
                 // trim the code just before the for loop condition checks
                 int endIdx = matcher
@@ -577,6 +569,42 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return;
         }
 
+
+        public static void ConcurrentEnoughItemCheck(BuildPreview buildPreview)
+        {
+            if (buildPreview.condition != EBuildCondition.Ok) return;
+
+            PlayerAction_Build actionBuild = GameMain.data.mainPlayer.controller.actionBuild;
+
+            lock (actionBuild)
+            {
+                // only check that we have enough items
+                if (buildPreview.coverObjId == 0 || buildPreview.willCover)
+                {
+
+                    int id = buildPreview.item.ID;
+                    int num = 1;
+                    if (actionBuild.tmpInhandId == id && actionBuild.tmpInhandCount > 0)
+                    {
+                        num = 1;
+                        actionBuild.tmpInhandCount--;
+                    }
+                    else
+                    {
+
+                        actionBuild.tmpPackage.TakeTailItems(ref id, ref num, false);
+                    }
+
+
+                    if (num == 0)
+                    {
+                        buildPreview.condition = EBuildCondition.NotEnoughItem;
+                    }
+                }
+
+
+            }
+        }
 
         [HarmonyPrefix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(PlayerAction_Build), "DetermineBuildPreviews")]
         public static bool PlayerAction_Build_DetermineBuildPreviews_Prefix(ref PlayerAction_Build __instance)
