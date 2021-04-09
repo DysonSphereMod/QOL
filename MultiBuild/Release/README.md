@@ -86,6 +86,10 @@ When `shift+click` an exisisting building it will be copied with all the connect
 
 ## Changelog
 
+### v2.3.3-Beta
+
+-   Fix error occurring when `shift + clicking` stacked buildings
+
 ### v2.3.2-Beta
 
 -   Fix regression issue with limited build area when pasting a blueprint

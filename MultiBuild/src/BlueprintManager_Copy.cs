@@ -19,17 +19,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 EntityData entity = factory.entityPool[id];
                 ItemProto entityProto = LDB.items.Select(entity.protoId);
 
+                // ignore standalone inserters and miners
                 if (entityProto.prefabDesc.isInserter || entityProto.prefabDesc.minerType != EMinerType.None) continue;
 
-
-                // ignore multilevel buildings (for now)
-                if (!entityProto.prefabDesc.isBelt && (entity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f) < 0.5f)
-                {
-                    buildings.Add(entity);
-                }
-                else
+                if (entityProto.prefabDesc.isBelt)
                 {
                     belts.Add(entity.id, entity);
+                }
+                else if ((entity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f) < 0.5f) // ignore multilevel buildings (for now)
+                {
+                    buildings.Add(entity);
                 }
             }
 
@@ -37,6 +36,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 return false;
             }
+
 
             EntityData globalReference = buildings.Count > 0 ? buildings.First() : belts.Values.First();
             foreach (EntityData building in buildings) CopyBuilding(data, building, globalReference);
