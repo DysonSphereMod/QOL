@@ -18,7 +18,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "Beta";
-        public const string VERSION = "2.3.3";
+        public const string VERSION = "2.3.4";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
             "org.fezeral.plugins.copyinserters",
@@ -128,7 +128,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             // For ScriptEngine hot-reloading
             BlueprintCreator.EndBpMode(true);
-            BlueprintManager.Reset();
+            BlueprintManager.PrepareNew();
             foreach (var tooltip in tooltips.Values)
             {
                 allTips.Remove(tooltip);
@@ -166,12 +166,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 // the preivous command might force us to stau in BuildMode (Even though we were leaving)
                 if (__instance.cmd.type == ECommand.Build && lastCmdMode == 1 && __instance.cmd.mode != 1)
                 {
-                    BlueprintManager.Reset();
+                    BlueprintManager.PrepareNew();
                 }
 
                 if (__instance.cmd.type != ECommand.Build)
                 {
-                    BlueprintManager.Reset();
+                    BlueprintManager.PrepareNew();
                 }
 
                 lastCmdMode = __instance.cmd.mode;
@@ -199,7 +199,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 tooltips.Add("decrease-radius", __instance.RegisterTip("-", "Decrease selection area"));
                 tooltips.Add("bp-select", __instance.RegisterTip(0, "Add building to blueprint"));
                 tooltips.Add("bp-deselect", __instance.RegisterTip("CTRL", 0, "Remove building from blueprint"));
-
+                tooltips.Add("bp-reference", __instance.RegisterTip("ALT", 0, "Select reference building"));
 
             }
             tooltips["toggle-build"].desired = tooltips["toggle-inserters"].desired = BuildLogic.IsMultiBuildAvailable();
@@ -216,6 +216,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 tooltips["decrease-radius"].desired =
                 tooltips["bp-select"].desired =
                 tooltips["bp-deselect"].desired =
+                tooltips["bp-reference"].desired =
                 BlueprintCreator.bpMode;
         }
 

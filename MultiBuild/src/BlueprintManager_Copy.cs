@@ -8,10 +8,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 {
     class BlueprintManager_Copy
     {
-        public static bool Copy(BlueprintData data, List<int> entityIds)
+        public static bool Copy(BlueprintData data, List<int> entityIds, int referenceId = 0)
         {
             PlanetFactory factory = GameMain.data.localPlanet.factory;
-            var buildings = new List<EntityData>();
+            var buildings = new Dictionary<int, EntityData>();
             var belts = new Dictionary<int, EntityData>();
 
             foreach (int id in entityIds)
@@ -28,7 +28,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
                 else if ((entity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f) < 0.5f) // ignore multilevel buildings (for now)
                 {
-                    buildings.Add(entity);
+                    buildings.Add(entity.id, entity);
                 }
             }
 
@@ -38,8 +38,17 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
 
 
-            EntityData globalReference = buildings.Count > 0 ? buildings.First() : belts.Values.First();
-            foreach (EntityData building in buildings) CopyBuilding(data, building, globalReference);
+            if (buildings.TryGetValue(referenceId, out EntityData globalReference))
+            {
+                CopyBuilding(data, globalReference, globalReference);
+                buildings.Remove(referenceId);
+            }
+            else
+            {
+                globalReference = buildings.Count > 0 ? buildings.First().Value : belts.First().Value;
+            }
+
+            foreach (EntityData building in buildings.Values) CopyBuilding(data, building, globalReference);
             foreach (EntityData belt in belts.Values) CopyBelt(data, belt, globalReference);
 
             return true;

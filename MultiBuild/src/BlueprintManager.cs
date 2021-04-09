@@ -46,7 +46,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public static ConcurrentDictionary<int, PastedEntity> pastedEntities = new ConcurrentDictionary<int, PastedEntity>(Util.MAX_THREADS, 0);
 
-        public static void Reset()
+        public static void PrepareNew()
         {
             if (!hasData)
             {
@@ -160,9 +160,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
         }
 
-        public static void Copy(List<int> entityIds)
+        public static void Copy(int entityId)
         {
-            hasData = BlueprintManager_Copy.Copy(data, entityIds) || hasData;
+            Copy(new List<int>() { entityId }, entityId);
+        }
+        public static void Copy(List<int> entityIds, int referenceId)
+        {
+            hasData = false;
+            data.Clear();
+            pastedEntities.Clear();
+            hasData = BlueprintManager_Copy.Copy(data, entityIds, referenceId);
         }
 
 
@@ -271,15 +278,22 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
                 }
 
-                __instance.cbuffer_0.SetData(__instance.objs_0);
-                __instance.cbuffer_1.SetData(__instance.objs_1, 0, 0,
-                    (__instance.objs_1.Count >= __instance.cbuffer_1.count) ? __instance.cbuffer_1.count : __instance.objs_1.Count);
-                __instance.cbuffer_2.SetData(__instance.objs_2, 0, 0,
-                    (__instance.objs_2.Count >= __instance.cbuffer_2.count) ? __instance.cbuffer_2.count : __instance.objs_2.Count);
-                __instance.cbuffer_3.SetData(__instance.objs_3, 0, 0,
-                    (__instance.objs_3.Count >= __instance.cbuffer_3.count) ? __instance.cbuffer_3.count : __instance.objs_3.Count);
-                __instance.cbuffer_4.SetData(__instance.objs_4, 0, 0,
-                    (__instance.objs_4.Count >= __instance.cbuffer_4.count) ? __instance.cbuffer_4.count : __instance.objs_4.Count);
+                try
+                {
+                    __instance.cbuffer_0.SetData(__instance.objs_0);
+                    __instance.cbuffer_1.SetData(__instance.objs_1, 0, 0,
+                        (__instance.objs_1.Count >= __instance.cbuffer_1.count) ? __instance.cbuffer_1.count : __instance.objs_1.Count);
+                    __instance.cbuffer_2.SetData(__instance.objs_2, 0, 0,
+                        (__instance.objs_2.Count >= __instance.cbuffer_2.count) ? __instance.cbuffer_2.count : __instance.objs_2.Count);
+                    __instance.cbuffer_3.SetData(__instance.objs_3, 0, 0,
+                        (__instance.objs_3.Count >= __instance.cbuffer_3.count) ? __instance.cbuffer_3.count : __instance.objs_3.Count);
+                    __instance.cbuffer_4.SetData(__instance.objs_4, 0, 0,
+                        (__instance.objs_4.Count >= __instance.cbuffer_4.count) ? __instance.cbuffer_4.count : __instance.objs_4.Count);
+                }
+                catch
+                {
+                    // ignore exception if the pasted buffer is bigger than the limit. the ui will miss some belt gizmos but no 'scary' error will be displayed
+                }
             }
         }
     }
