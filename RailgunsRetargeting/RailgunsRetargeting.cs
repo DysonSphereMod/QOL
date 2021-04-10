@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
@@ -9,12 +9,13 @@ using UnityEngine.UI;
 
 namespace RailgunsRetargeting
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.2.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.0")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
 
         public static ConfigEntry<bool> ignoreOrbit1;
+        public static ConfigEntry<bool> forceRetargeting;
 
         static readonly int BATCH_COUNT = 60;
 
@@ -35,6 +36,7 @@ namespace RailgunsRetargeting
         {
             harmony = new Harmony("com.brokenmass.plugin.DSP.RailgunsRetargeting");
             ignoreOrbit1 = Config.Bind<bool>("General", "ignoreOrbit1", false, "If you set this to true the railguns will never retarget to orbit 1 (the default, undeletable, orbit) unless is the primary orbit of the railgun");
+            forceRetargeting = Config.Bind<bool>("General", "forceRetargeting", true, "Retarget railguns without a defined orbit");
 
             try
             {
@@ -210,7 +212,12 @@ namespace RailgunsRetargeting
                 // by default we try to check if the original orbit is available
                 SetOrbit(ref __instance, managedEjector.originalOrbitId);
             }
-            else if ((__instance.targetState == EjectorComponent.ETargetState.AngleLimit || __instance.targetState == EjectorComponent.ETargetState.Blocked) && swarm.orbitCursor > 1)
+            else if (
+                (__instance.targetState == EjectorComponent.ETargetState.AngleLimit ||
+                __instance.targetState == EjectorComponent.ETargetState.Blocked ||
+                (__instance.targetState == EjectorComponent.ETargetState.None && forceRetargeting.Value))
+
+                && swarm.orbitCursor > 1)
             {
                 // if the current orbit is not reachable activate auto targeting
                 var testOrbit = __instance.orbitId;
