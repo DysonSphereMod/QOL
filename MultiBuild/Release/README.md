@@ -87,6 +87,10 @@ When `shift+click` an existing building it will be copied with all the connected
 
 ## Changelog
 
+### v2.3.5-Beta
+
+-   Restore the ability to build lines of daisy chained buildings in multibuild mode
+
 ### v2.3.4-Beta
 
 -   Fix issue where the mod was not correctly checking if you had enough items to paste the blueprint (especially with inserters)

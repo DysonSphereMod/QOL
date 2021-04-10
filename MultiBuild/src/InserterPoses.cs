@@ -74,12 +74,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         }
 
-        public static InserterPosition GetPositions(PlayerAction_Build actionBuild, InserterCopy copiedInserter, float yawRad, int copyIndex)
+        public static InserterPosition GetPositions(PlayerAction_Build actionBuild, InserterCopy copiedInserter, float yawRad, int pasteIndex, bool connectToPasted)
         {
             var pastedEntities = BlueprintManager.pastedEntities;
             var player = actionBuild.player;
 
-            var pastedReferenceEntityId = BlueprintManager_Paste.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.referenceBuildingId;
+            var pastedReferenceEntityId = BlueprintManager_Paste.PASTE_INDEX_MULTIPLIER * pasteIndex + copiedInserter.referenceBuildingId;
 
             var pastedReferenceEntity = pastedEntities[pastedReferenceEntityId];
             var pastedReferenceEntityBuildPreview = pastedReferenceEntity.buildPreview;
@@ -119,8 +119,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             var otherObjId = 0;
 
-            var pastedPickTargetId = BlueprintManager_Paste.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.pickTarget;
-            var pastedInsertTargetId = BlueprintManager_Paste.COPY_INDEX_MULTIPLIER * copyIndex + copiedInserter.insertTarget;
+            var pastedPickTargetId = BlueprintManager_Paste.PASTE_INDEX_MULTIPLIER * pasteIndex + copiedInserter.pickTarget;
+            var pastedInsertTargetId = BlueprintManager_Paste.PASTE_INDEX_MULTIPLIER * pasteIndex + copiedInserter.insertTarget;
+
 
             if (pastedEntities.ContainsKey(pastedPickTargetId) && pastedEntities.ContainsKey(pastedInsertTargetId))
             {
@@ -130,6 +131,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             }
             else
             {
+
+
                 // Find the other entity at the target location
                 var nearcdLogic = actionBuild.nearcdLogic;
                 var factory = actionBuild.factory;
@@ -142,52 +145,77 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     .ApplyDelta(otherPosDelta, copiedInserter.otherPosDeltaCount)
                     .SnapToGrid();
 
-
-                int[] _nearObjectIds = new int[256];
-
-                // find building nearby
-                int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
-
-                // find nearest building
-                float maxDistance = 1f;
-
-                for (int x = 0; x < found; x++)
+                if (connectToPasted)
                 {
-                    var id = _nearObjectIds[x];
-                    float distance;
-                    ItemProto proto;
-                    if (id == 0 || id == pastedReferenceEntityBuildPreview.objId)
+                    var compatibleType = copiedInserter.otherIsBelt ? EPastedType.BELT : EPastedType.BUILDING;
+                    foreach (var pastedEntity in BlueprintManager.pastedEntities.Values)
                     {
-                        continue;
-                    }
-                    else if (id > 0)
-                    {
-                        EntityData entityData = factory.entityPool[id];
-                        proto = LDB.items.Select((int)entityData.protoId);
-                        // ignore buildings without inserter poses
-                        if (!proto.prefabDesc.isBelt && proto.prefabDesc.insertPoses.Length == 0) continue;
-
-                        distance = Vector3.Distance(entityData.pos, testPos);
-                    }
-                    else
-                    {
-                        PrebuildData prebuildData = factory.prebuildPool[-id];
-                        proto = LDB.items.Select((int)prebuildData.protoId);
-
-                        // ignore unbuilt belts and buildings without inserter poses
-                        if (proto.prefabDesc.isBelt || proto.prefabDesc.insertPoses.Length == 0) continue;
-
-                        distance = Vector3.Distance(prebuildData.pos, testPos);
-                    }
-
-                    // ignore entitites that ore not (built) belts or don't have inserterPoses
-                    if ((proto.prefabDesc.isBelt == copiedInserter.otherIsBelt || proto.prefabDesc.insertPoses.Length > 0) && distance < maxDistance)
-                    {
-                        otherObjId = otherEntityId = id;
-                        maxDistance = distance;
+                        // find the first compatible entity that will not been removed, that has in the same/previous/next pasteIndex and that is near enough
+                        if (pastedEntity.type == compatibleType &&
+                            pastedEntity.status != EPastedStatus.REMOVE &&
+                            pastedEntity.pasteId != pastedReferenceEntityId &&
+                            Math.Abs(pastedEntity.pasteIndex - pasteIndex) <= 1 &&
+                            Vector3.Distance(pastedEntity.pose.position, testPos) < 0.2)
+                        {
+                            // found a pasted entity that we can connect to !
+                            otherPastedId = pastedEntity.pasteId;
+                            otherObjId = pastedEntity.objId;
+                            break;
+                        }
                     }
                 }
+
+                if (otherObjId == 0)
+                {
+                    int[] _nearObjectIds = new int[256];
+
+                    // find building nearby
+                    int found = nearcdLogic.GetBuildingsInAreaNonAlloc(testPos, 0.2f, _nearObjectIds, false);
+
+                    // find nearest building
+                    float maxDistance = 1f;
+
+                    for (int x = 0; x < found; x++)
+                    {
+                        var id = _nearObjectIds[x];
+                        float distance;
+                        ItemProto proto;
+                        if (id == 0 || id == pastedReferenceEntityBuildPreview.objId)
+                        {
+                            continue;
+                        }
+                        else if (id > 0)
+                        {
+                            EntityData entityData = factory.entityPool[id];
+                            proto = LDB.items.Select((int)entityData.protoId);
+                            // ignore buildings without inserter poses
+                            if (!proto.prefabDesc.isBelt && proto.prefabDesc.insertPoses.Length == 0) continue;
+
+                            distance = Vector3.Distance(entityData.pos, testPos);
+                        }
+                        else
+                        {
+                            PrebuildData prebuildData = factory.prebuildPool[-id];
+                            proto = LDB.items.Select((int)prebuildData.protoId);
+
+                            // ignore unbuilt belts and buildings without inserter poses
+                            if (proto.prefabDesc.isBelt || proto.prefabDesc.insertPoses.Length == 0) continue;
+
+                            distance = Vector3.Distance(prebuildData.pos, testPos);
+                        }
+
+                        // ignore entitites that ore not (built) belts or don't have inserterPoses
+                        if ((proto.prefabDesc.isBelt == copiedInserter.otherIsBelt || proto.prefabDesc.insertPoses.Length > 0) && distance < maxDistance)
+                        {
+                            otherObjId = otherEntityId = id;
+                            maxDistance = distance;
+                        }
+                    }
+
+                }
             }
+
+
 
             if (otherObjId != 0)
             {

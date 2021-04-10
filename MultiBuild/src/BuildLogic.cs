@@ -130,10 +130,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(PlayerAction_Build), "CreatePrebuilds")]
         public static bool PlayerAction_Build_CreatePrebuilds_Prefix(ref PlayerAction_Build __instance)
         {
+            if (!__instance.waitConfirm || !VFInput._buildConfirm.onDown) return true;
+
             var runOriginal = true;
-            if (__instance.waitConfirm &&
-                VFInput._buildConfirm.onDown &&
-                IsMultiBuildEnabled() &&
+            if (IsMultiBuildEnabled() &&
                 __instance.buildPreviews.Count > 0 &&
                 !__instance.multiLevelCovering)
             {
@@ -148,10 +148,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     startPos = Vector3.zero;
                     runOriginal = true;
                 }
-
-
             }
-            if (__instance.waitConfirm && VFInput._buildConfirm.onDown && __instance.buildPreviews.Count > 1)
+
+            if (runOriginal && __instance.buildPreviews.Count > 1)
             {
                 for (var i = 0; i < __instance.buildPreviews.Count; i++)
                 {
@@ -323,15 +322,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
             }
 
-            //long dbp, cbc,up,ug;
 
             runUpdate = true;
-            //Stopwatch timer = new Stopwatch();
-            //timer.Start();
-            __instance.DetermineBuildPreviews();
-            //timer.Stop();
 
-            //dbp = timer.ElapsedTicks;
+            __instance.DetermineBuildPreviews();
+
 
             if (runUpdate)
             {
@@ -343,26 +338,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 {
                     lastFlag = __instance.CheckBuildConditions();
                 }
-                //timer.Stop();
-                //cbc = timer.ElapsedTicks;
 
-                //timer.Reset();
-                //timer.Start();
                 __instance.UpdatePreviews();
-                //timer.Stop();
-                //up = timer.ElapsedTicks;
-
-                //timer.Reset();
-                //timer.Start();
                 __instance.UpdateGizmos();
-                //timer.Stop();
-                //ug = timer.ElapsedTicks;
 
 
                 lastCursorText = __instance.cursorText;
                 lastCursorWarning = __instance.cursorWarning;
-
-                //Debug.Log($"dbp: {dbp} | cbc: {cbc} | up: {up} | ug: {ug}");
             }
             else
             {
@@ -706,8 +688,8 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 var snappedPointCount = __instance.planetAux.SnapLineNonAlloc(startPos, __instance.groundSnappedPos, ref snapPath, snaps);
 
                 var desc = BlueprintManager.GetPrefabDesc(building);
+                var pastedPositions = new List<Vector3>();
                 Collider[] colliders = new Collider[desc.buildColliders.Length];
-                Vector3 previousPos = Vector3.zero;
 
                 var copiesCounter = 0;
                 for (int s = 0; s < snappedPointCount; s++)
@@ -717,7 +699,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
                     if (s > 0)
                     {
-                        var sqrDistance = (previousPos - pos).sqrMagnitude;
+                        var sqrDistance = (pastedPositions.Last() - pos).sqrMagnitude;
 
                         // power towers
                         if (desc.isPowerNode && !desc.isAccumulator && sqrDistance < 12.25f) continue;
@@ -759,9 +741,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
                     }
 
-                    BlueprintManager.Paste(pos, __instance.yaw, multiBuildInserters, copiesCounter);
-                    copiesCounter++;
-                    previousPos = pos;
+
+                    BlueprintManager.Paste(pos, __instance.yaw, false, pastedPositions.Count);
+                    pastedPositions.Add(pos);
 
                     if (desc.hasBuildCollider)
                     {
@@ -779,6 +761,13 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             colliders[j] = ColliderPool.TakeCollider(colliderData);
                             colliders[j].gameObject.layer = 27;
                         }
+                    }
+                }
+                if (multiBuildInserters)
+                {
+                    for (var i = 0; i < pastedPositions.Count; i++)
+                    {
+                        BlueprintManager.PasteInsertersOnly(pastedPositions[i], __instance.yaw, i, true);
                     }
                 }
 
@@ -800,7 +789,6 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 BlueprintManager.Paste(__instance.groundSnappedPos, __instance.yaw, pasteInserters);
             }
             BlueprintManager.AfterPaste();
-
 
             lastRunOriginal = false;
             return false;
