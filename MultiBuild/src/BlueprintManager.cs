@@ -24,6 +24,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
     public class PastedEntity
     {
+        public int pasteIndex;
         public int pasteId;
         public EPastedStatus status;
         public EPastedType type;
@@ -184,9 +185,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 pastedEntity.status = EPastedStatus.REMOVE;
             }
         }
-        public static void Paste(Vector3 targetPos, float yaw, bool pasteInserters = true, int copyIndex = 0)
+        public static void Paste(Vector3 targetPos, float yaw, bool pasteInserters = true, int pasteIndex = 0)
         {
-            BlueprintManager_Paste.Paste(data, targetPos, yaw, pasteInserters, copyIndex);
+            BlueprintManager_Paste.Paste(data, targetPos, yaw, pasteInserters, pasteIndex);
+        }
+
+        public static void PasteInsertersOnly(Vector3 targetPos, float yaw, int pasteIndex = 0, bool connectToPasted = false)
+        {
+            BlueprintManager_Paste.PasteInsertersOnly(data, targetPos, yaw, pasteIndex, connectToPasted);
         }
         public static void AfterPaste()
         {

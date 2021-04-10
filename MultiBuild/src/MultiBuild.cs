@@ -18,7 +18,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     public class MultiBuild : BaseUnityPlugin
     {
         public const string CHANNEL = "Beta";
-        public const string VERSION = "2.3.4";
+        public const string VERSION = "2.3.5";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
             "org.fezeral.plugins.copyinserters",
