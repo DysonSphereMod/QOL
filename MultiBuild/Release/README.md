@@ -87,6 +87,11 @@ When `shift+click` an existing building it will be copied with all the connected
 
 ## Changelog
 
+### v2.3.7-Beta
+
+-   Allow to blueprint and paste stacked buildings
+-   Copy storage size setting (only when blueprinting and not when `shift + clicking` to avoid mistakes)
+
 ### v2.3.6-Beta
 
 -   Fix issue where moving huge blueprints around could crash the game :O

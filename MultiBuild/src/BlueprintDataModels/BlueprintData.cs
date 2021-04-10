@@ -111,6 +111,9 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
         public int recipeId;
 
+        public int altitude = 0;
+        public int connectedBuildingId = 0;
+
         public StationConfig stationConfig;
         public List<StationSetting> stationSettings = new List<StationSetting>();
         public List<SlotFilter> slotFilters = new List<SlotFilter>();

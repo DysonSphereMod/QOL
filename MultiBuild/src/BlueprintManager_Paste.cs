@@ -55,6 +55,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     int pasteId = PASTE_INDEX_MULTIPLIER * pasteIndex + building.originalId;
                     var pastedEntity = BlueprintManager.pastedEntities[pasteId];
 
+                    ConcurrentConnectBuildings(threadIndex, pastedEntity);
                     BuildLogic.CheckBuildConditionsWorker(_abs[threadIndex], pastedEntity.buildPreview);
                 }
             });
@@ -74,7 +75,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             {
                 while (beltsQueue.TryDequeue(out BeltCopy belt))
                 {
-                    var pastedEntity = ConcurrentConnectBelt(threadIndex, belt, pasteIndex);
+                    int pasteId = PASTE_INDEX_MULTIPLIER * pasteIndex + belt.originalId;
+                    var pastedEntity = BlueprintManager.pastedEntities[pasteId];
+
+                    ConcurrentConnectBelt(threadIndex, pastedEntity);
                     BuildLogic.CheckBuildConditionsWorker(_abs[threadIndex], pastedEntity.buildPreview);
                 }
             });
@@ -163,6 +167,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             Vector3 absoluteBuildingPos = sprPos.SnapToGrid();
             Quaternion absoluteBuildingRot = Maths.SphericalRotation(absoluteBuildingPos, yaw + building.cursorRelativeYaw);
+            absoluteBuildingPos += absoluteBuildingRot * (building.altitude * pastedEntity.buildPreview.desc.lapJoint);
 
             Pose pose = new Pose(absoluteBuildingPos, absoluteBuildingRot);
 
@@ -311,11 +316,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             return pastedEntity;
         }
 
-        public static PastedEntity ConcurrentConnectBelt(int threadIndex, BeltCopy belt, int pasteIndex)
+        public static void ConcurrentConnectBelt(int threadIndex, PastedEntity pastedEntity)
         {
             var actionBuild = _abs[threadIndex];
-            int pasteId = PASTE_INDEX_MULTIPLIER * pasteIndex + belt.originalId;
-            var pastedEntity = BlueprintManager.pastedEntities[pasteId];
+            var pasteIndex = pastedEntity.pasteIndex;
+            var belt = pastedEntity.sourceBelt;
 
             BuildPreview buildPreview = pastedEntity.buildPreview;
 
@@ -379,7 +384,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     buildPreview.input = otherPastedEntity.buildPreview;
                     buildPreview.inputFromSlot = belt.connectedBuildingSlot;
                 }
-                otherPastedEntity.connectedEntities.TryAdd(pasteId, pastedEntity);
+                otherPastedEntity.connectedEntities.TryAdd(pastedEntity.pasteId, pastedEntity);
                 //pastedEntity.connectedEntities.Add(otherPastedEntity);
             }
 
@@ -416,8 +421,29 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
 
             }
 
-            return pastedEntity;
         }
 
+        public static void ConcurrentConnectBuildings(int threadIndex, PastedEntity pastedEntity)
+        {
+            if (pastedEntity.sourceBuilding.altitude == 0) return;
+
+            BuildPreview buildPreview = pastedEntity.buildPreview;
+
+            buildPreview.input = null;
+            buildPreview.inputFromSlot = 0;
+            buildPreview.inputToSlot = 0;
+
+            var pastedConnectedBuildingId = PASTE_INDEX_MULTIPLIER * pastedEntity.pasteIndex + pastedEntity.sourceBuilding.connectedBuildingId;
+
+            if (pastedConnectedBuildingId != 0 &&
+                BlueprintManager.pastedEntities.TryGetValue(pastedConnectedBuildingId, out PastedEntity otherPastedEntity) &&
+                otherPastedEntity.type == EPastedType.BUILDING &&
+                otherPastedEntity.status != EPastedStatus.REMOVE)
+            {
+                buildPreview.input = otherPastedEntity.buildPreview;
+                buildPreview.inputFromSlot = 15;
+                buildPreview.inputToSlot = 14;
+            }
+        }
     }
 }

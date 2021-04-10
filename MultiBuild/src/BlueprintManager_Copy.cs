@@ -147,9 +147,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 originalId = sourceEntity.id,
                 protoId = sourceEntityProto.ID,
                 itemProto = sourceEntityProto,
-                modelIndex = sourceEntity.modelIndex
+                modelIndex = sourceEntity.modelIndex,
             };
 
+            var prefabDesc = BlueprintManager.GetPrefabDesc(copiedBuilding);
 
             if (sourceEntity.assemblerId > 0)
             {
@@ -243,6 +244,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 // SplitterComponent splitterComponent = factory.cargoTraffic.splitterPool[sourceEntity.splitterId];
 
             }
+            else if (sourceEntity.storageId > 0)
+            {
+                copiedBuilding.recipeId = factory.factoryStorage.storagePool[sourceEntity.storageId].bans;
+            }
 
             Vector2 sourceSprPos = sourcePos.ToSpherical();
 
@@ -270,6 +275,25 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     CopyInserter(data, inserterEntity, sourceEntity);
                 }
             }
+
+            if (sourceEntityProto.prefabDesc.multiLevel)
+            {
+                copiedBuilding.altitude = Mathf.RoundToInt((sourceEntity.pos.magnitude - GameMain.localPlanet.realRadius - 0.2f) / prefabDesc.lapJoint.magnitude);
+
+                if (copiedBuilding.altitude > 0)
+                {
+                    copiedBuilding.connectedBuildingId = referenceEntity.id;
+                }
+
+                factory.ReadObjectConn(sourceEntity.id, 15, out bool _, out int otherObjId, out int _);
+
+                if (otherObjId > 0)
+                {
+                    EntityData stackedEntity = factory.entityPool[otherObjId];
+                    CopyBuilding(data, stackedEntity, sourceEntity);
+                }
+            }
+
 
             return copiedBuilding;
         }

@@ -186,6 +186,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     {
                         toPostProcess.Add(buildPreview.objId, pastedEntity);
                     }
+                    if (sourceBuilding.itemProto.prefabDesc.isStorage && sourceBuilding.recipeId > 0)
+                    {
+                        toPostProcess.Add(buildPreview.objId, pastedEntity);
+                    }
                     if (sourceBuilding.itemProto.prefabDesc.isSplitter)
                     {
                         toPostProcess.Add(buildPreview.objId, pastedEntity);
@@ -195,6 +199,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                             toPostProcess.Add(otherPastedEntity.buildPreview.objId, pastedEntity);
                         }
                     }
+
                 }
             }
             if (BlueprintManager.pastedEntities.Count > 0)
@@ -247,6 +252,11 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         stationComponent.slots[slotFilter.slotIndex].storageIdx = slotFilter.storageIdx;
                     }
 
+                }
+
+                if (entity.storageId > 0)
+                {
+                    factory.factoryStorage.storagePool[entity.storageId].SetBans(pastedEntity.sourceBuilding.recipeId);
                 }
 
                 if (pastedEntity.type == EPastedType.BUILDING && pastedEntity.buildPreview.desc.isSplitter && pastedEntity.postObjId != 0)
@@ -396,8 +406,10 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
         {
             IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
+                CodeMatcher matcher = new CodeMatcher(instructions);
+
                 // modify the original CheckBuildConditions to only operate on a single item (so only the body of the for loop) injecting the BuildPreview passed as argument
-                CodeMatcher matcher = new CodeMatcher(instructions)
+                matcher
                 .MatchForward(false,
                     new CodeMatch(OpCodes.Ldc_I4_0),
                     new CodeMatch(OpCodes.Stloc_2)
@@ -409,7 +421,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 .SetOpcodeAndAdvance(OpCodes.Nop)
                 .SetOpcodeAndAdvance(OpCodes.Nop)
                 .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldarg_1))
-                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Stloc_3))
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Stloc_3));
+
+
+                // remove checks for belts by stating that the current buildPreview is not a belt.
+                // bool isBelt = buildPreview.desc.isBelt; <--- here
+                matcher
                 .MatchForward(false,
                     new CodeMatch(OpCodes.Ldloc_3),
                     new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.desc))),
@@ -419,7 +436,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldloc_3))
                 .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<PlayerAction_Build, BuildPreview, bool>>((actionBuild, buildPreview) =>
                 {
-                    // remove checks for belts by stating that the current buildPreview is not a belt.
+
                     if (buildPreview.desc.isBelt)
                     {
                         // but we have to take care of collision checks
@@ -442,7 +459,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         return false;
                     }
                     return buildPreview.desc.isBelt;
-                }))
+                }));
+
+
+                // run ConcurrentEnoughItem check and bypass all checks for inserters
+                // if (buildPreview.condition == EBuildCondition.Ok) <-- here
+                matcher
                 .MatchForward(false,
                     new CodeMatch(OpCodes.Ldloc_3),
                     new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.condition)))
@@ -514,7 +536,12 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     }
 
                     return buildPreview.condition != EBuildCondition.Ok;
-                }))
+                }));
+
+
+                // bypass the standard check for enough items as it's not thread safe
+                // if (buildPreview.coverObjId == 0 || buildPreview.willCover) <-- here
+                matcher
                 .MatchForward(false,
                     new CodeMatch(OpCodes.Ldloc_3),
                     new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.coverObjId)))
@@ -524,6 +551,24 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 .SetOpcodeAndAdvance(OpCodes.Nop)
                 .SetOpcodeAndAdvance(OpCodes.Nop)
                 .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldc_I4_0));
+
+                // bypass foundation checks if it's a connected multilevel buildpreview. by default the origina lcode only checks for `buildPreview.inputObjId`
+                // but as we use `buildPreview.input` instead we have to enhance the condition
+                // if (!buildPreview.desc.multiLevel || buildPreview.inputObjId == 0) <-- here
+                matcher
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.desc))),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(PrefabDesc), nameof(PrefabDesc.multiLevel)))
+                )
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(BuildPreview), nameof(BuildPreview.inputObjId)))
+                ).Advance(1)
+                .SetInstructionAndAdvance(Transpilers.EmitDelegate<Func<BuildPreview, bool>>(buildPreview =>
+                {
+                    return buildPreview.inputObjId != 0 || buildPreview.input != null;
+                }));
 
 
 
