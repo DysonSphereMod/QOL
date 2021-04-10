@@ -87,6 +87,10 @@ When `shift+click` an existing building it will be copied with all the connected
 
 ## Changelog
 
+### v2.3.6-Beta
+
+-   Fix issue where moving huge blueprints around could crash the game :O
+
 ### v2.3.5-Beta
 
 -   Restore the ability to build lines of daisy chained buildings in multibuild mode

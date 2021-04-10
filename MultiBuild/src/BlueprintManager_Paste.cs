@@ -44,6 +44,16 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                     {
                         actionBuild.nearcdLogic.ActiveEntityBuildCollidersInArea(pastedEntity.pose.position, 5f);
                     }
+                }
+            });
+
+            buildingsQueue = new ConcurrentQueue<BuildingCopy>(data.copiedBuildings);
+            Util.Parallelize((int threadIndex) =>
+            {
+                while (buildingsQueue.TryDequeue(out BuildingCopy building))
+                {
+                    int pasteId = PASTE_INDEX_MULTIPLIER * pasteIndex + building.originalId;
+                    var pastedEntity = BlueprintManager.pastedEntities[pasteId];
 
                     BuildLogic.CheckBuildConditionsWorker(_abs[threadIndex], pastedEntity.buildPreview);
                 }
