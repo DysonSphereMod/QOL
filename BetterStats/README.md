@@ -6,18 +6,23 @@ This mod improves the production stats panel to add the count of producer/consum
 
 ## Changelog
 
+### v1.1.2
+
+-   Fix fractionators incorrectly reporting production as consumption
+-   Limit miners production to max output possible (30item/s max belt speed) (thanks zhangxp1998)
+
 ### v1.1.1
 
-- Include production of Orbital Collector stations
+-   Include production of Orbital Collector stations
 
 ### v1.1.0
 
-- Improved UI
-- Allows to display stats per seconds instead of per minute (thanks wingless)
-- Shows number of producer and consumers
+-   Improved UI
+-   Allows to display stats per seconds instead of per minute (thanks wingless)
+-   Shows number of producer and consumers
 
 ### v1.0.0
 
-- Initial Release
+-   Initial Release
 
 <div>Icon made by <a href="https://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>

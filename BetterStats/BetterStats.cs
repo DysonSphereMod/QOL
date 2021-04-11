@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.1.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.1.2")]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
@@ -550,8 +550,8 @@ namespace BetterStats
                     var productId = fractionator.product;
                     EnsureId(ref counter, productId);
 
-                    counter[productId].consumption += 60f * 30f * fractionator.produceProb;
-                    counter[productId].consumers++;
+                    counter[productId].production += 60f * 30f * fractionator.produceProb;
+                    counter[productId].producers++;
                 }
 
             }
