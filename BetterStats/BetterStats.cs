@@ -454,6 +454,7 @@ namespace BetterStats
 
         // speed of fasted belt(mk3 belt) is 1800 items per minute
         public const float BELT_MAX_ITEMS_PER_MINUTE = 1800;
+        public const float TICKS_PER_SEC = 60.0f;
 
         public static void AddPlanetFactoryData(PlanetFactory planetFactory)
         {
@@ -617,6 +618,23 @@ namespace BetterStats
                     counter[productId].production += 60 * 60 * station.collectionPerTick[j] * collectSpeedRate;
                     counter[productId].producers++;
                 }
+            }
+            for (int i = 1; i < planetFactory.powerSystem.genCursor; i ++)
+            {
+                var gen = planetFactory.powerSystem.genPool[i];
+                if (gen.id != i)
+                {
+                    continue;
+                }
+                if (gen.productId == 0 || gen.productHeat == 0)
+                {
+                    continue;
+                }
+                float productPerMinute = 60.0f*TICKS_PER_SEC*gen.capacityCurrentTick / gen.productHeat;
+                var productId = gen.productId;
+                EnsureId(ref counter, productId);
+                counter[productId].production += productPerMinute;
+                counter[productId].producers++;
             }
         }
     }
