@@ -139,7 +139,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="bundle data\blueprint-group.prefab" />
-    <None Include="blueprintsbundle" />
+    <None Include="blueprintsbundle">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="bundle data\button.prefab" />
   </ItemGroup>
   <ItemGroup>

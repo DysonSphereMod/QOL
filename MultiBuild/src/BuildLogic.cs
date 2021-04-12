@@ -180,7 +180,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                 }
                 pastedEntity.objId = buildPreview.objId;
 
-                if (pastedEntity.type == EPastedType.BUILDING)
+                if (pastedEntity.type == EPastedType.BUILDING && !toPostProcess.ContainsKey(buildPreview.objId))
                 {
                     if (sourceBuilding.itemProto.prefabDesc.isStation && sourceBuilding.slotFilters.Count + sourceBuilding.stationSettings.Count > 0)
                     {
@@ -216,63 +216,68 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             forceRecalculation = true;
             if (toPostProcess.TryGetValue(preObjId, out PastedEntity pastedEntity))
             {
-                var factory = __instance.factory;
-                if (pastedEntity.objId == preObjId)
+                try
                 {
-                    pastedEntity.postObjId = postObjId;
-                }
-
-                var entity = factory.entityPool[postObjId];
-
-                if (entity.stationId > 0)
-                {
-                    var sourceBuilding = pastedEntity.sourceBuilding;
-                    var stationConfig = sourceBuilding.stationConfig;
-                    var stationComponent = __instance.factory.transport.GetStationComponent(entity.stationId);
-
-                    if (stationConfig != null)
+                    var factory = __instance.factory;
+                    if (pastedEntity.objId == preObjId)
                     {
-                        factory.powerSystem.consumerPool[stationComponent.pcId].workEnergyPerTick = stationConfig.workEnergyPerTick;
-
-                        stationComponent.tripRangeDrones = stationConfig.tripRangeDrones;
-                        stationComponent.tripRangeShips = stationConfig.tripRangeShips;
-                        stationComponent.warpEnableDist = stationConfig.warpEnableDist;
-                        stationComponent.warperNecessary = stationConfig.warperNecessary;
-                        stationComponent.includeOrbitCollector = stationConfig.includeOrbitCollector;
-                        stationComponent.deliveryDrones = stationConfig.deliveryDrones;
-                        stationComponent.deliveryShips = stationConfig.deliveryShips;
+                        pastedEntity.postObjId = postObjId;
                     }
 
-                    foreach (var settings in sourceBuilding.stationSettings)
+                    var entity = factory.entityPool[postObjId];
+
+                    if (entity.stationId > 0)
                     {
-                        factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer);
-                    }
-                    foreach (var slotFilter in sourceBuilding.slotFilters)
-                    {
-                        stationComponent.slots[slotFilter.slotIndex].storageIdx = slotFilter.storageIdx;
+                        var sourceBuilding = pastedEntity.sourceBuilding;
+                        var stationConfig = sourceBuilding.stationConfig;
+                        var stationComponent = __instance.factory.transport.GetStationComponent(entity.stationId);
+
+                        if (stationConfig != null)
+                        {
+                            factory.powerSystem.consumerPool[stationComponent.pcId].workEnergyPerTick = stationConfig.workEnergyPerTick;
+
+                            stationComponent.tripRangeDrones = stationConfig.tripRangeDrones;
+                            stationComponent.tripRangeShips = stationConfig.tripRangeShips;
+                            stationComponent.warpEnableDist = stationConfig.warpEnableDist;
+                            stationComponent.warperNecessary = stationConfig.warperNecessary;
+                            stationComponent.includeOrbitCollector = stationConfig.includeOrbitCollector;
+                            stationComponent.deliveryDrones = stationConfig.deliveryDrones;
+                            stationComponent.deliveryShips = stationConfig.deliveryShips;
+                        }
+
+                        foreach (var settings in sourceBuilding.stationSettings)
+                        {
+                            factory.transport.SetStationStorage(entity.stationId, settings.index, settings.itemId, settings.max, settings.localLogic, settings.remoteLogic, GameMain.mainPlayer);
+                        }
+                        foreach (var slotFilter in sourceBuilding.slotFilters)
+                        {
+                            stationComponent.slots[slotFilter.slotIndex].storageIdx = slotFilter.storageIdx;
+                        }
+
                     }
 
+                    if (entity.storageId > 0)
+                    {
+                        factory.factoryStorage.storagePool[entity.storageId].SetBans(pastedEntity.sourceBuilding.recipeId);
+                    }
+
+                    if (pastedEntity.type == EPastedType.BUILDING && pastedEntity.buildPreview.desc.isSplitter && pastedEntity.postObjId != 0)
+                    {
+                        var splitterPool = factory.cargoTraffic.splitterPool;
+                        var splitterEntity = factory.entityPool[pastedEntity.postObjId];
+                        var splitterSettings = pastedEntity.sourceBuilding.splitterSettings;
+
+                        if (splitterSettings != null)
+                        {
+                            splitterPool[splitterEntity.splitterId].SetPriority(splitterSettings.inPrioritySlot, splitterSettings.inPriority, 0);
+                            splitterPool[splitterEntity.splitterId].SetPriority(splitterSettings.outPrioritySlot, splitterSettings.outPriority, splitterSettings.outFilter);
+                        }
+                    }
                 }
-
-                if (entity.storageId > 0)
+                finally
                 {
-                    factory.factoryStorage.storagePool[entity.storageId].SetBans(pastedEntity.sourceBuilding.recipeId);
+                    toPostProcess.Remove(preObjId);
                 }
-
-                if (pastedEntity.type == EPastedType.BUILDING && pastedEntity.buildPreview.desc.isSplitter && pastedEntity.postObjId != 0)
-                {
-                    var splitterPool = factory.cargoTraffic.splitterPool;
-                    var splitterEntity = factory.entityPool[pastedEntity.postObjId];
-                    var splitterSettings = pastedEntity.sourceBuilding.splitterSettings;
-
-                    if (splitterSettings != null)
-                    {
-                        splitterPool[splitterEntity.splitterId].SetPriority(splitterSettings.inPrioritySlot, splitterSettings.inPriority, 0);
-                        splitterPool[splitterEntity.splitterId].SetPriority(splitterSettings.outPrioritySlot, splitterSettings.outPriority, splitterSettings.outFilter);
-                    }
-                }
-
-                toPostProcess.Remove(preObjId);
             }
         }
 
@@ -313,6 +318,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
             if (__instance.handPrefabDesc == null ||
                 __instance.handPrefabDesc.minerType != EMinerType.None ||
                 __instance.player.planetData.type == EPlanetType.Gas ||
+                BlueprintManager.data.copiedBelts.Count > 0 ||
                 BlueprintManager.data.copiedBuildings.Count > 1
                 )
             {
@@ -777,15 +783,14 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
                         }
                     }
 
+
                     if (s > 0 && spacingStore[spacingIndex] > 0 && copiesCounter % spacingPeriod == 0)
                     {
                         s += spacingStore[spacingIndex];
-
                         if (s >= snappedPointCount) break;
                         pos = snaps[s];
-                        rot = Maths.SphericalRotation(snaps[s], __instance.yaw);
+                        rot = Maths.SphericalRotation(snaps[s], __instance.yaw + building.cursorRelativeYaw);
                     }
-
 
                     BlueprintManager.Paste(pos, __instance.yaw, false, pastedPositions.Count);
                     pastedPositions.Add(pos);

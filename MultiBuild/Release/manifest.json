@@ -1,7 +1,7 @@
 {
     "name": "MultiBuildBeta",
     "description": "This mods gives you the ability to blueprint and build multiple copies of a building, with optional space between the copies, including the inserters",
-    "version_number": "2.3.7",
+    "version_number": "2.3.8",
     "dependencies": ["xiaoye97-BepInEx-5.4.5"],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }

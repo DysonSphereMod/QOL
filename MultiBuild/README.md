@@ -87,6 +87,11 @@ When `shift+click` an existing building it will be copied with all the connected
 
 ## Changelog
 
+### v2.3.8-Beta
+
+-   Fix incorrect placement of entities when `shift + clicking` and multibuilding with non 0 spacing
+-   Fix edge case ArgumentException error
+
 ### v2.3.7-Beta
 
 -   Allow to blueprint and paste stacked buildings
