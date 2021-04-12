@@ -20,13 +20,17 @@ This mod is configurable (you must start the game at least once for the configur
 
 -   `Default value : false (allow retargeting to orbit1)`
 
-### ignoreOrbit1
+### forceRetargeting
 
 > Should the auto retargeting be enabled also on non configured ejectors ?
 
 -   `Default value : true (enable auto)`
 
 ## Changelog
+
+### v1.3.1
+
+-   Fix incorrect behaviour where non configured railguns where targeting orbit1 when `forceRetargeting` is set to `true` even if `ignoreOrbit1` is `true`
 
 ### v1.3.0
 

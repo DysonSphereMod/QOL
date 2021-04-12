@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace RailgunsRetargeting
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.1")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
@@ -228,10 +228,11 @@ namespace RailgunsRetargeting
                     if (testOrbit >= swarm.orbitCursor)
                     {
                         testOrbit = 1;
-                        if (ignoreOrbit1.Value)
-                        {
-                            continue;
-                        }
+                    }
+
+                    if (testOrbit == 1 && ignoreOrbit1.Value)
+                    {
+                        continue;
                     }
 
                     if (IsOrbitReachable(__instance, swarm, astroPoses, testOrbit))
