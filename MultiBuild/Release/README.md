@@ -79,7 +79,6 @@ When `shift+click` an existing building it will be copied with all the connected
 -   **What are the limitations of this mod (Blueprint mode)?**  
     This mod is still in development and so has one or more know issue:
     -   in some conditions, when pasting a blueprint, it's possible to place building nearer than what is possible in vanilla
-    -   splitter / boxes settings are not copied
 
 ## TODO
 
@@ -87,57 +86,57 @@ When `shift+click` an existing building it will be copied with all the connected
 
 ## Changelog
 
-### v2.3.8-Beta
+### v2.3.8
 
--   Fix incorrect placement of entities when `shift + clicking` and multibuilding with non 0 spacing
--   Fix edge case ArgumentException error
+-   FIX: Fix incorrect placement of entities when `shift + clicking` and multibuilding with non 0 spacing
+-   FIX: Fix edge case ArgumentException error
 
 ### v2.3.7-Beta
 
--   Allow to blueprint and paste stacked buildings
--   Copy storage size setting (only when blueprinting and not when `shift + clicking` to avoid mistakes)
+-   FEAT: Allow to blueprint and paste stacked buildings
+-   FEAT: Copy storage size setting (only when blueprinting and not when `shift + clicking` to avoid mistakes)
 
 ### v2.3.6-Beta
 
--   Fix issue where moving huge blueprints around could crash the game :O
+-   FIX: Fix issue where moving huge blueprints around could crash the game :O
 
 ### v2.3.5-Beta
 
--   Restore the ability to build lines of daisy chained buildings in multibuild mode
+-   FIX: Restore the ability to build lines of daisy chained buildings in multibuild mode
 
 ### v2.3.4-Beta
 
--   Fix issue where the mod was not correctly checking if you had enough items to paste the blueprint (especially with inserters)
--   Allows to define the blueprint reference building by holding `ALT` and clicking a building. The reference will be the 'center' of your blueprint
--   Silence error message related to buffer limits when pasting huge blueprints (>8k belts)
+-   FEAT: Allows to define the blueprint reference building by holding `ALT` and clicking a building. The reference will be the 'center' of your blueprint
+-   FIX: Fix issue where the mod was not correctly checking if you had enough items to paste the blueprint (especially with inserters)
+-   FIX: Silence error message related to buffer limits when pasting huge blueprints (>8k belts)
 
 ### v2.3.3-Beta
 
--   Fix error occurring when `shift + clicking` stacked buildings
+-   FIX: Fix error occurring when `shift + clicking` stacked buildings
 
 ### v2.3.2-Beta
 
--   Fix regression issue with limited build area when pasting a blueprint
+-   FIX: Fix regression issue with limited build area when pasting a blueprint
 
 ### v2.3.1-Beta
 
--   Restore missing visual indicator for blueprint/ multibuild mode & spacing
+-   FIX: Restore missing visual indicator for blueprint/ multibuild mode & spacing
 
 ### v2.3.0-Beta
 
--   Correctly copy Splitter settings (FINALLY) (only when blueprinting and not when `shift + clicking` to avoid mistakes)
--   Correctly copy Logistic station settings (only when blueprinting and not when `shift + clicking` to avoid mistakes)
--   Improve compatibility with [Touhma GalacticScale](https://dsp.thunderstore.io/package/Touhma/Touhma_GalacticScale/) (thanks innominata)
--   Rewritten multi-threading logic to further improve fps with big blueprints
+-   FEAT: Correctly copy Splitter settings (FINALLY) (only when blueprinting and not when `shift + clicking` to avoid mistakes)
+-   FEAT: Correctly copy Logistic station settings (only when blueprinting and not when `shift + clicking` to avoid mistakes)
+-   FEAT: Rewritten multi-threading logic to further improve fps with big blueprints
+-   FIX: Improve compatibility with [Touhma GalacticScale](https://dsp.thunderstore.io/package/Touhma/Touhma_GalacticScale/) (thanks innominata)
 
 ### v2.2.1
 
--   Fix compatibility with game version 0.6.17.6112
+-   FIX: Fix compatibility with game version 0.6.17.6112
 
 ### v2.2.0
 
--   MultiBuild is now MultiThreaded. You should notice an improvements in performance when pasting large blueprints / long lines of buildings
--   fix 2 bugs (`NPE` and `array index outOfBounds`) happening when blueprinting unbuilt buildings or buildings with unbuilt inserters
+-   FEAT: MultiBuild is now MultiThreaded. You should notice an improvements in performance when pasting large blueprints / long lines of buildings
+-   FIX: fix 2 bugs (`NPE` and `array index outOfBounds`) happening when blueprinting unbuilt buildings or buildings with unbuilt inserters
 
 ### Previous versions
 

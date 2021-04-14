@@ -17,7 +17,7 @@ namespace com.brokenmass.plugin.DSP.MultiBuild
     //possible incompatible dependency : KG-Long_Building_Selection_and_Free_M_Globalmap-1.0.0
     public class MultiBuild : BaseUnityPlugin
     {
-        public const string CHANNEL = "Beta";
+        public const string CHANNEL = "";
         public const string VERSION = "2.3.8";
         public static List<string> BLACKLISTED_MODS = new List<string>() {
             CHANNEL == "Beta" ? "com.brokenmass.plugin.DSP.MultiBuild" : "com.brokenmass.plugin.DSP.MultiBuildBeta",
