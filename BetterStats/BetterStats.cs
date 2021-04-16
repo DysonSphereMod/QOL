@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.1.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.2.0")]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
@@ -30,12 +30,14 @@ namespace BetterStats
         Harmony harmony;
         private static Dictionary<int, ProductMetrics> counter = new Dictionary<int, ProductMetrics>();
         private static bool displaySec = true;
-        private static GameObject txtGO, chxGO;
+        private static GameObject txtGO, chxGO, filterGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
         private static Texture2D texOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
         private static Sprite sprOn;
         private static Sprite sprOff;
         private static Image checkBoxImage;
+
+        private static string filterStr = "";
 
         private const int initialXOffset = 70;
         private const int valuesWidth = 90;
@@ -70,9 +72,16 @@ namespace BetterStats
             {
                 Destroy(txtGO);
                 Destroy(chxGO);
+                Destroy(filterGO);
                 Destroy(sprOn);
                 Destroy(sprOff);
             }
+            var favoritesLabel = GameObject.Find("UI Root/Overlay Canvas/In Game/Windows/Production Stat Window/product-bg/top/favorite-text");
+            if (favoritesLabel != null)
+            {
+                favoritesLabel.SetActive(true);
+            }
+
             ClearEnhancedUIProductEntries();
 
             harmony.UnpatchSelf();
@@ -285,6 +294,12 @@ namespace BetterStats
 
             if (chxGO != null) return;
 
+            var favoritesLabel = GameObject.Find("UI Root/Overlay Canvas/In Game/Windows/Production Stat Window/product-bg/top/favorite-text");
+            if (favoritesLabel != null)
+            {
+                favoritesLabel.SetActive(false);
+            }
+
             sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
             sprOff = Sprite.Create(texOff, new Rect(0, 0, texOff.width, texOff.height), new Vector2(0.5f, 0.5f));
 
@@ -334,8 +349,84 @@ namespace BetterStats
             if (fnt != null)
                 text.font = fnt;
 
+            filterGO = new GameObject("filterGo");
+            RectTransform rectFilter = filterGO.AddComponent<RectTransform>();
+
+            rectFilter.SetParent(__instance.productRankBox.transform.parent, false);
+
+            rectFilter.anchorMax = new Vector2(0, 1);
+            rectFilter.anchorMin = new Vector2(0, 1);
+            rectFilter.sizeDelta = new Vector2(100, 30);
+            rectFilter.pivot = new Vector2(0, 0.5f);
+            rectFilter.anchoredPosition = new Vector2(120, -33);
+
+            var _image = filterGO.AddComponent<Image>();
+            _image.transform.SetParent(rectFilter, false);
+            _image.color = new Color(0f, 0f, 0f, 0.5f);
+
+            GameObject textContainer = new GameObject();
+            textContainer.name = "Text";
+            textContainer.transform.SetParent(rectFilter, false);
+            var _text = textContainer.AddComponent<Text>();
+            _text.supportRichText = false;
+            _text.color = new Color(0.8f, 0.8f, 0.8f, 1);
+            _text.font = fnt;
+            _text.fontSize = 16;
+            _text.alignment = TextAnchor.MiddleLeft;
+            _text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            (_text.transform as RectTransform).sizeDelta = new Vector2(90, 30);
+            (_text.transform as RectTransform).anchoredPosition = new Vector2(5, 0);
+
+            GameObject placeholderContainer = new GameObject();
+            placeholderContainer.name = "Placeholder";
+            placeholderContainer.transform.SetParent(rectFilter, false);
+            var _placeholder = placeholderContainer.AddComponent<Text>();
+            _placeholder.color = new Color(0.8f, 0.8f, 0.8f, 1);
+            _placeholder.font = fnt;
+            _placeholder.fontSize = 16;
+            _placeholder.fontStyle = FontStyle.Italic;
+            _placeholder.alignment = TextAnchor.MiddleLeft;
+            _placeholder.supportRichText = false;
+            _placeholder.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _placeholder.text = "Filter";
+            (_placeholder.transform as RectTransform).sizeDelta = new Vector2(90, 30);
+            (_placeholder.transform as RectTransform).anchoredPosition = new Vector2(5, 0);
+
+            var _inputField = filterGO.AddComponent<InputField>();
+            _inputField.transform.SetParent(rectFilter, false);
+            _inputField.targetGraphic = _image;
+            _inputField.textComponent = _text;
+            _inputField.placeholder = _placeholder;
+
+
+            _inputField.onValueChanged.AddListener((string value) =>
+            {
+                filterStr = value;
+                __instance.ComputeDisplayEntries();
+            });
+
             chxGO.transform.SetParent(__instance.productRankBox.transform.parent, false);
             txtGO.transform.SetParent(chxGO.transform, false);
+            filterGO.transform.SetParent(__instance.productRankBox.transform.parent, false);
+
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "AddToDisplayEntries")]
+        public static void UIProductionStatWindow_AddToDisplayEntries_Prefix(UIProductionStatWindow __instance)
+        {
+            if (filterStr == "") return;
+
+            __instance.displayEntries.RemoveAll((data) =>
+            {
+                var proto = LDB.items.Select(data[0]);
+
+                if (proto.name.IndexOf(filterStr, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return false;
+                }
+                return true;
+            });
+
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnUpdate")]
@@ -414,11 +505,10 @@ namespace BetterStats
             enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "ComputeDisplayEntries")]
-        public static void UIProductionStatWindow_ComputeDisplayEntries_Postfix(UIProductionStatWindow __instance)
+        [HarmonyPrefix, HarmonyPatch(typeof(UIProductionStatWindow), "ComputeDisplayEntries")]
+        public static void UIProductionStatWindow_ComputeDisplayEntries_Prefix(UIProductionStatWindow __instance)
         {
             counter.Clear();
-
 
             if (__instance.targetIndex == -1)
             {
@@ -615,25 +705,25 @@ namespace BetterStats
                     var productId = station.collectionIds[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].production += 60 * 60 * station.collectionPerTick[j] * collectSpeedRate;
+                    counter[productId].production += 60f * TICKS_PER_SEC * station.collectionPerTick[j] * collectSpeedRate;
                     counter[productId].producers++;
                 }
             }
-            for (int i = 1; i < planetFactory.powerSystem.genCursor; i ++)
+            for (int i = 1; i < planetFactory.powerSystem.genCursor; i++)
             {
-                var gen = planetFactory.powerSystem.genPool[i];
-                if (gen.id != i)
+                var generator = planetFactory.powerSystem.genPool[i];
+                if (generator.id != i)
                 {
                     continue;
                 }
-                if (gen.productId == 0 || gen.productHeat == 0)
+                if (generator.productId == 0 || generator.productHeat == 0)
                 {
                     continue;
                 }
-                float productPerMinute = 60.0f*TICKS_PER_SEC*gen.capacityCurrentTick / gen.productHeat;
-                var productId = gen.productId;
+                var productId = generator.productId;
                 EnsureId(ref counter, productId);
-                counter[productId].production += productPerMinute;
+
+                counter[productId].production += 60.0f * TICKS_PER_SEC * generator.capacityCurrentTick / generator.productHeat;
                 counter[productId].producers++;
             }
         }

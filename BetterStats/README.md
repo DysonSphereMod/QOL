@@ -6,20 +6,25 @@ This mod improves the production stats panel to add the count of producer/consum
 
 ## Changelog
 
+### v1.2.0
+
+-   FEAT: allow to filter stats by item name
+-   FEAT: Count critical photon production (thanks zhangxp1998)
+
 ### v1.1.2
 
--   Fix fractionators incorrectly reporting production as consumption
--   Limit miners production to max output possible (30item/s max belt speed) (thanks zhangxp1998)
+-   FIX: Fix fractionators incorrectly reporting production as consumption
+-   FIX: Limit miners production to max output possible (30item/s max belt speed) (thanks zhangxp1998)
 
 ### v1.1.1
 
--   Include production of Orbital Collector stations
+-   FEAT: Include production of Orbital Collector stations
 
 ### v1.1.0
 
--   Improved UI
--   Allows to display stats per seconds instead of per minute (thanks wingless)
--   Shows number of producer and consumers
+-   FEAT: Improved UI
+-   FEAT: Allows to display stats per seconds instead of per minute (thanks wingless)
+-   FEAT: Shows number of producer and consumers
 
 ### v1.0.0
 
