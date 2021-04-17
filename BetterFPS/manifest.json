@@ -1,7 +1,7 @@
 {
     "name": "BetterFPS",
     "description": "This mod should improve megafactories FPS.",
-    "version_number": "1.0.0",
+    "version_number": "1.0.1",
     "dependencies": ["xiaoye97-BepInEx-5.4.5"],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }

@@ -29,6 +29,10 @@ This mod is fully configurable (you must start the game at least once for the co
 
 ## Changelog
 
+### v1.0.1
+
+-   FIX: Should fix crash when completing researches and another dyson spheres edge condition
+
 ### v1.0.0
 
 -   Initial Release

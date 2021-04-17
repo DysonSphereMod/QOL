@@ -4,13 +4,14 @@ using HarmonyLib;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection.Emit;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace BetterFPS
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterFPS", "BetterFPS", "1.0.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterFPS", "BetterFPS", "1.0.1")]
     public class BetterFPS : BaseUnityPlugin
     {
         Harmony harmony;
@@ -150,6 +151,156 @@ namespace BetterFPS
             return matcher.InstructionEnumeration();
         }
 
+        [HarmonyTranspiler, HarmonyPatch(typeof(FactorySystem), nameof(FactorySystem.GameTick))]
+        static IEnumerable<CodeInstruction> FactorySystem_DrawModels_Patch(IEnumerable<CodeInstruction> instructions)
+        {
+            CodeMatcher matcher = new CodeMatcher(instructions);
+            matcher
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldarg_0),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(FactorySystem), nameof(FactorySystem.ejectorCursor)))
+                );
+
+            // replace the code logic with the same logic wrapped in a meaningful lock for thread safety and return
+            matcher
+                .InsertAndAdvance(new CodeInstruction(OpCodes.Ldarg_0))
+                .InsertAndAdvance(Transpilers.EmitDelegate<Action<FactorySystem>>(factorySystem =>
+                {
+                    if (factorySystem.factory.dysonSphere != null)
+                    {
+                        lock (factorySystem.factory.dysonSphere)
+                        {
+                            DysonSphereRelatedGameTick(factorySystem);
+                        }
+                    }
+                    else
+                    {
+                        DysonSphereRelatedGameTick(factorySystem);
+                    }
+                }))
+                .InsertAndAdvance(new CodeInstruction(OpCodes.Ldarg_0))
+                .InsertAndAdvance(Transpilers.EmitDelegate<Action<FactorySystem>>(factorySystem =>
+                {
+                    lock (GameMain.history)
+                    {
+                        TechRelatedGameTick(factorySystem);
+                    }
+                }))
+                .InsertAndAdvance(new CodeInstruction(OpCodes.Ret));
+
+            return matcher.InstructionEnumeration();
+        }
+
+        [HarmonyReversePatch(HarmonyReversePatchType.Original), HarmonyPatch(typeof(FactorySystem), nameof(FactorySystem.GameTick))]
+        public static void DysonSphereRelatedGameTick(FactorySystem __instance)
+        {
+            IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                CodeMatcher matcher = new CodeMatcher(instructions);
+
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                List<CodeInstruction> code = new List<CodeInstruction>();
+
+                int startIdx = 0;
+                int endIdx = matcher.MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_0),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(GameHistoryData), nameof(GameHistoryData.miningCostRate)))
+                ).Pos;
+
+                if (endIdx == instructionsList.Count)
+                {
+                    throw new InvalidOperationException("Cannot extract the dysonsphere part of FactorySystem.GameTick because the first indicator isn't present");
+                }
+
+                for (int i = startIdx; i < endIdx; i++)
+                {
+                    code.Add(instructionsList[i]);
+                }
+
+
+
+                startIdx = matcher.MatchForward(false,
+                    new CodeMatch(OpCodes.Ldarg_0),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(FactorySystem), nameof(FactorySystem.ejectorCursor)))
+                ).Pos;
+                if (startIdx == instructionsList.Count)
+                {
+                    throw new InvalidOperationException("Cannot extract the dysonsphere part of FactorySystem.GameTick because the second indicator isn't present");
+                }
+
+                endIdx = matcher.MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_0),
+                    new CodeMatch(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(GameHistoryData), nameof(GameHistoryData.currentTech)))
+                ).Pos;
+                if (endIdx == instructionsList.Count)
+                {
+                    throw new InvalidOperationException("Cannot extract the dysonsphere part of FactorySystem.GameTick because the third indicator isn't present");
+                }
+
+                Debug.Log($"extracted dysonsphere part of FactorySystem.GameTick from {startIdx} to {endIdx}");
+                for (int i = startIdx; i < endIdx; i++)
+                {
+                    code.Add(instructionsList[i]);
+                }
+
+                return code.AsEnumerable();
+            }
+
+            // make compiler happy
+            _ = Transpiler(null);
+            return;
+        }
+
+        [HarmonyReversePatch(HarmonyReversePatchType.Original), HarmonyPatch(typeof(FactorySystem), nameof(FactorySystem.GameTick))]
+        public static void TechRelatedGameTick(FactorySystem __instance)
+        {
+            IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                CodeMatcher matcher = new CodeMatcher(instructions);
+
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                List<CodeInstruction> code = new List<CodeInstruction>();
+
+                int startIdx = 0;
+                int endIdx = matcher.MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_0),
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(GameHistoryData), nameof(GameHistoryData.miningCostRate)))
+                ).Pos;
+
+                if (endIdx == instructionsList.Count)
+                {
+                    throw new InvalidOperationException("Cannot extract the teck part of FactorySystem.GameTick because the first indicator isn't present");
+                }
+
+                for (int i = startIdx; i < endIdx; i++)
+                {
+                    code.Add(instructionsList[i]);
+                }
+
+
+                startIdx = matcher.MatchForward(false,
+                    new CodeMatch(OpCodes.Ldloc_0),
+                    new CodeMatch(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(GameHistoryData), nameof(GameHistoryData.currentTech)))
+                ).Pos;
+                if (startIdx == instructionsList.Count)
+                {
+                    throw new InvalidOperationException("Cannot extract the teck part of FactorySystem.GameTick because the second indicator isn't present");
+                }
+                endIdx = instructionsList.Count - 1;
+
+                Debug.Log($"extracted teck part of FactorySystem.GameTick from {startIdx} to {endIdx}");
+                for (int i = startIdx; i < endIdx; i++)
+                {
+                    code.Add(instructionsList[i]);
+                }
+
+                return code.AsEnumerable();
+            }
+
+            // make compiler happy
+            _ = Transpiler(null);
+            return;
+        }
 
         internal void OnDestroy()
         {

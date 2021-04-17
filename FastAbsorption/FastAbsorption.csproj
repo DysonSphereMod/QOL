@@ -8,7 +8,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>DSM.FastAbsorption</RootNamespace>
     <AssemblyName>FastAbsorption</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
