@@ -6,12 +6,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace BetterFPS
+namespace com.brokenmass.plugin.DSP.BetterFPS
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterFPS", "BetterFPS", "1.0.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterFPS", "BetterFPS", "1.0.2")]
     public class BetterFPS : BaseUnityPlugin
     {
         Harmony harmony;
@@ -31,8 +32,9 @@ namespace BetterFPS
 
             try
             {
-                harmony.PatchAll(typeof(BetterFPS));
 
+                harmony.PatchAll(typeof(ThreadSafety));
+                harmony.PatchAll(typeof(BetterFPS));
                 if (disableShadows.Value)
                 {
                     QualitySettings.shadows = ShadowQuality.Disable;
@@ -47,6 +49,8 @@ namespace BetterFPS
                 Console.WriteLine(e.ToString());
             }
         }
+
+
 
         [HarmonyTranspiler, HarmonyPatch(typeof(GameData), nameof(GameData.GameTick))]
         static IEnumerable<CodeInstruction> GameData_GameTick_Patch(IEnumerable<CodeInstruction> instructions)
@@ -66,8 +70,11 @@ namespace BetterFPS
                 .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldarg_1))
                 .SetInstructionAndAdvance(Transpilers.EmitDelegate<Action<GameData, long>>((GameData __instance, long time) =>
                 {
+
                     if (parallelFactories.Value)
                     {
+                        ThreadSafety.notifyNow = false;
+
                         var factoriesQueue = new ConcurrentQueue<PlanetFactory>(__instance.factories);
 
                         Task[] tasks = new Task[MAX_THREADS];
@@ -96,6 +103,7 @@ namespace BetterFPS
                         try
                         {
                             Task.WaitAll(tasks);
+                            ThreadSafety.LateNotify();
                         }
                         catch (AggregateException ae)
                         {

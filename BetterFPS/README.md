@@ -29,6 +29,11 @@ This mod is fully configurable (you must start the game at least once for the co
 
 ## Changelog
 
+### v1.0.2
+
+-   FIX: should definitely fix crash when completing researches and another dyson spheres edge condition
+-   FIX: should fix random crash when adding/removing stuff from containers
+
 ### v1.0.1
 
 -   FIX: Should fix crash when completing researches and another dyson spheres edge condition
