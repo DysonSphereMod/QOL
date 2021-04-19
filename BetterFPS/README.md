@@ -29,6 +29,10 @@ This mod is fully configurable (you must start the game at least once for the co
 
 ## Changelog
 
+### v1.0.3
+
+-   FIX: should fix crash when connecting belts to ILS or buildings with direct belt connection
+
 ### v1.0.2
 
 -   FIX: should definitely fix crash when completing researches and another dyson spheres edge condition
