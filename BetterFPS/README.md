@@ -31,6 +31,10 @@ This mod is fully configurable (you must start the game at least once for the co
 
 ### v1.0.3
 
+-   FIX: fix error happening if mod is installed and parallelFactories is set to false
+
+### v1.0.3
+
 -   FIX: should fix crash when connecting belts to ILS or buildings with direct belt connection
 
 ### v1.0.2

@@ -9,7 +9,7 @@ namespace com.brokenmass.plugin.DSP.BetterFPS
 {
     class ThreadSafety
     {
-        public static bool notifyNow = false;
+        public static bool notifyNow = true;
         private static List<int[]> unlockedTechs = new List<int[]>();
         private static List<StorageComponent> changedStorages = new List<StorageComponent>();
         private static List<CargoContainer> expandedCargos = new List<CargoContainer>();
