@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace com.brokenmass.plugin.DSP.BetterFPS
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterFPS", "BetterFPS", "1.0.4")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterFPS", "BetterFPS", "1.0.5")]
     public class BetterFPS : BaseUnityPlugin
     {
         Harmony harmony;
@@ -73,7 +73,7 @@ namespace com.brokenmass.plugin.DSP.BetterFPS
 
                     if (parallelFactories.Value)
                     {
-                        ThreadSafety.notifyNow = false;
+                        ThreadSafety.executeNow = false;
 
                         var factoriesQueue = new ConcurrentQueue<PlanetFactory>(__instance.factories);
 

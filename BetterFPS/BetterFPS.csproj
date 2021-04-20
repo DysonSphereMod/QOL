@@ -56,6 +56,7 @@
     <Compile Include="ACPublic.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ThreadSafety.cs" />
+    <Compile Include="Tuple.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.8">

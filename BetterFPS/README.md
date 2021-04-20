@@ -29,7 +29,13 @@ This mod is fully configurable (you must start the game at least once for the co
 
 ## Changelog
 
-### v1.0.3
+### v1.0.5
+
+-   FIX: fix crash if parallelFactories is enabled and a vein is removed
+-   FIX: fix crash if parallelFactories is enabled and the amount of bullets force a buffer resize
+-   FIX: fix crash if parallelFactories is enabled and the amount of solar sails force a buffer resize
+
+### v1.0.4
 
 -   FIX: fix error happening if mod is installed and parallelFactories is set to false
 
