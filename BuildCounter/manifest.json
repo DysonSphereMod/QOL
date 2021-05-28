@@ -1,7 +1,7 @@
 {
     "name": "BuildCounter",
     "description": "Your cursor will show the amount of entities being built/deleted/updated by the current build order. Fully compatible with CopyInserters, MultiBuild/MultiDestruct and AdvancedBuildDestruct",
-    "version_number": "1.2.0",
+    "version_number": "1.2.1",
     "dependencies": ["xiaoye97-BepInEx-5.4.5"],
     "website_url": "https://github.com/DysonSphereMod/QOL"
 }

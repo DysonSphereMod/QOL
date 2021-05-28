@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Text;
 namespace BuildCounter
 {
 
-    [BepInPlugin("com.brokenmass.plugin.DSP.BuildCounter", "BuildCounter", "1.2.0")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BuildCounter", "BuildCounter", "1.2.1")]
     public class BuildCounter : BaseUnityPlugin
     {
         Harmony harmony;
@@ -41,8 +41,31 @@ namespace BuildCounter
             harmony.UnpatchSelf();
         }
 
-        [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(PlayerAction_Build), "UpdatePreviews")]
-        public static void UpdatePreviews_Postfix(ref PlayerAction_Build __instance)
+        [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(BuildTool_Click), nameof(BuildTool_Click.CheckBuildConditions))]
+        public static void BuildTool_Click_CheckBuildConditions_Postfix(BuildTool_Click __instance)
+        {
+            RenderBuildCounter(__instance);
+        }
+
+        [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(BuildTool_Path), nameof(BuildTool_Click.CheckBuildConditions))]
+        public static void BuildTool_Path_CheckBuildConditions_Postfix(BuildTool_Path __instance)
+        {
+            RenderBuildCounter(__instance);
+        }
+
+        [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(BuildTool_Upgrade), nameof(BuildTool_Upgrade.DeterminePreviews))]
+        public static void BuildTool_Upgrade_DeterminePreviews_Postfix(BuildTool_Upgrade __instance)
+        {
+            RenderBuildCounter(__instance);
+        }
+
+        [HarmonyPostfix, HarmonyPriority(Priority.Last), HarmonyPatch(typeof(BuildTool_Dismantle), nameof(BuildTool_Dismantle.DeterminePreviews))]
+        public static void BuildTool_Dismantle_DeterminePreviews_Postfix(BuildTool_Dismantle __instance)
+        {
+            RenderBuildCounter(__instance);
+        }
+
+        public static void RenderBuildCounter(BuildTool __instance)
         {
             if (__instance.buildPreviews.Count > 0)
             {
@@ -52,11 +75,11 @@ namespace BuildCounter
                 {
                     var item = buildPreview.item;
 
-                    if (GameMain.mainPlayer.controller.cmd.mode == -2 && item.canUpgrade)
+                    if (__instance is BuildTool_Upgrade && item.canUpgrade)
                     {
-                        item = item.GetUpgradeItem(__instance.upgradeLevel);
+                        item = item.GetUpgradeItem(((BuildTool_Upgrade)__instance).upgradeLevel);
 
-                        if (item == buildPreview.item)
+                        if (item.ID == buildPreview.item.ID)
                         {
                             continue;
                         }
@@ -69,7 +92,7 @@ namespace BuildCounter
                         var sourceName = buildPreview.item.name;
 
                         var owned = GameMain.mainPlayer.package.GetItemCount(id);
-                        if (__instance.handItem != null && __instance.handItem.ID == id)
+                        if (__instance.player.inhandItemId == id)
                         {
                             owned += GameMain.mainPlayer.inhandItemCount;
                         }
@@ -87,15 +110,15 @@ namespace BuildCounter
 
                 var text = new StringBuilder();
 
-                if (__instance.upgrading && counter.Count > 0)
+                if (__instance is BuildTool_Upgrade && counter.Count > 0)
                 {
-                    text.Append(__instance.upgradeLevel == 1 ? "\nUpgrading:" : "\nDowngrading:");
+                    text.Append(((BuildTool_Upgrade)__instance).upgradeLevel == 1 ? "\nUpgrading:" : "\nDowngrading:");
                     foreach (var itemCounter in counter.Values)
                     {
                         text.Append($"\n{SPACING}- {itemCounter.count} x {itemCounter.sourceName} to {itemCounter.name} [ {itemCounter.owned} ]");
                     }
                 }
-                else if (__instance.destructing)
+                else if (__instance is BuildTool_Dismantle)
                 {
                     text.Append("\nDestructing:");
                     foreach (var itemCounter in counter.Values)
@@ -103,7 +126,7 @@ namespace BuildCounter
                         text.Append($"\n{SPACING}- {itemCounter.count} x {itemCounter.name}");
                     }
                 }
-                else if (GameMain.mainPlayer.controller.cmd.mode > 0)
+                else if (counter.Count > 0)
                 {
                     text.Append("\nBuilding:");
                     foreach (var itemCounter in counter.Values)
@@ -112,7 +135,7 @@ namespace BuildCounter
                     }
                 }
 
-                __instance.cursorText += text.ToString();
+                __instance.actionBuild.model.cursorText += text.ToString();
             }
 
             PlayerController controller = GameMain.mainPlayer.controller;
