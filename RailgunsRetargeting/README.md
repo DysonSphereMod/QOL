@@ -28,6 +28,10 @@ This mod is configurable (you must start the game at least once for the configur
 
 ## Changelog
 
+### v1.3.2
+
+-   Fixed compatibility with latest game version 0.7.18.6914
+
 ### v1.3.1
 
 -   Fix incorrect behaviour where non configured railguns where targeting orbit1 when `forceRetargeting` is set to `true` even if `ignoreOrbit1` is `true`

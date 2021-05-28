@@ -83,7 +83,9 @@
     <Reference Include="MonoMod.Utils">
       <HintPath>..\..\BepInEx_x64_5.4.5.0\BepInEx\core\MonoMod.Utils.dll</HintPath>
     </Reference>
-    <Reference Include="System" />
+    <Reference Include="netstandard">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\netstandard.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\SteamLibrary\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>

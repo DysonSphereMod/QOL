@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace RailgunsRetargeting
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.2")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
@@ -148,8 +148,8 @@ namespace RailgunsRetargeting
             return true;
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(FactorySystem), "GameTick")]
-        public static void EjectorComponent_InternalUpdate_Prefix(long time)
+        [HarmonyPrefix, HarmonyPatch(typeof(GameData), "GameTick")]
+        public static void GameData_GameTick_Prefix(long time)
         {
             batch = (int)(time % BATCH_COUNT);
         }
