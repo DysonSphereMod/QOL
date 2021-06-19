@@ -162,7 +162,11 @@ namespace BetterStats
             if (parts.Length > 1)
                 multiplier = parts[1] == "k" ? 1000 : (parts[1] == "M" ? 1000000 : (parts[1] == "G" ? 1000000000 : 1));
 
-            return float.Parse(parts[0]) * multiplier;
+            try{
+                return float.Parse(parts[0].Replace('.',',')) * multiplier;
+            }catch(FormatException e){
+                throw new ArgumentException("Invalid format String : " + value, nameof(value), ex);
+            }
         }
 
         private static EnhancedUIProductEntryElements EnhanceUIProductEntry(UIProductEntry __instance)
