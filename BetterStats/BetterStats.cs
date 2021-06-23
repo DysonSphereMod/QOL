@@ -164,7 +164,7 @@ namespace BetterStats
 
             try{
                 return float.Parse(parts[0].Replace('.',',')) * multiplier;
-            }catch(FormatException e){
+            }catch(FormatException ex){
                 throw new ArgumentException("Invalid format String : " + value, nameof(value), ex);
             }
         }
