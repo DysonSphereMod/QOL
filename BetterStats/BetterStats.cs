@@ -459,12 +459,18 @@ namespace BetterStats
             string originalProductText = __instance.productText.text.Trim();
             string originalConsumeText = __instance.consumeText.text.Trim();
 
+
+            float originalProductValue = ReverseFormat(originalProductText);
+            float originalConsumeValue = ReverseFormat(originalConsumeText);
+
             string producers = "0";
             string consumers = "0";
             string maxProduction = "0";
             string maxConsumption = "0";
             string unit = "/min";
             int divider = 1;
+            float lackOfProductionRatioTrigger = 0.9f; //TODO read from config
+            bool alertOnLackOfProduction = false;
 
             //add values per second
             if (displaySec)
@@ -472,24 +478,31 @@ namespace BetterStats
                 divider = 60;
                 unit = "/sec";
 
+                originalProductValue = originalProductValue / divider;
+                originalConsumeValue = originalConsumeValue / divider;
 
-                originalProductText = $"{FormatMetric(ReverseFormat(originalProductText) / divider)}";
-                originalConsumeText = $"{FormatMetric(ReverseFormat(originalConsumeText) / divider)}";
+                originalProductText = $"{FormatMetric(originalProductValue)}";
+                originalConsumeText = $"{FormatMetric(originalConsumeValue)}";
             }
 
             __instance.productUnitLabel.text =
                 __instance.consumeUnitLabel.text =
                 enhancement.maxProductionUnit.text =
                 enhancement.maxConsumptionUnit.text = unit;
-
+            
             if (counter.ContainsKey(__instance.itemId))
             {
                 var productMetrics = counter[__instance.itemId];
-                maxProduction = FormatMetric(productMetrics.production / divider);
-                maxConsumption = FormatMetric(productMetrics.consumption / divider);
+                float maxProductValue = productMetrics.production / divider;
+                float maxConsumeValue = productMetrics.consumption / divider;
+                maxProduction = FormatMetric(maxProductValue);
+                maxConsumption = FormatMetric(maxConsumeValue);
 
                 producers = productMetrics.producers.ToString();
                 consumers = productMetrics.consumers.ToString();
+
+                if (originalConsumeValue >= (maxProductValue * lackOfProductionRatioTrigger))
+                    alertOnLackOfProduction = true;
             }
 
             __instance.productText.text = $"{originalProductText}";
@@ -503,6 +516,9 @@ namespace BetterStats
 
             enhancement.maxProductionValue.color = enhancement.counterProductionValue.color = __instance.productText.color;
             enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
+            
+            if (alertOnLackOfProduction)            
+                enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f,.25f,.25f,.5f);
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(UIProductionStatWindow), "ComputeDisplayEntries")]
