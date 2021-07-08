@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Globalization;
 
 namespace BetterStats
 {
@@ -163,7 +164,7 @@ namespace BetterStats
                 multiplier = parts[1] == "k" ? 1000 : (parts[1] == "M" ? 1000000 : (parts[1] == "G" ? 1000000000 : 1));
 
             try{
-                return float.Parse(parts[0].Replace('.',',')) * multiplier;
+                return float.Parse(parts[0], CultureInfo.InvariantCulture) * multiplier;
             }catch(FormatException ex){
                 throw new ArgumentException("Invalid format String : " + value, nameof(value), ex);
             }
