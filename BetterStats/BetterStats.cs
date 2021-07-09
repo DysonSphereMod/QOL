@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Globalization;
 
 namespace BetterStats
 {
@@ -157,12 +158,28 @@ namespace BetterStats
         private static float ReverseFormat(string value)
         {
             string[] parts = value.Split(' ');
-            float multiplier = 1;
+            float multiplier;
+            string numericValue;
 
             if (parts.Length > 1)
+            {
                 multiplier = parts[1] == "k" ? 1000 : (parts[1] == "M" ? 1000000 : (parts[1] == "G" ? 1000000000 : 1));
+                numericValue = parts[0];
+            }
+            else
+            {
+                multiplier = 1;
+                numericValue = parts[0].Replace(",", ".");
+            }
 
-            return float.Parse(parts[0]) * multiplier;
+            try
+            {
+                return float.Parse(numericValue, CultureInfo.InvariantCulture) * multiplier;
+            }
+            catch (FormatException ex)
+            {
+                throw new ArgumentException("Invalid format String : '" + value+"' (parsed as "+numericValue+" * "+multiplier+")", nameof(value), ex);
+            }
         }
 
         private static EnhancedUIProductEntryElements EnhanceUIProductEntry(UIProductEntry __instance)
