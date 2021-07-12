@@ -65,18 +65,21 @@ namespace RailgunsRetargeting
 
         internal static ManagedEjector GetOrCreateManagedEjector(int ejectorUID, int originalOrbitId)
         {
+            managedEjectors.TryGetValue(ejectorUID, out ManagedEjector value);
 
-            if (!managedEjectors.ContainsKey(ejectorUID))
+            if (value == null)
             {
-                var managedEjector = new ManagedEjector()
+                value = new ManagedEjector
                 {
                     originalOrbitId = originalOrbitId
                 };
-                managedEjectors.Add(ejectorUID, managedEjector);
+                managedEjectors[ejectorUID] = value;
 
+                if (value == null)
+                    throw new NullReferenceException("Could not create ManagedEjector");
             }
 
-            return managedEjectors[ejectorUID];
+            return value;
 
         }
 
