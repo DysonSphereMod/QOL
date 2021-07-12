@@ -4,6 +4,12 @@ This mod improves the production stats panel to add the count of producer/consum
 
 ![BetterStats-1](https://github.com/DysonSphereMod/QOL/blob/master/BetterStats/screenshot.jpg?raw=true)
 
+# Configuration
+
+After a first launch you will find the configuration file `BepInEx\config\com.brokenmass.plugin.DSP.BetterStats.cfg`.
+
+You can customise the production ratios that govern text highlighting (red for lack of production ; yellow when max consumption is way above max production)
+
 ## Changelog
 
 ### v1.2.0
