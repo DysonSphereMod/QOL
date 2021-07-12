@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -9,7 +10,7 @@ using UnityEngine.UI;
 
 namespace RailgunsRetargeting
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.3")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
@@ -29,7 +30,7 @@ namespace RailgunsRetargeting
             public int originalOrbitId;
         }
         public static int batch;
-        private static Dictionary<int, ManagedEjector> managedEjectors = new Dictionary<int, ManagedEjector>();
+        private static ConcurrentDictionary<int, ManagedEjector> managedEjectors = new ConcurrentDictionary<int, ManagedEjector>(); //thread-safe
         private static GameObject autoRetargetingGO;
 
         internal void Awake()
@@ -65,19 +66,12 @@ namespace RailgunsRetargeting
 
         internal static ManagedEjector GetOrCreateManagedEjector(int ejectorUID, int originalOrbitId)
         {
-
-            if (!managedEjectors.ContainsKey(ejectorUID))
-            {
-                var managedEjector = new ManagedEjector()
+            return managedEjectors.GetOrAdd(ejectorUID, (key) =>
+                new ManagedEjector()
                 {
                     originalOrbitId = originalOrbitId
-                };
-                managedEjectors.Add(ejectorUID, managedEjector);
-
-            }
-
-            return managedEjectors[ejectorUID];
-
+                }
+            );
         }
 
         public static bool IsOrbitValid(int orbitId, DysonSwarm swarm)
@@ -161,7 +155,7 @@ namespace RailgunsRetargeting
                 var ejector = __instance.ejectorPool[id];
                 var ejectorUID = GetEjectorUID(ejector);
 
-                managedEjectors.Remove(ejectorUID);
+                managedEjectors.TryRemove(ejectorUID, out _);
             }
         }
 
