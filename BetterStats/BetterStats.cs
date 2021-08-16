@@ -10,7 +10,7 @@ using System.Globalization;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.2.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.3.1")]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
@@ -321,11 +321,6 @@ namespace BetterStats
             if (favoritesLabel != null)
             {
                 favoritesLabel.SetActive(false);
-                Console.WriteLine($"favorites label set inactive");
-            }
-            else
-            {
-                Console.WriteLine($"favorites label not found");
             }
 
             sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
@@ -735,15 +730,17 @@ namespace BetterStats
                 }
 
             }
-
-            var collectorsWorkCost = Traverse.Create<PlanetTransport>().Field("collectorsWorkCost").GetValue<double>();
-
+            double gasTotalHeat = planetFactory.planet.gasTotalHeat;
+            var collectorsWorkCost = Traverse.Create(transport).Field("collectorsWorkCost").GetValue<double>();
+            if (collectorsWorkCost < 0.001)
+            {
+                Console.WriteLine($"Warning: incorrect value for collectors work cost encountered {collectorsWorkCost}. Orbital collector max production will be incorrect. Check if field exists 'collectorsWorkCost' on PlanetTransport  ");
+            }
             for (int i = 1; i < transport.stationCursor; i++)
             {
                 var station = transport.stationPool[i];
                 if (station == null || station.id != i || !station.isCollector) continue;
 
-                double gasTotalHeat = planetFactory.planet.gasTotalHeat;
                 float collectSpeedRate = (gasTotalHeat - collectorsWorkCost > 0.0) ? ((float)((miningSpeedScale * gasTotalHeat - collectorsWorkCost) / (gasTotalHeat - collectorsWorkCost))) : 1f;
 
                 for (int j = 0; j < station.collectionIds.Length; j++)
