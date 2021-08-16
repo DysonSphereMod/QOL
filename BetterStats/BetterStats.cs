@@ -189,13 +189,14 @@ namespace BetterStats
 
         private static EnhancedUIProductEntryElements EnhanceUIProductEntry(UIProductEntry __instance)
         {
-            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
-            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(22, 12);
+            var parent = __instance.itemIcon.transform.parent;
+            parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
+            parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(22, 12);
 
             __instance.favoriteBtn1.GetComponent<RectTransform>().anchoredPosition = new Vector2(26, -32);
             __instance.favoriteBtn2.GetComponent<RectTransform>().anchoredPosition = new Vector2(49, -32);
             __instance.favoriteBtn3.GetComponent<RectTransform>().anchoredPosition = new Vector2(72, -32);
-            __instance.itemName.transform.SetParent(__instance.itemIcon.transform.parent, false);
+            __instance.itemName.transform.SetParent(parent, false);
             var itemNameRect = __instance.itemName.GetComponent<RectTransform>();
 
             itemNameRect.pivot = new Vector2(0.5f, 0f);
@@ -203,7 +204,7 @@ namespace BetterStats
             itemNameRect.anchorMax = new Vector2(1f, 0);
 
             itemNameRect.anchoredPosition = new Vector2(0, 0);
-            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
+            parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
 
             __instance.itemName.resizeTextForBestFit = true;
             __instance.itemName.resizeTextMaxSize = 14;
@@ -257,14 +258,14 @@ namespace BetterStats
             __instance.consumeUnitLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset + valuesWidth + 4, -4);
 
             var maxProductionLabel = CopyText(__instance.productLabel, new Vector2(maxOffset, 0));
-            maxProductionLabel.text = "Theoretical Max";
+            maxProductionLabel.text = "Theoretical max";
             var maxProductionValue = CopyText(__instance.productText, new Vector2(maxOffset, 0));
             maxProductionValue.text = "0";
             var maxProductionUnit = CopyText(__instance.productUnitLabel, new Vector2(maxOffset, 0));
             maxProductionUnit.text = "/min";
 
             var maxConsumptionLabel = CopyText(__instance.consumeLabel, new Vector2(maxOffset, 0));
-            maxConsumptionLabel.text = "Theoretical Max";
+            maxConsumptionLabel.text = "Theoretical max";
             var maxConsumptionValue = CopyText(__instance.consumeText, new Vector2(maxOffset, 0));
             maxConsumptionValue.text = "0";
             var maxConsumptionUnit = CopyText(__instance.consumeUnitLabel, new Vector2(maxOffset, 0));
@@ -316,10 +317,15 @@ namespace BetterStats
 
             if (chxGO != null) return;
 
-            var favoritesLabel = GameObject.Find("UI Root/Overlay Canvas/In Game/Windows/Production Stat Window/product-bg/top/favorite-text");
+            var favoritesLabel = GameObject.Find("UI Root/Overlay Canvas/In Game/Windows/Statistics Window/product-bg/top/favorite-text");
             if (favoritesLabel != null)
             {
                 favoritesLabel.SetActive(false);
+                Console.WriteLine($"favorites label set inactive");
+            }
+            else
+            {
+                Console.WriteLine($"favorites label not found");
             }
 
             sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
@@ -457,22 +463,13 @@ namespace BetterStats
             {
                 statWindow = __instance;
             }
-            if (lastStatTimer != __instance.timeLevel && (__instance.timeLevel == 5 || lastStatTimer == 5))
-            {
-                ClearEnhancedUIProductEntries();
-            }
-
             lastStatTimer = __instance.timeLevel;
         }
 
         [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "_OnUpdate")]
         public static void UIProductEntry__OnUpdate_Postfix(UIProductEntry __instance)
         {
-            if (__instance.productionStatWindow == null || __instance.productionStatWindow.timeLevel == 5) return;
-            if (!__instance.productionStatWindow.isProductionTab)
-            {
-                return;
-            }
+            if (__instance.productionStatWindow == null || !__instance.productionStatWindow.isProductionTab) return;
 
             if (!enhancements.TryGetValue(__instance, out EnhancedUIProductEntryElements enhancement))
             {
