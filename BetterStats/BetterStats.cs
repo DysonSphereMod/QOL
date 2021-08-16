@@ -113,12 +113,6 @@ namespace BetterStats
         private static void ClearEnhancedUIProductEntries()
         {
             if (statWindow == null) return;
-
-            //wipe all productentry as we have heavily modified the layout
-            foreach (var entry in statWindow.entryList.entryDatas)
-            {
-                entry.Free();
-            }
             enhancements.Clear();
             statWindow.entryList.ResetListStatus();
         }
