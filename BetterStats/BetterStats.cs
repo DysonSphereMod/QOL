@@ -10,7 +10,7 @@ using System.Globalization;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.2.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.3.1")]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
@@ -33,7 +33,7 @@ namespace BetterStats
         private static ConfigEntry<float> lackOfProductionRatioTrigger;
         private static ConfigEntry<float> consumptionToProductionRatioTrigger;
         private static Dictionary<int, ProductMetrics> counter = new Dictionary<int, ProductMetrics>();
-        private static bool displaySec = true;
+        private static bool displaySec = false;
         private static GameObject txtGO, chxGO, filterGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
         private static Texture2D texOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
@@ -53,7 +53,7 @@ namespace BetterStats
         private static int lastStatTimer;
 
         private static Dictionary<UIProductEntry, EnhancedUIProductEntryElements> enhancements = new Dictionary<UIProductEntry, EnhancedUIProductEntryElements>();
-        private static UIProductionStatWindow statWindow;
+        private static UIStatisticsWindow statWindow;
 
         internal void Awake()
         {
@@ -113,16 +113,8 @@ namespace BetterStats
         private static void ClearEnhancedUIProductEntries()
         {
             if (statWindow == null) return;
-
-            //wipe all productentry as we have heavily modified the layout
-            foreach (var entry in statWindow.entryPool)
-            {
-                entry.Destroy();
-            }
-
-
             enhancements.Clear();
-            statWindow.entryPool.Clear();
+            statWindow.entryList.ResetListStatus();
         }
 
         private static Text CopyText(Text original, Vector2 positionDelta)
@@ -197,13 +189,14 @@ namespace BetterStats
 
         private static EnhancedUIProductEntryElements EnhanceUIProductEntry(UIProductEntry __instance)
         {
-            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
-            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(22, 12);
+            var parent = __instance.itemIcon.transform.parent;
+            parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
+            parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(22, 12);
 
             __instance.favoriteBtn1.GetComponent<RectTransform>().anchoredPosition = new Vector2(26, -32);
             __instance.favoriteBtn2.GetComponent<RectTransform>().anchoredPosition = new Vector2(49, -32);
             __instance.favoriteBtn3.GetComponent<RectTransform>().anchoredPosition = new Vector2(72, -32);
-            __instance.itemName.transform.SetParent(__instance.itemIcon.transform.parent, false);
+            __instance.itemName.transform.SetParent(parent, false);
             var itemNameRect = __instance.itemName.GetComponent<RectTransform>();
 
             itemNameRect.pivot = new Vector2(0.5f, 0f);
@@ -211,7 +204,7 @@ namespace BetterStats
             itemNameRect.anchorMax = new Vector2(1f, 0);
 
             itemNameRect.anchoredPosition = new Vector2(0, 0);
-            __instance.itemIcon.transform.parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
+            parent.GetComponent<RectTransform>().sizeDelta = new Vector2(80, 80);
 
             __instance.itemName.resizeTextForBestFit = true;
             __instance.itemName.resizeTextMaxSize = 14;
@@ -265,14 +258,14 @@ namespace BetterStats
             __instance.consumeUnitLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset + valuesWidth + 4, -4);
 
             var maxProductionLabel = CopyText(__instance.productLabel, new Vector2(maxOffset, 0));
-            maxProductionLabel.text = "Theoretical Max";
+            maxProductionLabel.text = "Theoretical max";
             var maxProductionValue = CopyText(__instance.productText, new Vector2(maxOffset, 0));
             maxProductionValue.text = "0";
             var maxProductionUnit = CopyText(__instance.productUnitLabel, new Vector2(maxOffset, 0));
             maxProductionUnit.text = "/min";
 
             var maxConsumptionLabel = CopyText(__instance.consumeLabel, new Vector2(maxOffset, 0));
-            maxConsumptionLabel.text = "Theoretical Max";
+            maxConsumptionLabel.text = "Theoretical max";
             var maxConsumptionValue = CopyText(__instance.consumeText, new Vector2(maxOffset, 0));
             maxConsumptionValue.text = "0";
             var maxConsumptionUnit = CopyText(__instance.consumeUnitLabel, new Vector2(maxOffset, 0));
@@ -314,8 +307,8 @@ namespace BetterStats
             return enhancement;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnOpen")]
-        public static void UIProductionStatWindow__OnOpen_Postfix(UIProductionStatWindow __instance)
+        [HarmonyPostfix, HarmonyPatch(typeof(UIStatisticsWindow), "_OnOpen")]
+        public static void UIStatisticsWindow__OnOpen_Postfix(UIStatisticsWindow __instance)
         {
             if (statWindow == null)
             {
@@ -324,7 +317,7 @@ namespace BetterStats
 
             if (chxGO != null) return;
 
-            var favoritesLabel = GameObject.Find("UI Root/Overlay Canvas/In Game/Windows/Production Stat Window/product-bg/top/favorite-text");
+            var favoritesLabel = GameObject.Find("UI Root/Overlay Canvas/In Game/Windows/Statistics Window/product-bg/top/favorite-text");
             if (favoritesLabel != null)
             {
                 favoritesLabel.SetActive(false);
@@ -336,7 +329,7 @@ namespace BetterStats
             chxGO = new GameObject("displaySec");
 
             RectTransform rect = chxGO.AddComponent<RectTransform>();
-            rect.SetParent(__instance.productRankBox.transform.parent, false);
+            rect.SetParent(__instance.productSortBox.transform.parent, false);
 
             rect.anchorMax = new Vector2(0, 1);
             rect.anchorMin = new Vector2(0, 1);
@@ -382,7 +375,7 @@ namespace BetterStats
             filterGO = new GameObject("filterGo");
             RectTransform rectFilter = filterGO.AddComponent<RectTransform>();
 
-            rectFilter.SetParent(__instance.productRankBox.transform.parent, false);
+            rectFilter.SetParent(__instance.productSortBox.transform.parent, false);
 
             rectFilter.anchorMax = new Vector2(0, 1);
             rectFilter.anchorMin = new Vector2(0, 1);
@@ -435,49 +428,43 @@ namespace BetterStats
                 __instance.ComputeDisplayEntries();
             });
 
-            chxGO.transform.SetParent(__instance.productRankBox.transform.parent, false);
+            chxGO.transform.SetParent(__instance.productSortBox.transform.parent, false);
             txtGO.transform.SetParent(chxGO.transform, false);
-            filterGO.transform.SetParent(__instance.productRankBox.transform.parent, false);
+            filterGO.transform.SetParent(__instance.productSortBox.transform.parent, false);
 
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(UIProductionStatWindow), "AddToDisplayEntries")]
-        public static void UIProductionStatWindow_AddToDisplayEntries_Prefix(UIProductionStatWindow __instance)
+        [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntryList), "FilterEntries")]
+        public static void UIProductEntryList_FilterEntries_Postfix(UIProductEntryList __instance)
         {
             if (filterStr == "") return;
-
-            __instance.displayEntries.RemoveAll((data) =>
+            var uiProductEntryList = __instance;
+            for (int pIndex = uiProductEntryList.entryDatasCursor - 1; pIndex >= 0; --pIndex)
             {
-                var proto = LDB.items.Select(data[0]);
-
-                if (proto.name.IndexOf(filterStr, StringComparison.OrdinalIgnoreCase) >= 0)
+                UIProductEntryData entryData = uiProductEntryList.entryDatas[pIndex];
+                var proto = LDB.items.Select(entryData.itemId);
+                if (proto.name.IndexOf(filterStr, StringComparison.OrdinalIgnoreCase) < 0)
                 {
-                    return false;
+                    uiProductEntryList.Swap(pIndex, uiProductEntryList.entryDatasCursor - 1);
+                    --uiProductEntryList.entryDatasCursor;
                 }
-                return true;
-            });
-
+            }
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(UIProductionStatWindow), "_OnUpdate")]
-        public static void UIProductionStatWindow__OnUpdate_Prefix(UIProductionStatWindow __instance)
+        [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "_OnUpdate")]
+        public static void UIStatisticsWindow__OnUpdate_Prefix(UIStatisticsWindow __instance)
         {
             if (statWindow == null)
             {
                 statWindow = __instance;
             }
-            if (lastStatTimer != __instance.statTimeLevel && (__instance.statTimeLevel == 5 || lastStatTimer == 5))
-            {
-                ClearEnhancedUIProductEntries();
-            }
-
-            lastStatTimer = __instance.statTimeLevel;
+            lastStatTimer = __instance.timeLevel;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "UpdateProduct")]
-        public static void UIProductEntry_UpdateProduct_Postfix(UIProductEntry __instance)
+        [HarmonyPostfix, HarmonyPatch(typeof(UIProductEntry), "_OnUpdate")]
+        public static void UIProductEntry__OnUpdate_Postfix(UIProductEntry __instance)
         {
-            if (__instance.productionStatWindow.statTimeLevel == 5) return;
+            if (__instance.productionStatWindow == null || !__instance.productionStatWindow.isProductionTab) return;
 
             if (!enhancements.TryGetValue(__instance, out EnhancedUIProductEntryElements enhancement))
             {
@@ -519,10 +506,10 @@ namespace BetterStats
                 __instance.consumeUnitLabel.text =
                 enhancement.maxProductionUnit.text =
                 enhancement.maxConsumptionUnit.text = unit;
-            
-            if (counter.ContainsKey(__instance.itemId))
+
+            if (counter.ContainsKey(__instance.entryData.itemId))
             {
-                var productMetrics = counter[__instance.itemId];
+                var productMetrics = counter[__instance.entryData.itemId];
                 float maxProductValue = productMetrics.production / divider;
                 float maxConsumeValue = productMetrics.consumption / divider;
                 maxProduction = FormatMetric(maxProductValue);
@@ -549,20 +536,20 @@ namespace BetterStats
 
             enhancement.maxProductionValue.color = enhancement.counterProductionValue.color = __instance.productText.color;
             enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
-            
-            if (alertOnLackOfProduction)            
+
+            if (alertOnLackOfProduction)
                 enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f,.25f,.25f,.5f);
 
             if (warnOnHighMaxConsumption)
                 enhancement.maxConsumptionValue.color = new Color( 1f, 1f, .25f, .5f);
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(UIProductionStatWindow), "ComputeDisplayEntries")]
-        public static void UIProductionStatWindow_ComputeDisplayEntries_Prefix(UIProductionStatWindow __instance)
+        [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "ComputeDisplayEntries")]
+        public static void UIProductionStatWindow_ComputeDisplayEntries_Prefix(UIStatisticsWindow __instance)
         {
             counter.Clear();
 
-            if (__instance.targetIndex == -1)
+            if (__instance.astroFilter == -1)
             {
                 int factoryCount = __instance.gameData.factoryCount;
                 for (int i = 0; i < factoryCount; i++)
@@ -570,18 +557,18 @@ namespace BetterStats
                     AddPlanetFactoryData(__instance.gameData.factories[i]);
                 }
             }
-            else if (__instance.targetIndex == 0)
+            else if (__instance.astroFilter == 0)
             {
                 AddPlanetFactoryData(__instance.gameData.localPlanet.factory);
             }
-            else if (__instance.targetIndex % 100 > 0)
+            else if (__instance.astroFilter % 100 > 0)
             {
-                PlanetData planetData = __instance.gameData.galaxy.PlanetById(__instance.targetIndex);
+                PlanetData planetData = __instance.gameData.galaxy.PlanetById(__instance.astroFilter);
                 AddPlanetFactoryData(planetData.factory);
             }
-            else if (__instance.targetIndex % 100 == 0)
+            else if (__instance.astroFilter % 100 == 0)
             {
-                int starId = __instance.targetIndex / 100;
+                int starId = __instance.astroFilter / 100;
                 StarData starData = __instance.gameData.galaxy.StarById(starId);
                 for (int j = 0; j < starData.planetCount; j++)
                 {
@@ -743,13 +730,13 @@ namespace BetterStats
                 }
 
             }
+            double gasTotalHeat = planetFactory.planet.gasTotalHeat;
+            var collectorsWorkCost = transport.collectorsWorkCost;
             for (int i = 1; i < transport.stationCursor; i++)
             {
                 var station = transport.stationPool[i];
                 if (station == null || station.id != i || !station.isCollector) continue;
 
-                double collectorsWorkCost = transport.collectorsWorkCost;
-                double gasTotalHeat = planetFactory.planet.gasTotalHeat;
                 float collectSpeedRate = (gasTotalHeat - collectorsWorkCost > 0.0) ? ((float)((miningSpeedScale * gasTotalHeat - collectorsWorkCost) / (gasTotalHeat - collectorsWorkCost))) : 1f;
 
                 for (int j = 0; j < station.collectionIds.Length; j++)
