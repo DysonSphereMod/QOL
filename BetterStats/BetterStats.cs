@@ -183,7 +183,7 @@ namespace BetterStats
             }
             catch (FormatException ex)
             {
-                throw new ArgumentException("Invalid format String : '" + value+"' (parsed as "+numericValue+" * "+multiplier+")", nameof(value), ex);
+                throw new ArgumentException("Invalid format String : '" + value + "' (parsed as " + numericValue + " * " + multiplier + ")", nameof(value), ex);
             }
         }
 
@@ -538,10 +538,10 @@ namespace BetterStats
             enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
 
             if (alertOnLackOfProduction)
-                enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f,.25f,.25f,.5f);
+                enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f, .25f, .25f, .5f);
 
             if (warnOnHighMaxConsumption)
-                enhancement.maxConsumptionValue.color = new Color( 1f, 1f, .25f, .5f);
+                enhancement.maxConsumptionValue.color = new Color(1f, 1f, .25f, .5f);
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "ComputeDisplayEntries")]
