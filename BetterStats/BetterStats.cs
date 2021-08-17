@@ -731,11 +731,7 @@ namespace BetterStats
 
             }
             double gasTotalHeat = planetFactory.planet.gasTotalHeat;
-            var collectorsWorkCost = Traverse.Create(transport).Field("collectorsWorkCost").GetValue<double>();
-            if (collectorsWorkCost < 0.001)
-            {
-                Console.WriteLine($"Warning: incorrect value for collectors work cost encountered {collectorsWorkCost}. Orbital collector max production will be incorrect. Check if field exists 'collectorsWorkCost' on PlanetTransport  ");
-            }
+            var collectorsWorkCost = transport.collectorsWorkCost;
             for (int i = 1; i < transport.stationCursor; i++)
             {
                 var station = transport.stationPool[i];
