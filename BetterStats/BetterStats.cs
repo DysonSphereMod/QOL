@@ -184,7 +184,7 @@ namespace BetterStats
             }
             catch (FormatException ex)
             {
-                throw new ArgumentException("Invalid format String : '" + value+"' (parsed as "+numericValue+" * "+multiplier+")", nameof(value), ex);
+                throw new ArgumentException("Invalid format String : '" + value + "' (parsed as " + numericValue + " * " + multiplier + ")", nameof(value), ex);
             }
         }
 
@@ -550,7 +550,7 @@ namespace BetterStats
             enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
             
             if (alertOnLackOfProduction)            
-                enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f,.25f,.25f,.5f);
+                enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f, .25f, .25f, .5f);
 
             if (warnOnHighMaxConsumption)
                 enhancement.maxConsumptionValue.color = new Color( 1f, 1f, .25f, .5f);
@@ -743,14 +743,14 @@ namespace BetterStats
 
             }
 
-            var collectorsWorkCost = Traverse.Create<PlanetTransport>().Field("collectorsWorkCost").GetValue<double>();
+            double gasTotalHeat = planetFactory.planet.gasTotalHeat;
+            var collectorsWorkCost = transport.collectorsWorkCost;
 
             for (int i = 1; i < transport.stationCursor; i++)
             {
                 var station = transport.stationPool[i];
                 if (station == null || station.id != i || !station.isCollector) continue;
 
-                double gasTotalHeat = planetFactory.planet.gasTotalHeat;
                 float collectSpeedRate = (gasTotalHeat - collectorsWorkCost > 0.0) ? ((float)((miningSpeedScale * gasTotalHeat - collectorsWorkCost) / (gasTotalHeat - collectorsWorkCost))) : 1f;
 
                 for (int j = 0; j < station.collectionIds.Length; j++)
