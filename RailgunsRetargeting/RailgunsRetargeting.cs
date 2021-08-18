@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -29,7 +30,7 @@ namespace RailgunsRetargeting
             public int originalOrbitId;
         }
         public static int batch;
-        private static Dictionary<int, ManagedEjector> managedEjectors = new Dictionary<int, ManagedEjector>();
+        private static ConcurrentDictionary<int, ManagedEjector> managedEjectors = new ConcurrentDictionary<int, ManagedEjector>();
         private static GameObject autoRetargetingGO;
 
         internal void Awake()
@@ -65,18 +66,21 @@ namespace RailgunsRetargeting
 
         internal static ManagedEjector GetOrCreateManagedEjector(int ejectorUID, int originalOrbitId)
         {
+            managedEjectors.TryGetValue(ejectorUID, out ManagedEjector value);
 
-            if (!managedEjectors.ContainsKey(ejectorUID))
+            if (value == null)
             {
-                var managedEjector = new ManagedEjector()
+                value = new ManagedEjector
                 {
                     originalOrbitId = originalOrbitId
                 };
-                managedEjectors.Add(ejectorUID, managedEjector);
+                managedEjectors[ejectorUID] = value;
 
+                if (value == null)
+                    throw new NullReferenceException("Could not create ManagedEjector");
             }
 
-            return managedEjectors[ejectorUID];
+            return value;
 
         }
 
@@ -161,7 +165,7 @@ namespace RailgunsRetargeting
                 var ejector = __instance.ejectorPool[id];
                 var ejectorUID = GetEjectorUID(ejector);
 
-                managedEjectors.Remove(ejectorUID);
+                managedEjectors.TryRemove(ejectorUID, out var removed);
             }
         }
 
