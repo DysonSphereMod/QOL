@@ -10,7 +10,7 @@ using System.Globalization;
 namespace BetterStats
 {
     // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.3.1")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.3.2")]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
@@ -113,8 +113,24 @@ namespace BetterStats
         private static void ClearEnhancedUIProductEntries()
         {
             if (statWindow == null) return;
+
+            foreach (EnhancedUIProductEntryElements enhancement in enhancements.Values)
+            {
+                Destroy(enhancement.maxProductionLabel.gameObject);
+                Destroy(enhancement.maxProductionValue.gameObject);
+                Destroy(enhancement.maxProductionUnit.gameObject);
+
+                Destroy(enhancement.maxConsumptionLabel.gameObject);
+                Destroy(enhancement.maxConsumptionValue.gameObject);
+                Destroy(enhancement.maxConsumptionUnit.gameObject);
+
+                Destroy(enhancement.counterProductionLabel.gameObject);
+                Destroy(enhancement.counterProductionValue.gameObject);
+
+                Destroy(enhancement.counterConsumptionLabel.gameObject);
+                Destroy(enhancement.counterConsumptionValue.gameObject);
+            }
             enhancements.Clear();
-            statWindow.entryList.ResetListStatus();
         }
 
         private static Text CopyText(Text original, Vector2 positionDelta)
@@ -469,9 +485,9 @@ namespace BetterStats
             if (!enhancements.TryGetValue(__instance, out EnhancedUIProductEntryElements enhancement))
             {
                 enhancement = EnhanceUIProductEntry(__instance);
-
             }
 
+            bool isTotalTimeWindow = __instance.productionStatWindow.timeLevel == 5;
 
             string originalProductText = __instance.productText.text.Trim();
             string originalConsumeText = __instance.consumeText.text.Trim();
@@ -484,7 +500,8 @@ namespace BetterStats
             string consumers = "0";
             string maxProduction = "0";
             string maxConsumption = "0";
-            string unit = "/min";
+            string unitRate = displaySec ? "/sec" : "/min";
+            string unit = isTotalTimeWindow ? "" : "/min";
             int divider = 1;
             bool alertOnLackOfProduction = false;
             bool warnOnHighMaxConsumption = false;
@@ -493,19 +510,23 @@ namespace BetterStats
             if (displaySec)
             {
                 divider = 60;
-                unit = "/sec";
+                unit = !isTotalTimeWindow ? "/sec" : unit;
 
-                originalProductValue = originalProductValue / divider;
-                originalConsumeValue = originalConsumeValue / divider;
+                if (!isTotalTimeWindow)
+                {
+                    originalProductValue = originalProductValue / divider;
+                    originalConsumeValue = originalConsumeValue / divider;
 
-                originalProductText = $"{FormatMetric(originalProductValue)}";
-                originalConsumeText = $"{FormatMetric(originalConsumeValue)}";
+
+                    originalProductText = $"{FormatMetric(originalProductValue)}";
+                    originalConsumeText = $"{FormatMetric(originalConsumeValue)}";
+                }
             }
 
             __instance.productUnitLabel.text =
-                __instance.consumeUnitLabel.text =
-                enhancement.maxProductionUnit.text =
-                enhancement.maxConsumptionUnit.text = unit;
+                __instance.consumeUnitLabel.text = unit;
+            enhancement.maxProductionUnit.text =
+                enhancement.maxConsumptionUnit.text = unitRate;
 
             if (counter.ContainsKey(__instance.entryData.itemId))
             {
@@ -537,10 +558,10 @@ namespace BetterStats
             enhancement.maxProductionValue.color = enhancement.counterProductionValue.color = __instance.productText.color;
             enhancement.maxConsumptionValue.color = enhancement.counterConsumptionValue.color = __instance.consumeText.color;
 
-            if (alertOnLackOfProduction)
+            if (alertOnLackOfProduction && !isTotalTimeWindow)
                 enhancement.maxProductionValue.color = __instance.consumeText.color = new Color(1f, .25f, .25f, .5f);
 
-            if (warnOnHighMaxConsumption)
+            if (warnOnHighMaxConsumption && !isTotalTimeWindow)
                 enhancement.maxConsumptionValue.color = new Color(1f, 1f, .25f, .5f);
         }
 
@@ -581,9 +602,10 @@ namespace BetterStats
 
         }
 
-        // speed of fasted belt(mk3 belt) is 1800 items per minute
+        // speed of fastest belt(mk3 belt) is 1800 items per minute
         public const float BELT_MAX_ITEMS_PER_MINUTE = 1800;
         public const float TICKS_PER_SEC = 60.0f;
+        private const float RAY_RECEIVER_GRAVITON_LENS_CONSUMPTION_RATE_PER_MIN = 0.1f;
 
         public static void AddPlanetFactoryData(PlanetFactory planetFactory)
         {
@@ -755,15 +777,36 @@ namespace BetterStats
                 {
                     continue;
                 }
-                if (generator.productId == 0 || generator.productHeat == 0)
+                var isFuelConsumer = generator.fuelHeat > 0 && generator.fuelId > 0 && generator.productId == 0;
+                if ((generator.productId == 0 || generator.productHeat == 0) && !isFuelConsumer)
                 {
                     continue;
                 }
-                var productId = generator.productId;
-                EnsureId(ref counter, productId);
 
-                counter[productId].production += 60.0f * TICKS_PER_SEC * generator.capacityCurrentTick / generator.productHeat;
-                counter[productId].producers++;
+                if (isFuelConsumer)
+                {
+                    // account for fuel consumption by power generator
+                    var productId = generator.fuelId;
+                    EnsureId(ref counter, productId);
+
+                    counter[productId].consumption += 60.0f * TICKS_PER_SEC * generator.useFuelPerTick / generator.fuelHeat;
+                    counter[productId].consumers++;
+                }
+                else
+                {
+                    var productId = generator.productId;
+                    EnsureId(ref counter, productId);
+
+                    counter[productId].production += 60.0f * TICKS_PER_SEC * generator.capacityCurrentTick / generator.productHeat;
+                    counter[productId].producers++;
+                    if (generator.catalystId > 0)
+                    {
+                        // account for consumption of critical photons by ray receivers
+                        EnsureId(ref counter, generator.catalystId);
+                        counter[generator.catalystId].consumption += RAY_RECEIVER_GRAVITON_LENS_CONSUMPTION_RATE_PER_MIN;
+                        counter[generator.catalystId].consumers++;
+                    }
+                }
             }
         }
     }
