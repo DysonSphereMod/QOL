@@ -113,6 +113,23 @@ namespace BetterStats
         private static void ClearEnhancedUIProductEntries()
         {
             if (statWindow == null) return;
+
+            foreach (EnhancedUIProductEntryElements enhancement in enhancements.Values)
+            {
+                Destroy(enhancement.maxProductionLabel.gameObject);
+                Destroy(enhancement.maxProductionValue.gameObject);
+                Destroy(enhancement.maxProductionUnit.gameObject);
+
+                Destroy(enhancement.maxConsumptionLabel.gameObject);
+                Destroy(enhancement.maxConsumptionValue.gameObject);
+                Destroy(enhancement.maxConsumptionUnit.gameObject);
+
+                Destroy(enhancement.counterProductionLabel.gameObject);
+                Destroy(enhancement.counterProductionValue.gameObject);
+
+                Destroy(enhancement.counterConsumptionLabel.gameObject);
+                Destroy(enhancement.counterConsumptionValue.gameObject);
+            }
             enhancements.Clear();
         }
 
@@ -784,8 +801,7 @@ namespace BetterStats
                     counter[productId].producers++;
                     if (generator.catalystId > 0)
                     {
-                        // account for production of critical photons by ray receivers. graviton lenses are consumed at a rate of 0.1/min
-                        // TODO: figure out where the game stores this rate
+                        // account for consumption of critical photons by ray receivers
                         EnsureId(ref counter, generator.catalystId);
                         counter[generator.catalystId].consumption += RAY_RECEIVER_GRAVITON_LENS_CONSUMPTION_RATE_PER_MIN;
                         counter[generator.catalystId].consumers++;
