@@ -10,7 +10,7 @@ using UnityEngine.UI;
 
 namespace RailgunsRetargeting
 {
-    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.RailgunsRetargeting", "RailgunsRetargeting", "1.3.3")]
     public class RailgunsRetargeting : BaseUnityPlugin
     {
         Harmony harmony;
@@ -66,21 +66,10 @@ namespace RailgunsRetargeting
 
         internal static ManagedEjector GetOrCreateManagedEjector(int ejectorUID, int originalOrbitId)
         {
-            managedEjectors.TryGetValue(ejectorUID, out ManagedEjector value);
-
-            if (value == null)
+            return managedEjectors.GetOrAdd(ejectorUID, (id) => new ManagedEjector
             {
-                value = new ManagedEjector
-                {
-                    originalOrbitId = originalOrbitId
-                };
-                managedEjectors[ejectorUID] = value;
-
-                if (value == null)
-                    throw new NullReferenceException("Could not create ManagedEjector");
-            }
-
-            return value;
+                originalOrbitId = originalOrbitId
+            });
 
         }
 
@@ -248,7 +237,6 @@ namespace RailgunsRetargeting
 
                 // no alternative orbit has been found. set the original as default
                 SetOrbit(ref __instance, managedEjector.originalOrbitId);
-
             }
         }
 
