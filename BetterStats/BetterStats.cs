@@ -32,8 +32,8 @@ namespace BetterStats
         Harmony harmony;
         private static ConfigEntry<float> lackOfProductionRatioTrigger;
         private static ConfigEntry<float> consumptionToProductionRatioTrigger;
+        private static ConfigEntry<bool> displayPerSecond;
         private static Dictionary<int, ProductMetrics> counter = new Dictionary<int, ProductMetrics>();
-        private static bool displaySec = false;
         private static GameObject txtGO, chxGO, filterGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
         private static Texture2D texOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
@@ -77,6 +77,8 @@ namespace BetterStats
             consumptionToProductionRatioTrigger = Config.Bind("General", "consumptionToProductionRatio", 1.5f, //
                     "If max consumption raises above the given max production ratio, flag the text in red." +//
                     " (e.g. if set to '1.5' then you will be warned if your max consumption is more than 150% of your max production)");
+            displayPerSecond = Config.Bind("General", "displayPerSecond", false,
+                    "Used by UI to persist the last selected value for checkbox");
         }
 
         internal void OnDestroy()
@@ -173,7 +175,6 @@ namespace BetterStats
                 return value.ToString("F1");
             else
                 return value.ToString();
-
         }
 
         private static float ReverseFormat(string value)
@@ -301,7 +302,7 @@ namespace BetterStats
             counterConsumptionValue.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
             counterConsumptionValue.text = "0";
 
-            var enhancement = new EnhancedUIProductEntryElements()
+            var enhancement = new EnhancedUIProductEntryElements
             {
                 maxProductionLabel = maxProductionLabel,
                 maxProductionValue = maxProductionValue,
@@ -315,14 +316,13 @@ namespace BetterStats
                 counterProductionValue = counterProductionValue,
 
                 counterConsumptionLabel = counterConsumptionLabel,
-                counterConsumptionValue = counterConsumptionValue
+                counterConsumptionValue = counterConsumptionValue,
             };
 
             enhancements.Add(__instance, enhancement);
 
             return enhancement;
         }
-
         [HarmonyPostfix, HarmonyPatch(typeof(UIStatisticsWindow), "_OnOpen")]
         public static void UIStatisticsWindow__OnOpen_Postfix(UIStatisticsWindow __instance)
         {
@@ -356,14 +356,14 @@ namespace BetterStats
             Button _btn = rect.gameObject.AddComponent<Button>();
             _btn.onClick.AddListener(() =>
             {
-                displaySec = !displaySec;
-                checkBoxImage.sprite = displaySec ? sprOn : sprOff;
+                displayPerSecond.Value = !displayPerSecond.Value;
+                checkBoxImage.sprite = displayPerSecond.Value ? sprOn : sprOff;
             });
 
             checkBoxImage = _btn.gameObject.AddComponent<Image>();
             checkBoxImage.color = new Color(0.8f, 0.8f, 0.8f, 1);
 
-            checkBoxImage.sprite = displaySec ? sprOn : sprOff;
+            checkBoxImage.sprite = displayPerSecond.Value ? sprOn : sprOff;
 
 
             txtGO = new GameObject("displaySecTxt");
@@ -500,14 +500,14 @@ namespace BetterStats
             string consumers = "0";
             string maxProduction = "0";
             string maxConsumption = "0";
-            string unitRate = displaySec ? "/sec" : "/min";
+            string unitRate = displayPerSecond.Value ? "/sec" : "/min";
             string unit = isTotalTimeWindow ? "" : "/min";
             int divider = 1;
             bool alertOnLackOfProduction = false;
             bool warnOnHighMaxConsumption = false;
 
             //add values per second
-            if (displaySec)
+            if (displayPerSecond.Value)
             {
                 divider = 60;
                 unit = !isTotalTimeWindow ? "/sec" : unit;
@@ -568,8 +568,11 @@ namespace BetterStats
         [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "ComputeDisplayEntries")]
         public static void UIProductionStatWindow_ComputeDisplayEntries_Prefix(UIStatisticsWindow __instance)
         {
+            if (Time.frameCount % 10 != 0)
+            {
+                return;
+            }
             counter.Clear();
-
             if (__instance.astroFilter == -1)
             {
                 int factoryCount = __instance.gameData.factoryCount;
@@ -599,7 +602,6 @@ namespace BetterStats
                     }
                 }
             }
-
         }
 
         // speed of fastest belt(mk3 belt) is 1800 items per minute
@@ -646,7 +648,7 @@ namespace BetterStats
                 }
                 if (factorySystem.minerPool[i].type == EMinerType.Oil)
                 {
-                    production = frequency * speed * (float)((double)veinPool[veinId].amount * (double)VeinData.oilSpeedMultiplier); ;
+                    production = frequency * speed * (float)((double)veinPool[veinId].amount * (double)VeinData.oilSpeedMultiplier);
                 }
                 if (factorySystem.minerPool[i].type == EMinerType.Vein)
                 {
@@ -656,7 +658,6 @@ namespace BetterStats
 
                 counter[productId].production += production;
                 counter[productId].producers++;
-
             }
             for (int i = 1; i < factorySystem.assemblerCursor; i++)
             {
@@ -727,30 +728,53 @@ namespace BetterStats
                 counter[silo.bulletId].consumption += 60f / (float)(silo.chargeSpend + silo.coldSpend) * 600000f;
                 counter[silo.bulletId].consumers++;
             }
+
             for (int i = 1; i < factorySystem.labCursor; i++)
             {
                 var lab = factorySystem.labPool[i];
-                if (lab.id != i || !lab.matrixMode) continue;
+                if (lab.id != i) continue;
                 float frequency = 60f / (float)((double)lab.timeSpend / 600000.0);
 
-                for (int j = 0; j < lab.requires.Length; j++)
+                if (lab.matrixMode)
                 {
-                    var productId = lab.requires[j];
-                    EnsureId(ref counter, productId);
+                    for (int j = 0; j < lab.requires.Length; j++)
+                    {
+                        var productId = lab.requires[j];
+                        EnsureId(ref counter, productId);
 
-                    counter[productId].consumption += frequency * lab.requireCounts[j];
-                    counter[productId].consumers++;
+                        counter[productId].consumption += frequency * lab.requireCounts[j];
+                        counter[productId].consumers++;
+                    }
+
+                    for (int j = 0; j < lab.products.Length; j++)
+                    {
+                        var productId = lab.products[j];
+                        EnsureId(ref counter, productId);
+
+                        counter[productId].production += frequency * lab.productCounts[j];
+                        counter[productId].producers++;
+                    }
                 }
-
-                for (int j = 0; j < lab.products.Length; j++)
+                else if (lab.researchMode && lab.techId > 0)
                 {
-                    var productId = lab.products[j];
-                    EnsureId(ref counter, productId);
-
-                    counter[productId].production += frequency * lab.productCounts[j];
-                    counter[productId].producers++;
+                    // In this mode we can't just use lab.timeSpend to figure out how long it takes to consume 1 item (usually a cube)
+                    // So, we figure out how many hashes a single cube represents and use the research mode research speed to come up with what is basically a research rate
+                    var techProto = LDB.techs.Select(lab.techId);
+                    if (techProto == null)
+                        continue;
+                    TechState techState = GameMain.history.TechState(techProto.ID);
+                    for (int index = 0; index < techProto.itemArray.Length; ++index)
+                    {
+                        var item = techProto.Items[index];
+                        var cubesNeeded = techProto.GetHashNeeded(techState.curLevel) * techProto.ItemPoints[index] / 3600L;
+                        var researchRate = GameMain.history.techSpeed * 60.0f;
+                        var hashesPerCube = (float) techState.hashNeeded / cubesNeeded;
+                        var researchFreq = hashesPerCube / researchRate;
+                        EnsureId(ref counter, item);
+                        counter[item].consumers++;
+                        counter[item].consumption += researchFreq * GameMain.history.techSpeed;
+                    }
                 }
-
             }
             double gasTotalHeat = planetFactory.planet.gasTotalHeat;
             var collectorsWorkCost = transport.collectorsWorkCost;
