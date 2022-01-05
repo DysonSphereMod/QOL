@@ -12,6 +12,16 @@ You can customise the production ratios that govern text highlighting (red for l
 
 ## Changelog
 
+### v1.3.3
+
+-   FIX: Updated counter to record the theoretical max consumption rate for Universe Matrix. (thanks mattsemar)
+-   FIX: Updated the display/s checkbox to be persisted as a config property. (thanks mattsemar)
+
+### v1.3.2
+
+-   FIX: Adjust all time stat view to differentiate between amounts and rates. (thanks mattsemar)
+-   FIX: Add consumption for antimatter fuel rods. (thanks mattsemar)
+
 ### v1.3.1
 
 -   FIX: fix compatibility with latest game version (thanks mattsemar)
