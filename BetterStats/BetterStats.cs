@@ -9,8 +9,7 @@ using System.Globalization;
 
 namespace BetterStats
 {
-    // TODO: button to next producer/consumer
-    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", "BetterStats", "1.3.2")]
+    [BepInPlugin("com.brokenmass.plugin.DSP.BetterStats", PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
     public class BetterStats : BaseUnityPlugin
     {
         public class EnhancedUIProductEntryElements
