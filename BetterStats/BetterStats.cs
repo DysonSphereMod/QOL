@@ -275,14 +275,14 @@ namespace BetterStats
             __instance.consumeUnitLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(initialXOffset + valuesWidth + 4, -4);
 
             var maxProductionLabel = CopyText(__instance.productLabel, new Vector2(maxOffset, 0));
-            maxProductionLabel.text = "Theoretical max";
+            maxProductionLabel.text = "Theoretical Max".Translate();
             var maxProductionValue = CopyText(__instance.productText, new Vector2(maxOffset, 0));
             maxProductionValue.text = "0";
             var maxProductionUnit = CopyText(__instance.productUnitLabel, new Vector2(maxOffset, 0));
             maxProductionUnit.text = "/min";
 
             var maxConsumptionLabel = CopyText(__instance.consumeLabel, new Vector2(maxOffset, 0));
-            maxConsumptionLabel.text = "Theoretical max";
+            maxConsumptionLabel.text = "Theoretical Max".Translate();
             var maxConsumptionValue = CopyText(__instance.consumeText, new Vector2(maxOffset, 0));
             maxConsumptionValue.text = "0";
             var maxConsumptionUnit = CopyText(__instance.consumeUnitLabel, new Vector2(maxOffset, 0));
@@ -290,14 +290,14 @@ namespace BetterStats
 
             var counterProductionLabel = CopyText(__instance.productLabel, new Vector2(-initialXOffset, 0));
             counterProductionLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
-            counterProductionLabel.text = "Producers";
+            counterProductionLabel.text = "Producers".Translate();
             var counterProductionValue = CopyText(__instance.productText, new Vector2(-initialXOffset, 0));
             counterProductionValue.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
             counterProductionValue.text = "0";
 
             var counterConsumptionLabel = CopyText(__instance.consumeLabel, new Vector2(-initialXOffset, 0));
             counterConsumptionLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
-            counterConsumptionLabel.text = "Consumers";
+            counterConsumptionLabel.text = "Consumers".Translate();
             var counterConsumptionValue = CopyText(__instance.consumeText, new Vector2(-initialXOffset, 0));
             counterConsumptionValue.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
             counterConsumptionValue.text = "0";
@@ -337,8 +337,12 @@ namespace BetterStats
             if (favoritesLabel != null)
             {
                 favoritesLabel.SetActive(false);
+                Console.WriteLine($"favorites label set inactive");
             }
-
+            else
+            {
+                Console.WriteLine($"favorites label not found");
+            }
             sprOn = Sprite.Create(texOn, new Rect(0, 0, texOn.width, texOn.height), new Vector2(0.5f, 0.5f));
             sprOff = Sprite.Create(texOff, new Rect(0, 0, texOff.width, texOff.height), new Vector2(0.5f, 0.5f));
 
@@ -378,7 +382,7 @@ namespace BetterStats
             rectTxt.anchoredPosition = new Vector2(20, 0);
 
             Text text = rectTxt.gameObject.AddComponent<Text>();
-            text.text = "Display /sec";
+            text.text = "Display /sec".Translate();
             text.fontStyle = FontStyle.Normal;
             text.fontSize = 14;
             text.verticalOverflow = VerticalWrapMode.Overflow;
@@ -427,7 +431,7 @@ namespace BetterStats
             _placeholder.alignment = TextAnchor.MiddleLeft;
             _placeholder.supportRichText = false;
             _placeholder.horizontalOverflow = HorizontalWrapMode.Overflow;
-            _placeholder.text = "Filter";
+            _placeholder.text = "Filter".Translate();
             (_placeholder.transform as RectTransform).sizeDelta = new Vector2(90, 30);
             (_placeholder.transform as RectTransform).anchoredPosition = new Vector2(5, 0);
 
