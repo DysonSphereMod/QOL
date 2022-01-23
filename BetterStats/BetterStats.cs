@@ -674,7 +674,7 @@ namespace BetterStats
                 if (assembler.id != i || assembler.recipeId == 0) continue;
 
                 var frequency = 60f / (float)((double)assembler.timeSpend / 600000.0);
-                var speed = (float)(0.0001 * (double)assembler.speed);
+                var speed = (float)(0.0001 * Math.Max(assembler.speedOverride, assembler.speed));
 
                 for (int j = 0; j < assembler.requires.Length; j++)
                 {
