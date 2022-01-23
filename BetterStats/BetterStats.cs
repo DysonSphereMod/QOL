@@ -649,11 +649,21 @@ namespace BetterStats
                 {
                     production = frequency * speed * (float)((double)veinPool[veinId].amount * (double)VeinData.oilSpeedMultiplier);
                 }
+
+                // flag to tell us if it's one of the advanced miners they added in the 20-Jan-2022 release
+                var isAdvancedMiner = false;
                 if (factorySystem.minerPool[i].type == EMinerType.Vein)
                 {
                     production = frequency * speed * miner.veinCount;
+                    var minerEntity = factorySystem.factory.entityPool[miner.entityId];
+                    isAdvancedMiner = minerEntity.stationId > 0 && minerEntity.minerId > 0;
                 }
-                production = Math.Min(BELT_MAX_ITEMS_PER_MINUTE, production);
+
+                // advanced miners aren't limited by belts
+                if (!isAdvancedMiner)
+                {
+                    production = Math.Min(BELT_MAX_ITEMS_PER_MINUTE, production);
+                }
 
                 counter[productId].production += production;
                 counter[productId].producers++;
