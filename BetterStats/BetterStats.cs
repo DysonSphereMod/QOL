@@ -747,7 +747,15 @@ namespace BetterStats
             {
                 var lab = factorySystem.labPool[i];
                 if (lab.id != i) continue;
-                float frequency = 60f / (float)(lab.timeSpend / 600000.0);
+                // lab timeSpend is in game ticks, here we are figuring out the same number shown in lab window, example: 2.5 / m
+                // when we are in Production Speedup mode `speedOverride` is juiced. Otherwise we need to bump the frequency to account
+                // for the extra product produced after `extraTimeSpend` game ticks
+                float frequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * Math.Max(lab.speed, lab.speedOverride))));
+
+                if (!lab.forceAccMode && lab.extraTimeSpend > 0 && lab.extraSpeed > 0)
+                {
+                    frequency += (float)(1f / (lab.extraTimeSpend / GameMain.tickPerSec / (60f * lab.extraSpeed)));
+                }
 
                 if (lab.matrixMode)
                 {
