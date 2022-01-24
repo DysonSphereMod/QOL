@@ -675,6 +675,11 @@ namespace BetterStats
 
                 var frequency = 60f / (float)((double)assembler.timeSpend / 600000.0);
                 var speed = (float)(0.0001 * Math.Max(assembler.speedOverride, assembler.speed));
+                // forceAccMode is true when Production Speedup is selected
+                if (!assembler.forceAccMode)
+                {
+                    frequency += 60f / (float)( assembler.extraTimeSpend / 600000.0);
+                }
 
                 for (int j = 0; j < assembler.requires.Length; j++)
                 {
@@ -742,7 +747,7 @@ namespace BetterStats
             {
                 var lab = factorySystem.labPool[i];
                 if (lab.id != i) continue;
-                float frequency = 60f / (float)((double)lab.timeSpend / 600000.0);
+                float frequency = 60f / (float)(lab.timeSpend / 600000.0);
 
                 if (lab.matrixMode)
                 {
