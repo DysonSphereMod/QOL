@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Globalization;
+using System.Linq;
+using DefaultNamespace;
 
 namespace BetterStats
 {
@@ -513,8 +515,8 @@ namespace BetterStats
 
                 if (!isTotalTimeWindow)
                 {
-                    originalProductValue = originalProductValue / divider;
-                    originalConsumeValue = originalConsumeValue / divider;
+                    originalProductValue /= divider;
+                    originalConsumeValue /= divider;
 
 
                     originalProductText = $"{FormatMetric(originalProductValue)}";
@@ -614,6 +616,8 @@ namespace BetterStats
             var transport = planetFactory.transport;
             var veinPool = planetFactory.planet.factory.veinPool;
             var miningSpeedScale = (double)GameMain.history.miningSpeedScale;
+            var maxProductivityIncrease = ResearchTechHelper.GetMaxProductivityIncrease();
+            var maxSpeedIncrease = ResearchTechHelper.GetMaxSpeedIncrease();
 
             for (int i = 1; i < factorySystem.minerCursor; i++)
             {
@@ -675,10 +679,15 @@ namespace BetterStats
 
                 var frequency = 60f / (float)((double)assembler.timeSpend / 600000.0);
                 var speed = (float)(0.0001 * Math.Max(assembler.speedOverride, assembler.speed));
+
                 // forceAccMode is true when Production Speedup is selected
-                if (!assembler.forceAccMode)
+                if (assembler.forceAccMode)
                 {
-                    frequency += 60f / (float)( assembler.extraTimeSpend / 600000.0);
+                    speed += speed * maxSpeedIncrease;
+                }
+                else
+                {
+                    frequency += frequency * maxProductivityIncrease;
                 }
 
                 for (int j = 0; j < assembler.requires.Length; j++)
@@ -750,11 +759,12 @@ namespace BetterStats
                 // lab timeSpend is in game ticks, here we are figuring out the same number shown in lab window, example: 2.5 / m
                 // when we are in Production Speedup mode `speedOverride` is juiced. Otherwise we need to bump the frequency to account
                 // for the extra product produced after `extraTimeSpend` game ticks
-                float frequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * Math.Max(lab.speed, lab.speedOverride))));
+                var labSpeed = lab.forceAccMode ? (int)(lab.speed * (1.0 + maxSpeedIncrease) + 0.1) : lab.speed;
+                float frequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * labSpeed)));
 
-                if (!lab.forceAccMode && lab.extraTimeSpend > 0 && lab.extraSpeed > 0)
+                if (!lab.forceAccMode)
                 {
-                    frequency += (float)(1f / (lab.extraTimeSpend / GameMain.tickPerSec / (60f * lab.extraSpeed)));
+                    frequency += frequency * maxProductivityIncrease;
                 }
 
                 if (lab.matrixMode)

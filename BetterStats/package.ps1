@@ -45,7 +45,7 @@ $new_version_string = "$([string]::Join(".", $new_version))";
 
 $sourceFileContent -replace $old_vernum, $new_version_string  | Set-Content -Path .\BetterStats.csproj -NoNewline
 
-Start-Process dotnet.exe -ArgumentList "build" -NoNewWindow -PassThru -Wait
+Start-Process dotnet.exe -ArgumentList "build" -NoNewWindow -Wait
 
 Copy-Item -Path bin/Debug/netstandard2.0/BetterStats.dll -Destination tmp_release
 Copy-Item README.md -Destination tmp_release\README.md
