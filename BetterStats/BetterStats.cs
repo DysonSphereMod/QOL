@@ -677,17 +677,18 @@ namespace BetterStats
                 var assembler = factorySystem.assemblerPool[i];
                 if (assembler.id != i || assembler.recipeId == 0) continue;
 
-                var frequency = 60f / (float)((double)assembler.timeSpend / 600000.0);
+                var baseFrequency = 60f / (float)(assembler.timeSpend / 600000.0);
+                var productionFrequency = baseFrequency;
                 var speed = (float)(0.0001 * Math.Max(assembler.speedOverride, assembler.speed));
 
-                // forceAccMode is true when Production Speedup is selected
+                // forceAccMode is 'Production Speedup' mode. It just adds a straight increase to both production and consumption rate
                 if (assembler.forceAccMode)
                 {
                     speed += speed * maxSpeedIncrease;
                 }
                 else
                 {
-                    frequency += frequency * maxProductivityIncrease;
+                    productionFrequency += productionFrequency * maxProductivityIncrease;
                 }
 
                 for (int j = 0; j < assembler.requires.Length; j++)
@@ -695,7 +696,7 @@ namespace BetterStats
                     var productId = assembler.requires[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].consumption += frequency * speed * assembler.requireCounts[j];
+                    counter[productId].consumption += baseFrequency * speed * assembler.requireCounts[j];
                     counter[productId].consumers++;
                 }
 
@@ -704,7 +705,7 @@ namespace BetterStats
                     var productId = assembler.products[j];
                     EnsureId(ref counter, productId);
 
-                    counter[productId].production += frequency * speed * assembler.productCounts[j];
+                    counter[productId].production += productionFrequency * speed * assembler.productCounts[j];
                     counter[productId].producers++;
                 }
             }
@@ -757,14 +758,15 @@ namespace BetterStats
                 var lab = factorySystem.labPool[i];
                 if (lab.id != i) continue;
                 // lab timeSpend is in game ticks, here we are figuring out the same number shown in lab window, example: 2.5 / m
-                // when we are in Production Speedup mode `speedOverride` is juiced. Otherwise we need to bump the frequency to account
-                // for the extra product produced after `extraTimeSpend` game ticks
+                // when we are in Production Speedup mode `speedOverride` is increased.
                 var labSpeed = lab.forceAccMode ? (int)(lab.speed * (1.0 + maxSpeedIncrease) + 0.1) : lab.speed;
-                float frequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * labSpeed)));
+                float baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * labSpeed)));
+                float productionFrequency = baseFrequency;
 
                 if (!lab.forceAccMode)
                 {
-                    frequency += frequency * maxProductivityIncrease;
+                    // productivity bonuses are in Cargo table in the incTableMilli array
+                    productionFrequency += baseFrequency * maxProductivityIncrease;
                 }
 
                 if (lab.matrixMode)
@@ -774,7 +776,7 @@ namespace BetterStats
                         var productId = lab.requires[j];
                         EnsureId(ref counter, productId);
 
-                        counter[productId].consumption += frequency * lab.requireCounts[j];
+                        counter[productId].consumption += baseFrequency * lab.requireCounts[j];
                         counter[productId].consumers++;
                     }
 
@@ -783,7 +785,7 @@ namespace BetterStats
                         var productId = lab.products[j];
                         EnsureId(ref counter, productId);
 
-                        counter[productId].production += frequency * lab.productCounts[j];
+                        counter[productId].production += productionFrequency * lab.productCounts[j];
                         counter[productId].producers++;
                     }
                 }
