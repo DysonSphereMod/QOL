@@ -679,7 +679,7 @@ namespace BetterStats
 
                 var baseFrequency = 60f / (float)(assembler.timeSpend / 600000.0);
                 var productionFrequency = baseFrequency;
-                var speed = (float)(0.0001 * Math.Max(assembler.speedOverride, assembler.speed));
+                var speed = (float)(0.0001 * (double)assembler.speed);
 
                 // forceAccMode is 'Production Speedup' mode. It just adds a straight increase to both production and consumption rate
                 if (assembler.forceAccMode)
