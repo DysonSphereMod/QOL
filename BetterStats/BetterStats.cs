@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Globalization;
-using System.Linq;
 using DefaultNamespace;
 
 namespace BetterStats
@@ -569,7 +568,7 @@ namespace BetterStats
         [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "ComputeDisplayEntries")]
         public static void UIProductionStatWindow_ComputeDisplayEntries_Prefix(UIStatisticsWindow __instance)
         {
-            if (Time.frameCount % 10 != 0)
+            if (Time.frameCount % 10 != 0 && lastStatTimer == __instance.timeLevel)
             {
                 return;
             }
@@ -797,13 +796,13 @@ namespace BetterStats
                     if (techProto == null)
                         continue;
                     TechState techState = GameMain.history.TechState(techProto.ID);
+                    float hashPerMinute = (float)(60.0f * (GameMain.data.history.techSpeed * (1.0 + (double) maxProductivityIncrease / 6.0f)));
+
                     for (int index = 0; index < techProto.itemArray.Length; ++index)
                     {
                         var item = techProto.Items[index];
-                        var cubesNeeded = techProto.GetHashNeeded(techState.curLevel) * techProto.ItemPoints[index] / 3600L;
-                        var researchRate = GameMain.history.techSpeed * 60.0f;
-                        var hashesPerCube = (float) techState.hashNeeded / cubesNeeded;
-                        var researchFreq = hashesPerCube / researchRate;
+                        var researchRateSec = (float) GameMain.history.techSpeed * GameMain.tickPerSec;
+                        var researchFreq =  (float) (techState.uPointPerHash * hashPerMinute / researchRateSec);
                         EnsureId(ref counter, item);
                         counter[item].consumers++;
                         counter[item].consumption += researchFreq * GameMain.history.techSpeed;
