@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Globalization;
+using BepInEx.Logging;
 using DefaultNamespace;
 
 namespace BetterStats
@@ -28,12 +29,14 @@ namespace BetterStats
 
             public Text counterConsumptionLabel;
             public Text counterConsumptionValue;
+            public ProliferatorOperationSetting proliferatorOperationSetting;
         }
+
         Harmony harmony;
         private static ConfigEntry<float> lackOfProductionRatioTrigger;
         private static ConfigEntry<float> consumptionToProductionRatioTrigger;
         private static ConfigEntry<bool> displayPerSecond;
-        private static Dictionary<int, ProductMetrics> counter = new Dictionary<int, ProductMetrics>();
+        private static Dictionary<int, ProductMetrics> counter = new();
         private static GameObject txtGO, chxGO, filterGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
         private static Texture2D texOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
@@ -54,19 +57,24 @@ namespace BetterStats
 
         private static Dictionary<UIProductEntry, EnhancedUIProductEntryElements> enhancements = new Dictionary<UIProductEntry, EnhancedUIProductEntryElements>();
         private static UIStatisticsWindow statWindow;
+        public static ManualLogSource Log;
 
         internal void Awake()
         {
+            Log = Logger;
             InitConfig();
             harmony = new Harmony("com.brokenmass.plugin.DSP.BetterStats");
             try
             {
                 harmony.PatchAll(typeof(BetterStats));
+                harmony.PatchAll(typeof(ItemCalculationRuntimeSetting));
+                ProliferatorOperationSetting.Init();
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Log.LogWarning(e.ToString());
             }
+            Log.LogInfo($"{PluginInfo.PLUGIN_NAME} {PluginInfo.PLUGIN_VERSION} Loaded");
         }
 
         internal void InitConfig()
@@ -99,6 +107,7 @@ namespace BetterStats
             }
 
             ClearEnhancedUIProductEntries();
+            ProliferatorOperationSetting.Unload();
 
             harmony.UnpatchSelf();
         }
@@ -155,7 +164,6 @@ namespace BetterStats
             if (!dict.ContainsKey(id))
             {
                 ItemProto itemProto = LDB.items.Select(id);
-
                 dict.Add(id, new ProductMetrics()
                 {
                     itemProto = itemProto
@@ -301,7 +309,7 @@ namespace BetterStats
             var counterConsumptionValue = CopyText(__instance.consumeText, new Vector2(-initialXOffset, 0));
             counterConsumptionValue.GetComponent<RectTransform>().sizeDelta = new Vector2(60, 40);
             counterConsumptionValue.text = "0";
-
+            var proliferatorOpSetting = ProliferatorOperationSetting.ForProductEntry(__instance);
             var enhancement = new EnhancedUIProductEntryElements
             {
                 maxProductionLabel = maxProductionLabel,
@@ -317,6 +325,7 @@ namespace BetterStats
 
                 counterConsumptionLabel = counterConsumptionLabel,
                 counterConsumptionValue = counterConsumptionValue,
+                proliferatorOperationSetting = proliferatorOpSetting
             };
 
             enhancements.Add(__instance, enhancement);
@@ -563,6 +572,7 @@ namespace BetterStats
 
             if (warnOnHighMaxConsumption && !isTotalTimeWindow)
                 enhancement.maxConsumptionValue.color = new Color(1f, 1f, .25f, .5f);
+            enhancement.proliferatorOperationSetting.UpdateItemId(__instance.entryData.itemId);
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "ComputeDisplayEntries")]
@@ -680,14 +690,35 @@ namespace BetterStats
                 var productionFrequency = baseFrequency;
                 var speed = (float)(0.0001 * (double)assembler.speed);
 
+                ItemCalculationRuntimeSetting runtimeSetting = ProliferatorOperationSetting.ForRecipe(assembler.recipeId);
+
                 // forceAccMode is 'Production Speedup' mode. It just adds a straight increase to both production and consumption rate
-                if (assembler.forceAccMode)
+                if (runtimeSetting.Enabled)
                 {
-                    speed += speed * maxSpeedIncrease;
-                }
-                else
-                {
-                    productionFrequency += productionFrequency * maxProductivityIncrease;
+                    if (runtimeSetting.Mode == ItemCalculationMode.Normal)
+                    {
+                        // let assembler decide
+                        if (assembler.forceAccMode)
+                        {
+                            speed += speed * maxSpeedIncrease;
+                        }
+                        else
+                        {
+                            productionFrequency += productionFrequency * maxProductivityIncrease;
+                        }
+                    }
+                    else if (runtimeSetting.Mode == ItemCalculationMode.ForceSpeed)
+                    {
+                        speed += speed * maxSpeedIncrease;
+                    }
+                    else if (runtimeSetting.Mode == ItemCalculationMode.ForceProductivity)
+                    {
+                        productionFrequency += productionFrequency * maxProductivityIncrease;
+                    }
+                    else
+                    {
+                        Log.LogWarning($"unexpected runtime setting ${JsonUtility.ToJson(runtimeSetting)}");
+                    }
                 }
 
                 for (int j = 0; j < assembler.requires.Length; j++)
@@ -756,17 +787,7 @@ namespace BetterStats
             {
                 var lab = factorySystem.labPool[i];
                 if (lab.id != i) continue;
-                // lab timeSpend is in game ticks, here we are figuring out the same number shown in lab window, example: 2.5 / m
-                // when we are in Production Speedup mode `speedOverride` is increased.
-                var labSpeed = lab.forceAccMode ? (int)(lab.speed * (1.0 + maxSpeedIncrease) + 0.1) : lab.speed;
-                float baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * labSpeed)));
-                float productionFrequency = baseFrequency;
-
-                if (!lab.forceAccMode)
-                {
-                    // productivity bonuses are in Cargo table in the incTableMilli array
-                    productionFrequency += baseFrequency * maxProductivityIncrease;
-                }
+                (float baseFrequency, float productionFrequency) = DetermineLabFrequencies(ref lab, maxProductivityIncrease, maxSpeedIncrease);
 
                 if (lab.matrixMode)
                 {
@@ -865,6 +886,54 @@ namespace BetterStats
                     }
                 }
             }
+        }
+
+        private static (float, float) DetermineLabFrequencies(ref LabComponent lab, float maxProductivityIncrease, float maxSpeedIncrease)
+        {
+            // lab timeSpend is in game ticks, here we are figuring out the same number shown in lab window, example: 2.5 / m
+            // when we are in Production Speedup mode `speedOverride` is increased.
+            float baseFrequency = 0f, productionFrequency = 0;
+
+            var runtimeSetting = ProliferatorOperationSetting.ForRecipe(lab.recipeId);
+
+            if (runtimeSetting != null && runtimeSetting.Enabled)
+            {
+                if (runtimeSetting.Mode == ItemCalculationMode.Normal)
+                {
+                    // use whatever setting the lab has decide
+                    if (!lab.forceAccMode)
+                    {
+                        // productivity bonuses are in Cargo table in the incTableMilli array
+                        baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * lab.speed)));
+                        productionFrequency = baseFrequency +  baseFrequency * maxProductivityIncrease;
+                    }
+                    else
+                    {
+                        var labSpeed = lab.speed * (1.0 + maxSpeedIncrease) + 0.1;
+                        baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * labSpeed)));
+                        productionFrequency = baseFrequency;
+                    }
+                }
+                else if (runtimeSetting.Mode == ItemCalculationMode.ForceSpeed)
+                {
+                    var labSpeed = lab.speed * (1.0 + maxSpeedIncrease) + 0.1;
+                    baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * labSpeed)));
+                    productionFrequency = baseFrequency;
+                }
+                else if (runtimeSetting.Mode == ItemCalculationMode.ForceProductivity)
+                {
+                    baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * lab.speed)));
+                    productionFrequency = baseFrequency + baseFrequency * maxProductivityIncrease;
+                }
+            }
+            else
+            {
+                // regular calculation
+                baseFrequency = (float)(1f / (lab.timeSpend / GameMain.tickPerSec / (60f * lab.speed)));
+                productionFrequency = baseFrequency;
+            }
+
+            return (baseFrequency, productionFrequency);
         }
     }
 }

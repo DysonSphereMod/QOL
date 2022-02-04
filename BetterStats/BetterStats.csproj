@@ -5,6 +5,7 @@
         <AssemblyName>BetterStats</AssemblyName>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Version>1.3.3</Version>
+        <LangVersion>9</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
