@@ -67,7 +67,6 @@ namespace BetterStats
             try
             {
                 harmony.PatchAll(typeof(BetterStats));
-                harmony.PatchAll(typeof(ItemCalculationRuntimeSetting));
                 ProliferatorOperationSetting.Init();
             }
             catch (Exception e)

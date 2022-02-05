@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using BepInEx;
 using BepInEx.Configuration;
-using HarmonyLib;
 using UnityEngine;
 using static BetterStats.BetterStats;
 
@@ -24,30 +23,22 @@ namespace BetterStats
     {
         private ItemCalculationMode _mode = ItemCalculationMode.Normal;
         private bool _enabled;
+
         public readonly int productId;
-        public readonly bool productivitySupported;
-        public readonly bool speedSupported;
+
         private ConfigEntry<string> _configEntry;
         private static readonly Dictionary<int, ConfigEntry<string>> ConfigEntries = new();
         private static readonly Dictionary<int, ItemCalculationRuntimeSetting> Pool = new();
         private static ConfigFile configFile;
-
-
+        private readonly ItemProto _itemProto;
         private ItemCalculationRuntimeSetting(int productId)
         {
             this.productId = productId;
-            var itemProto = LDB.items.Select(productId);
-            if (itemProto != null)
+            var proto = LDB.items.Select(productId);
+            if (proto != null)
             {
-                speedSupported = itemProto.recipes is { Count: > 0 };
-                productivitySupported = speedSupported && itemProto.recipes.Any(r => r.productive);
-                _enabled = speedSupported;
+                _itemProto = proto;
             }
-
-            if (productivitySupported)
-                Log.LogDebug($"productivity supported for {itemProto?.name}");
-            else
-                Log.LogDebug($"NO productivity mode supported for {itemProto?.name}");
         }
 
         public ItemCalculationMode Mode
@@ -63,13 +54,20 @@ namespace BetterStats
 
         public bool Enabled
         {
-            get => _enabled && speedSupported;
+            get => _enabled;
             set
             {
                 _enabled = value;
                 Pool[productId]._enabled = value;
                 Save();
             }
+        }
+
+        public bool SpeedSupported => _itemProto.recipes is { Count: > 0 };
+
+        public bool ProductivitySupported
+        {
+            get { return SpeedSupported && _itemProto.recipes.Any(r => r.productive); }
         }
 
         private void Save()
@@ -94,34 +92,32 @@ namespace BetterStats
             return JsonUtility.ToJson(SerializableRuntimeState.From(this));
         }
 
-        private static void InitConfig(ItemProto itemProto)
+        public static void InitConfig()
         {
-            if (configFile == null)
+            configFile = new ConfigFile($"{Paths.ConfigPath}/{PluginInfo.PLUGIN_NAME}/CustomProductSettings.cfg", true);
+
+            foreach (var itemProto in LDB.items.dataArray)
             {
-                configFile = new ConfigFile($"{Paths.ConfigPath}/{PluginInfo.PLUGIN_NAME}/CustomProductSettings.cfg", true);
+                var defaultValue = new ItemCalculationRuntimeSetting(itemProto.ID)
+                {
+                    _enabled = true,
+                    _mode = ItemCalculationMode.Normal
+                };
+
+                var configEntry = configFile.Bind("Internal", $"ProliferatorStatsSetting_{itemProto.ID}",
+                    defaultValue.Serialize(),
+                    "For internal use only");
+                ConfigEntries[itemProto.ID] = configEntry;
+
+                Pool[itemProto.ID] = Deserialize(ConfigEntries[itemProto.ID].Value);
+                Pool[itemProto.ID]._configEntry = configEntry;
+                Log.LogDebug($"Loaded {itemProto.name} runtime settings");
             }
-
-            var defaultValue = new ItemCalculationRuntimeSetting(itemProto.ID);
-
-            var configEntry = configFile.Bind("Internal", $"ProliferatorStatsSetting_{itemProto.ID}",
-                defaultValue.Serialize(),
-                "For internal use only");
-            ConfigEntries[itemProto.ID] = configEntry;
-
-            Pool[itemProto.ID] = Deserialize(ConfigEntries[itemProto.ID].Value);
-            Pool[itemProto.ID]._configEntry = configEntry;
-            Log.LogDebug($"Loaded {itemProto.name} runtime settings");
         }
 
         public static ItemCalculationRuntimeSetting ForItemId(int itemId)
         {
             return Pool[itemId];
-        }
-
-        [HarmonyPostfix, HarmonyPatch(typeof(ItemProto), nameof(ItemProto.Preload))]
-        public static void UIStatisticsWindow__OnOpen_Postfix(ItemProto __instance)
-        {
-            InitConfig(__instance);
         }
     }
 

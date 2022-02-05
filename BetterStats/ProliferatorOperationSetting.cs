@@ -37,13 +37,14 @@ namespace BetterStats
         public static void Init()
         {
             InitSprites();
+            ItemCalculationRuntimeSetting.InitConfig();
         }
 
 
         private static void InitSprites()
         {
             var productivityTexture = Resources.Load<Texture2D>("ui/textures/sprites/icons/plus");
-            var normalProlifTexture = Resources.Load<Texture2D>("ui/textures/sprites/icons/factory-icon");
+            var normalProlifTexture = Resources.Load<Texture2D>("ui/textures/sprites/icons/voxel-icon");
             var speedTexture = Resources.Load<Texture2D>("ui/textures/sprites/sci-fi/arrow-mark-60px");
             var checkBoxOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
             var checkBoxOn = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-on");
@@ -169,12 +170,16 @@ namespace BetterStats
                 _disableButton.button.image.sprite = checkboxOnSprite;
             }
 
-            foreach (var availableButton in _availableButtons)
+            if (!runtimeSetting.Enabled)
             {
-                if (availableButton == _disableButton)
-                    continue;
-                availableButton.gameObject
-                    .SetActive(availableButton == _forceProductivityButton ? runtimeSetting.productivitySupported : runtimeSetting.Enabled);
+                foreach (var availableButton in _availableButtons)
+                {
+                    if (availableButton == _disableButton)
+                        continue;
+                    availableButton.gameObject
+                        .SetActive(false);
+                }
+                return;
             }
 
             switch (runtimeSetting.Mode)
@@ -203,13 +208,12 @@ namespace BetterStats
         private void ReInitButtonStates()
         {
             var runtimeSetting = ItemCalculationRuntimeSetting.ForItemId(_productId);
-            if (!runtimeSetting.speedSupported)
+            if (!runtimeSetting.SpeedSupported && !runtimeSetting.ProductivitySupported)
             {
                 foreach (var button in _availableButtons)
                 {
                     button.gameObject.SetActive(false);
                 }
-
                 return;
             }
 
@@ -218,7 +222,7 @@ namespace BetterStats
                 _forceProductivityButton.tips.tipTitle = FORCE_PRODUCTIVITY_MODE;
                 _forceProductivityButton.highlighted = false;
                 _forceProductivityButton.button.interactable = true;
-                _forceProductivityButton.gameObject.SetActive(runtimeSetting.productivitySupported);
+                _forceProductivityButton.gameObject.SetActive(runtimeSetting.ProductivitySupported);
             }
 
             if (_forceSpeedButton != null)
@@ -226,7 +230,7 @@ namespace BetterStats
                 _forceSpeedButton.tips.tipTitle = FORCE_SPEED_MODE;
                 _forceSpeedButton.highlighted = false;
                 _forceSpeedButton.button.interactable = true;
-                _forceSpeedButton.gameObject.SetActive(true);
+                _forceSpeedButton.gameObject.SetActive(runtimeSetting.SpeedSupported);
             }
 
             if (_disableButton != null)
@@ -354,6 +358,11 @@ namespace BetterStats
 
             // todo figure out better way to manage this
             _chosenItemIdForRecipeId[assemblerRecipeId] = chosenItemId;
+            if (chosenItemId == 1120)
+            {
+                // hydrogen is kind of boring
+                chosenItemId = recipeProto.Results[1];
+            }
             Log.LogDebug($"chose {chosenItemId} for recipe {recipeProto.name} (total: {recipeProto.Results.Length})");
             return ItemCalculationRuntimeSetting.ForItemId(chosenItemId);
         }
