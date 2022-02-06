@@ -36,6 +36,7 @@ namespace BetterStats
         private static ConfigEntry<float> lackOfProductionRatioTrigger;
         private static ConfigEntry<float> consumptionToProductionRatioTrigger;
         private static ConfigEntry<bool> displayPerSecond;
+        public static ConfigEntry<bool> disableProliferatorCalc;
         private static Dictionary<int, ProductMetrics> counter = new();
         private static GameObject txtGO, chxGO, filterGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
@@ -86,6 +87,8 @@ namespace BetterStats
                     " (e.g. if set to '1.5' then you will be warned if your max consumption is more than 150% of your max production)");
             displayPerSecond = Config.Bind("General", "displayPerSecond", false,
                     "Used by UI to persist the last selected value for checkbox");
+            disableProliferatorCalc = Config.Bind("General", "Disable Proliferator Calculation", false,
+                    "Tells mod to ignore proliferator points completely. Can cause production rates to exceed theoretical max values");
         }
 
         internal void OnDestroy()
@@ -689,7 +692,8 @@ namespace BetterStats
                 var productionFrequency = baseFrequency;
                 var speed = (float)(0.0001 * (double)assembler.speed);
 
-                ItemCalculationRuntimeSetting runtimeSetting = ProliferatorOperationSetting.ForRecipe(assembler.recipeId);
+                var runtimeSetting =
+                    disableProliferatorCalc.Value ? ItemCalculationRuntimeSetting.None : ProliferatorOperationSetting.ForRecipe(assembler.recipeId);
 
                 // forceAccMode is 'Production Speedup' mode. It just adds a straight increase to both production and consumption rate
                 if (runtimeSetting.Enabled)
@@ -893,7 +897,7 @@ namespace BetterStats
             // when we are in Production Speedup mode `speedOverride` is increased.
             float baseFrequency = 0f, productionFrequency = 0;
 
-            var runtimeSetting = ProliferatorOperationSetting.ForRecipe(lab.recipeId);
+            var runtimeSetting = disableProliferatorCalc.Value ? ItemCalculationRuntimeSetting.None : ProliferatorOperationSetting.ForRecipe(lab.recipeId);
 
             if (runtimeSetting != null && runtimeSetting.Enabled)
             {

@@ -21,6 +21,11 @@ namespace BetterStats
     /// </summary>
     public class ItemCalculationRuntimeSetting
     {
+        public static readonly ItemCalculationRuntimeSetting None = new(0)
+        {
+            _enabled = false,
+            _mode = ItemCalculationMode.None,
+        };
         private ItemCalculationMode _mode = ItemCalculationMode.Normal;
         private bool _enabled;
 
@@ -63,7 +68,7 @@ namespace BetterStats
             }
         }
 
-        public bool SpeedSupported => _itemProto.recipes is { Count: > 0 };
+        public bool SpeedSupported => _itemProto is { recipes: { Count: > 0 } };
 
         public bool ProductivitySupported
         {
@@ -117,7 +122,7 @@ namespace BetterStats
 
         public static ItemCalculationRuntimeSetting ForItemId(int itemId)
         {
-            return Pool[itemId];
+            return disableProliferatorCalc.Value ? None : Pool[itemId];
         }
     }
 
