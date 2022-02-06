@@ -116,7 +116,6 @@ namespace BetterStats
 
                 Pool[itemProto.ID] = Deserialize(ConfigEntries[itemProto.ID].Value);
                 Pool[itemProto.ID]._configEntry = configEntry;
-                Log.LogDebug($"Loaded {itemProto.name} runtime settings");
             }
         }
 

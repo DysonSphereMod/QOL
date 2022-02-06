@@ -37,6 +37,7 @@ namespace BetterStats
         private static ConfigEntry<float> consumptionToProductionRatioTrigger;
         private static ConfigEntry<bool> displayPerSecond;
         public static ConfigEntry<bool> disableProliferatorCalc;
+        public static ConfigEntry<bool> disableStackingCalc;
         private static Dictionary<int, ProductMetrics> counter = new();
         private static GameObject txtGO, chxGO, filterGO;
         private static Texture2D texOff = Resources.Load<Texture2D>("ui/textures/sprites/icons/checkbox-off");
@@ -89,6 +90,8 @@ namespace BetterStats
                     "Used by UI to persist the last selected value for checkbox");
             disableProliferatorCalc = Config.Bind("General", "Disable Proliferator Calculation", false,
                     "Tells mod to ignore proliferator points completely. Can cause production rates to exceed theoretical max values");
+            disableStackingCalc = Config.Bind("General", "Disable Stacking Calculation", false,
+                    "Tells mod to ignore unlocked tech for stacking items on belts. By default uses same 'Tech Limit' value as stations use");
         }
 
         internal void OnDestroy()
@@ -888,6 +891,33 @@ namespace BetterStats
                         counter[generator.catalystId].consumers++;
                     }
                 }
+            }
+
+            var cargoTraffic = planetFactory.cargoTraffic;
+            for (int i = 0; i < planetFactory.cargoTraffic.spraycoaterCursor; i++)
+            {
+                var sprayCoater = cargoTraffic.spraycoaterPool[i];
+                if (sprayCoater.id != i || sprayCoater.incItemId < 1)
+                    continue;
+                ItemProto itemProto = LDB.items.Select(sprayCoater.incItemId);
+                var beltComponent = cargoTraffic.beltPool[sprayCoater.cargoBeltId];
+                // Belt running at 6 / s transports 360 cargos in 1 minute
+                // Tooltip for spray lvl 1 shows: "Numbers of sprays = 12", which means that
+                // each spray covers 12 cargos so 360 / 12 = 30 items are covered per minute
+                // (HpMax from proto == Numbers of Sprays)
+                // For now, since we're computing max consumption of the sprays, don't worry about sprays
+                // that are themselves sprayed since that would lead to lower consumption
+                var numbersOfSprays = itemProto.HpMax;
+
+                // beltspeed is 1,2,5 so must be multiplied by 6 to get 6,12,30
+                var beltRatePerMin = 6 * beltComponent.speed * 60;
+                int beltMaxStack = ResearchTechHelper.GetMaxPilerStackingUnlocked();
+                var frequency = beltMaxStack * beltRatePerMin / (float) numbersOfSprays;
+                var productId = sprayCoater.incItemId;
+                EnsureId(ref counter, productId);
+
+                counter[productId].consumption += frequency;
+                counter[productId].consumers++;
             }
         }
 

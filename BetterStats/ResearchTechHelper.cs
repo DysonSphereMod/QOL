@@ -66,5 +66,17 @@ namespace DefaultNamespace
         {
             return GetMaxIncIndex() > 0;
         }
+
+        public static int GetMaxPilerStackingUnlocked()
+        {
+            if (BetterStats.BetterStats.disableStackingCalc.Value)
+            {
+                return 1;
+            }
+            var stationPilerLevel1 = GameMain.history.TechUnlocked(3801) ? 1 + (int)LDB.techs.Select(3801).UnlockValues[0] : 1;
+            var stationPilerLevel2 = GameMain.history.TechUnlocked(3802) ? stationPilerLevel1 + (int)LDB.techs.Select(3802).UnlockValues[0] : stationPilerLevel1;
+            var maxStationPilerTech = GameMain.history.TechUnlocked(3803) ? stationPilerLevel2 + (int)LDB.techs.Select(3803).UnlockValues[0] : stationPilerLevel2;
+            return maxStationPilerTech;
+        }
     }
 }
