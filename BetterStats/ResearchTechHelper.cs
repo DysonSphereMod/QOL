@@ -61,5 +61,10 @@ namespace DefaultNamespace
                 }
             }
         }
+
+        public static bool IsProliferatorUnlocked()
+        {
+            return GetMaxIncIndex() > 0;
+        }
     }
 }

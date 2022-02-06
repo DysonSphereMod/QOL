@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using DefaultNamespace;
 using UnityEngine;
 using UnityEngine.UI;
 using static BetterStats.BetterStats;
@@ -69,6 +70,8 @@ namespace BetterStats
 
         public static ProliferatorOperationSetting ForProductEntry(UIProductEntry uiProductEntry)
         {
+            if (!ResearchTechHelper.IsProliferatorUnlocked())
+                return null;
             var itemId = uiProductEntry.entryData.itemId;
             ProliferatorOperationSetting result;
 

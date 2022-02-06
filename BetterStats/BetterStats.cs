@@ -571,7 +571,7 @@ namespace BetterStats
 
             if (warnOnHighMaxConsumption && !isTotalTimeWindow)
                 enhancement.maxConsumptionValue.color = new Color(1f, 1f, .25f, .5f);
-            enhancement.proliferatorOperationSetting.UpdateItemId(__instance.entryData.itemId);
+            enhancement.proliferatorOperationSetting?.UpdateItemId(__instance.entryData.itemId);
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(UIStatisticsWindow), "ComputeDisplayEntries")]
