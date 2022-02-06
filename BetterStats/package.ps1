@@ -4,8 +4,8 @@ Set-StrictMode -Version Latest
 
 write-host "version type $vertype"
 
-Remove-Item .\tmp_release -Force  -Recurse
-New-Item .\tmp_release -ItemType "directory" -Force
+Remove-Item .\tmp_release -Force -Recurse
+New-Item .\tmp_release -ItemType "directory" -Force -ErrorAction Stop
 
 $manifestContent =  Get-Content -path .\manifest.json -Raw
 $j = $manifestContent | ConvertFrom-Json
@@ -45,7 +45,8 @@ $new_version_string = "$([string]::Join(".", $new_version))";
 
 $sourceFileContent -replace $old_vernum, $new_version_string  | Set-Content -Path .\BetterStats.csproj -NoNewline
 
-Start-Process dotnet.exe -ArgumentList "build"  -Wait
+$dotnet_process = Start-Process dotnet.exe -ArgumentList "build"  -ErrorAction Stop -NoNewWindow -PassThru
+Wait-Process -Id $dotnet_process.Id -ErrorAction Continue
 
 Copy-Item -Path bin/Debug/netstandard2.0/BetterStats.dll -Destination tmp_release
 Copy-Item README.md -Destination tmp_release\README.md
