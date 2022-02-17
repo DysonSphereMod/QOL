@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Globalization;
+using UnityEngine.EventSystems;
 
 namespace BetterStats
 {
@@ -440,8 +441,22 @@ namespace BetterStats
 
             _inputField.onValueChanged.AddListener((string value) =>
             {
-                filterStr = value;
+                if (_inputField.wasCanceled)
+                {
+                    // When escape key is pressed keep the current value. The default behavior was to reset/restore value to the previous submitted text
+                    _inputField.text = filterStr;
+                }
+                else
+                {
+                    filterStr = value;
+                }
                 __instance.ComputeDisplayEntries();
+            });
+
+            _inputField.onEndEdit.AddListener((string value) =>
+            {
+                // Reset focus to allow pressing escape key to close production panel after entering value into filter inputField
+                EventSystem.current.SetSelectedGameObject(null);
             });
 
             chxGO.transform.SetParent(__instance.productSortBox.transform.parent, false);
