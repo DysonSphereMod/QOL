@@ -691,6 +691,7 @@ namespace BetterStats
                 var assembler = factorySystem.assemblerPool[i];
                 if (assembler.id != i || assembler.recipeId == 0) continue;
 
+                var isNonProductiveRecipe = LDB.recipes.Select(assembler.recipeId).NonProductive;
                 var baseFrequency = 60f / (float)(assembler.timeSpend / 600000.0);
                 var productionFrequency = baseFrequency;
                 var speed = (float)(0.0001 * (double)assembler.speed);
@@ -704,7 +705,7 @@ namespace BetterStats
                     if (runtimeSetting.Mode == ItemCalculationMode.Normal)
                     {
                         // let assembler decide
-                        if (assembler.forceAccMode)
+                        if (assembler.forceAccMode || isNonProductiveRecipe)
                         {
                             speed += speed * maxSpeedIncrease;
                         }

@@ -121,7 +121,25 @@ namespace BetterStats
 
         public static ItemCalculationRuntimeSetting ForItemId(int itemId)
         {
-            return disableProliferatorCalc.Value ? None : Pool[itemId];
+            if (disableProliferatorCalc.Value)
+                return None;
+            if (Pool.ContainsKey(itemId))
+                return Pool[itemId];
+
+            var defaultValue = new ItemCalculationRuntimeSetting(itemId)
+            {
+                _enabled = true,
+                _mode = ItemCalculationMode.Normal
+            };
+
+            var configEntry = configFile.Bind("Internal", $"ProliferatorStatsSetting_{itemId}",
+                defaultValue.Serialize(),
+                "For internal use only");
+            ConfigEntries[itemId] = configEntry;
+
+            Pool[itemId] = Deserialize(ConfigEntries[itemId].Value);
+            Pool[itemId]._configEntry = configEntry;
+            return Pool[itemId];
         }
     }
 
