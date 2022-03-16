@@ -9,6 +9,12 @@
 !.editorconfig
 !.gitignore
 !*.md
+!*.ps1
+!*.psm1
+!NuGet.Config
 
 bin/
 obj/
+tmp_release
+.idea
+.vs

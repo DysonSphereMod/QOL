@@ -62,13 +62,15 @@ Inspired by https://docs.bepinex.dev/master/articles/dev_guide/plugin_tutorial/1
 ### Setup visual studio
 
 -   Install Visual Studio (not visual studio code)
--   In Visual Studio, create a new blank project and there choose "add more tools" and add .Net developpement support
+-   In Visual Studio, create a new blank project and there choose "add more tools" and add .Net development support
 -   Install .Net Framework 3.5 (be careful to choose "Framework")
 
 ### project setup
 
 -   In Visual Studio, choose import and then select "BetterStats.csproj"
--   In the right tree, right click references and then select "add references" and add the requered references (most of them located in C:\Program Files (x86)\Steam\steamapps\common\Dyson Sphere Program\DSPGAME_Data\Managed ; others are from BepinEx)
--   You will find the last DLL "Assembly-CSharp.refstub.dll" in https://discord.com/channels/806549677209944084/806556447885623336/809241758323572766
+-   Game libraries should be loaded from NuGet 
 
+### Create a release
+-   From a PowerShell prompt run `.\package -vertype ` with either major, minor, patch or 'none'. 'none' will not increment the version number 
+-   Uploadable zip file will be placed in .\tmp_release   
 <div>Icon made by <a href="https://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
